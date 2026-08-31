@@ -1,0 +1,26 @@
+{
+  "$comment": "Executable documentation. Each entry declares the recipe file, the task it demonstrates, the API surface it exercises, the version it first worked in, and machine-checkable 'expects' strings asserted by tests/docs/recipes.test.ts.",
+  "recipes": [
+    {
+      "file": "read-list-entries.ts",
+      "task": "Open an archive and list entries without decompressing anything",
+      "surface": ["openZip", "entries"],
+      "since": "0.1.0",
+      "expects": ["entryCount=3", "names=dir/,hello.txt,data.bin"]
+    },
+    {
+      "file": "random-access-single-entry.ts",
+      "task": "Read exactly one entry from an archive, CRC-verified",
+      "surface": ["openZip", "getEntry", "readEntry"],
+      "since": "0.1.0",
+      "expects": ["content=hello zipnative", "verified=true"]
+    },
+    {
+      "file": "extract-safe.ts",
+      "task": "Extract an untrusted archive in memory with security defaults",
+      "surface": ["extractZip"],
+      "since": "0.1.0",
+      "expects": ["extracted=2", "traversal-rejected=true"]
+    }
+  ]
+}
