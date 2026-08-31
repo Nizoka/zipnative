@@ -4,7 +4,7 @@ zipnative ships milestone by milestone; each version lands against the full
 quality gate (typecheck, lint, coverage, build, package checks, Linux + Windows
 CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 
-## 0.1.x — M1: Read + random access + secure extract *(current)*
+## 0.1.x — M1: Read + random access + secure extract ✅ *(shipped 2026-09-01)*
 
 - `openZip()` — lazy central-directory reader, name-indexed random access
 - `readEntry` / `readEntryStream` / `readEntryRaw` / `verifyEntry`
@@ -15,7 +15,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - CWE-tagged configurable limits; diagnostics channel; typed errors
 - Adversarial fuzzing suite; interop read corpus (foreign-tool fixtures)
 
-## 0.2.x — M2: Deterministic write + streaming
+## 0.2.x — M2: Deterministic write + streaming ✅ *(shipped 2026-09-01, current)*
 
 - `createZip()` with `toBytes()` and `stream()` over one shared segment
   generator (byte-identical by construction)

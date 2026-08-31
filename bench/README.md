@@ -6,10 +6,9 @@ release — benchmarks are **never** a blocking CI gate.
 
 ## Comparators
 
-`fflate`, `jszip` and `adm-zip` appear here as devDependencies **for
-benchmarking only** — they are never imported from `src/` (enforced by the
-`no-restricted-imports` ESLint rule). They are added to package.json in
-milestone M2, when there is a writer to measure.
+`fflate`, `jszip` and `adm-zip` are devDependencies **for benchmarking
+only** — they are never imported from `src/` (enforced by the
+`no-restricted-imports` ESLint rule).
 
 ## Policy
 

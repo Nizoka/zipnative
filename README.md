@@ -4,7 +4,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** The read path (v0.1) is implemented and hardened; the deterministic writer, incremental modification and worker parallelism follow the [roadmap](ROADMAP.md). APIs may change before 1.0.
+> **Status: pre-1.0.** The read path (v0.1) and the deterministic writer (v0.2) are implemented and hardened; incremental modification and worker parallelism follow the [roadmap](ROADMAP.md). APIs may change before 1.0.
 
 ## Why zipnative?
 
@@ -13,7 +13,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 - **Safe by default.** Extraction refuses path traversal (zip-slip), symlink entries, duplicate names and decompression bombs unless you explicitly opt out. Every parser loop runs under a named, CWE-tagged, caller-configurable bound. Ambiguous archives (conflicting end-of-central-directory records, Zip64 field spoofing, overlapping entries) are rejected, not guessed at.
 - **Random access.** Read one entry from a 4 GB archive without extracting — or even scanning — the rest. The central directory is parsed lazily; entry payloads are zero-copy subarrays.
 - **Streaming.** Iterate entries and decompress through async iterables with bounded memory. Designed for serverless and Cloudflare Workers, not just long-lived servers.
-- **Deterministic** *(v0.2)*. Reproducible-build mode with a written determinism contract: same inputs, same SHA-256. Canonical entry ordering, pinned timestamps, no environment leakage.
+- **Deterministic.** Reproducible-build mode with a [written determinism contract](docs/determinism.md): same inputs, same SHA-256 on every runtime via the pinned pure-TS deflate encoder. Canonical entry ordering, pinned timestamps, no environment leakage.
 - **Incremental modification** *(v0.4)*. Replace, remove or add entries and save without recompressing the untouched 99% of the archive — the append-only overlay model proven in pdfnative's PDF incremental updates.
 - **Agent-pilotable.** Typed errors with the remedy in the message, a structured diagnostics channel, executable recipes, `llms.txt`, and a human-in-the-loop AI governance policy.
 
@@ -25,7 +25,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 | Random access (1 entry without full parse) | ✅ | ❌ | ❌ | yauzl ✅ | ❌ |
 | Streaming read + write | ✅ | partial (low-level) | ❌ (memory-bound) | read *or* write per lib | ❌ |
 | Safe-extract defaults (slip/bomb/ambiguity) | ✅ | DIY | DIY | DIY | historical CVEs |
-| Deterministic output (documented contract) | ✅ (v0.2) | DIY | ❌ | ❌ | ❌ |
+| Deterministic output (documented contract) | ✅ | DIY | ❌ | ❌ | ❌ |
 | Modify in place, no recompression | ✅ (v0.4) | ❌ | rewrite-all | ❌ | partial |
 | Browser + Node + Deno + Bun + Workers | ✅ | ✅ | ✅ | Node-only | Node-only |
 | Raw deflate throughput | good (platform zlib) | **best** | slow | good | poor |
@@ -66,6 +66,30 @@ const files = extractZip(bytes, {
 });
 ```
 
+Creating archives (v0.2):
+
+```ts
+import { createZip } from 'zipnative';
+
+const zip = createZip({
+    // Pin the pure-TS encoder: identical inputs → identical SHA-256,
+    // on every runtime. See docs/determinism.md.
+    compression: { deterministic: true },
+});
+zip.add('manifest.json', JSON.stringify(manifest));
+zip.add('assets/logo.png', logoBytes, { compression: { method: 'store' } });
+zip.addDirectory('assets');
+
+const bytes = zip.toBytes();          // sync, buffered
+// — or, with bounded memory (serverless/Workers), byte-identical output:
+for await (const chunk of zip.stream({ chunkSize: 64 * 1024 })) {
+    // send chunk...
+}
+
+// Large content from an async source (data-descriptor layout):
+zip.addStream('video.bin', chunkSource);
+```
+
 Everything public is exported from the single entry point; if it is not in `zipnative`'s root import, it is private.
 
 ## Security model
@@ -81,9 +105,11 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 
 ## Known limitations
 
-- The v0.1 release is **read-only**: `openZip`, `readEntry`, `readEntryStream`, `extractZip`. Writing, modification and workers land per the [roadmap](ROADMAP.md).
+- Incremental modification (`createZipModifier`) and worker parallelism land per the [roadmap](ROADMAP.md) (v0.4 / v0.5).
+- `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; Zip64 streaming is scheduled post-M4. Buffered entries, entry counts and archive offsets are fully Zip64.
+- Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.
 - Number fields above `Number.MAX_SAFE_INTEGER` (≈ 9 PB) are rejected; the public API uses `number`, not `bigint`.
-- Deflate output is byte-stable per environment but not across zlib builds unless the deterministic pure-TS encoder is pinned (v0.2 — the contract will be documented in `docs/determinism.md` before anyone can depend on it).
+- Default deflate output is byte-stable per environment but not across zlib builds; pin `compression: { deterministic: true }` for cross-runtime identity — the full contract lives in [docs/determinism.md](docs/determinism.md).
 
 ## What zipnative will NOT do
 

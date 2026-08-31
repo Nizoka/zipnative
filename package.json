@@ -1,6 +1,6 @@
 {
   "name": "zipnative",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Zero-dependency native ZIP engine: random-access reads without extracting, secure-by-default extraction (zip-slip, zip-bomb and header-ambiguity guards), true streaming, deterministic reproducible archives, and incremental modification without recompression. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, built under a human-in-the-loop AI-agent governance policy.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -106,7 +106,10 @@
     "@arethetypeswrong/cli": "^0.18.2",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.8",
+    "adm-zip": "^0.6.0",
     "eslint": "^9.0.0",
+    "fflate": "^0.8.3",
+    "jszip": "^3.10.1",
     "publint": "^0.3.12",
     "tsup": "^8.0.0",
     "tsx": "^4.22.4",

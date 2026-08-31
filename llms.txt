@@ -19,6 +19,21 @@
   `{ path, data, entry }[]`; writing to disk is the caller's (or the future
   CLI's) job. `sanitizeEntryPath()` is exported for external sinks.
 
+## Core writing API (v0.2)
+
+- `createZip(options?)` → `ZipWriter` with `add(name, data, opts?)`,
+  `addDirectory(name)`, `addStream(name, asyncIterable)` (data-descriptor
+  layout; ≤ 4 GiB), `setComment`, `toBytes()` (sync) and
+  `stream({ chunkSize? })` (async, byte-identical to toBytes).
+- Reproducible archives: `createZip({ compression: { deterministic: true } })`
+  → identical inputs give identical SHA-256 on every runtime (contract:
+  docs/determinism.md). Default timestamps are the DOS epoch — already
+  reproducible; `defaultDate: 'now'` opts into wall-clock time.
+- The writer never emits traversal-capable names (validated at `add()`),
+  entries are sorted canonically by raw name bytes
+  (`order: 'insertion'` preserves call order — EPUB/JAR mimetype case),
+  and Zip64 records appear exactly when a field overflows.
+
 ## Core reading API (v0.1)
 
 - `openZip(bytes, options?)` → `ZipReader` with `entries()`, `getEntry(name)`,
