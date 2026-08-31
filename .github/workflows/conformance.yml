@@ -8,8 +8,11 @@
 # Tool versions are echoed into the job summary first, so a failure is
 # attributable to "our bug" vs "runner image tool drift".
 #
-# Status: present from Phase 0, trivially green until the writer exists;
-# BLOCKING from milestone M2 (v0.2.0, deterministic write) onward.
+# Status: BLOCKING since M2 (v0.2.0) — the driver validates both
+# directions: zipnative reads foreign producers byte-for-byte, and
+# foreign extractors validate/extract zipnative's archive matrix
+# (store/deflate, streamed data-descriptor entries, deterministic mode,
+# unicode names, zip64 entry counts).
 name: Conformance
 
 on:

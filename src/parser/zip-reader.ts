@@ -112,9 +112,8 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     // ── Lazy state (closure-held, never on the returned object) ──────
     let entryList: ZipEntry[] | undefined;
     let nameIndex: Map<string, ZipEntry> | undefined;
-    let rangesChecked = false;
-    /** dataStart/dataEnd per entry index, filled by the overlap pass. */
-    let dataStarts: number[] | undefined;
+    /** Sorted start offsets of every entry region + the CD (overlap defence). */
+    let boundaries: number[] | undefined;
 
     const ensureEntries = (): ZipEntry[] => {
         entryList ??= parseCentralDirectory(bytes, layout, limits, emit);
@@ -135,45 +134,60 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     };
 
     /**
-     * Parse every local header once, record data ranges, and reject any
-     * overlap among entries or with the central directory (CWE-405 —
-     * overlapping-entry bombs and payload-sharing smuggling).
+     * Overlap defence (CWE-405, payload-sharing smuggling) at O(log n)
+     * per read: the central directory alone yields the sorted start
+     * boundaries of every entry region (plus the CD itself). An entry's
+     * REAL extent — known once its local header is parsed at read time —
+     * must fit entirely before the next boundary. Duplicate header
+     * offsets (two entries claiming one region) are rejected outright.
+     * `validate: 'eager'` runs the per-entry check for every entry.
      */
-    const ensureRanges = (): number[] => {
-        if (!rangesChecked || dataStarts === undefined) {
+    const ensureBoundaries = (): number[] => {
+        if (boundaries === undefined) {
             const list = ensureEntries();
-            dataStarts = new Array<number>(list.length);
-            const ranges: Array<{ start: number; end: number; name: string }> = [];
-            for (let i = 0; i < list.length; i++) {
-                const entry = list[i];
-                const lfh = parseLocalFileHeader(bytes, entry.localHeaderOffset);
-                let end = lfh.dataStart + entry.compressedSize;
-                if ((lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0) {
-                    // A trailing descriptor (12–24 bytes) belongs to this
-                    // entry's range; use the minimal signless size — overlap
-                    // with the NEXT header start is what matters.
-                    end += 12;
-                }
-                if (end > bytes.length) {
-                    throw new ZipFormatError(
-                        `zipnative: entry '${entry.name}' data extends past the end of the archive (truncated or corrupt)`);
-                }
-                dataStarts[i] = lfh.dataStart;
-                ranges.push({ start: entry.localHeaderOffset, end, name: entry.name });
-            }
-            ranges.push({ start: layout.cdOffset, end: layout.cdOffset + layout.cdSize, name: '<central directory>' });
-            ranges.sort((a, b) => a.start - b.start);
-            for (let i = 1; i < ranges.length; i++) {
-                if (ranges[i].start < ranges[i - 1].end) {
+            const sorted = list.map((e) => e.localHeaderOffset);
+            sorted.push(layout.cdOffset);
+            sorted.sort((a, b) => a - b);
+            for (let i = 1; i < sorted.length; i++) {
+                if (sorted[i] === sorted[i - 1]) {
                     throw new ZipSecurityError(
-                        `zipnative: entry '${ranges[i].name}' overlaps '${ranges[i - 1].name}' — `
-                        + 'overlapping-entry archives are rejected (decompression-bomb/smuggling shape)',
-                        ranges[i].name);
+                        'zipnative: two entries share one local-header offset — overlapping-entry archives are '
+                        + 'rejected (decompression-bomb/smuggling shape)');
                 }
             }
-            rangesChecked = true;
+            boundaries = sorted;
         }
-        return dataStarts;
+        return boundaries;
+    };
+
+    /** Enforce that [entry start, dataEnd) crosses no other entry or the CD. */
+    const checkEntryExtent = (entry: ZipEntry, dataEnd: number): void => {
+        if (dataEnd > bytes.length) {
+            throw new ZipFormatError(
+                `zipnative: entry '${entry.name}' data extends past the end of the archive (truncated or corrupt)`);
+        }
+        if (entry.localHeaderOffset >= layout.cdOffset) {
+            throw new ZipSecurityError(
+                `zipnative: entry '${entry.name}' claims to start inside the central directory — `
+                + 'overlapping-entry archives are rejected',
+                entry.name);
+        }
+        const sorted = ensureBoundaries();
+        // Binary search: smallest boundary strictly greater than this start.
+        let lo = 0;
+        let hi = sorted.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (sorted[mid] <= entry.localHeaderOffset) lo = mid + 1;
+            else hi = mid;
+        }
+        const nextBoundary = lo < sorted.length ? sorted[lo] : bytes.length;
+        if (dataEnd > nextBoundary) {
+            throw new ZipSecurityError(
+                `zipnative: entry '${entry.name}' extends into another entry or the central directory — `
+                + 'overlapping-entry archives are rejected (decompression-bomb/smuggling shape)',
+                entry.name);
+        }
     };
 
     const resolveEntry = (entryOrName: ZipEntry | string): ZipEntry => {
@@ -202,13 +216,15 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
             enforceLimit(limits, 'maxCompressionRatio', ratio, `entry '${entry.name}' compression ratio`);
         }
 
-        const starts = ensureRanges();
-        const index = ensureEntries().indexOf(entry);
-        if (index === -1) {
-            throw new ZipError(
-                "zipnative: this ZipEntry does not belong to this reader (pass the entry's name instead)");
-        }
         const lfh = parseLocalFileHeader(bytes, entry.localHeaderOffset);
+        let dataEnd = lfh.dataStart + entry.compressedSize;
+        if ((lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0) {
+            // A trailing descriptor (12–24 bytes) belongs to this entry's
+            // region; the minimal signless size suffices for the boundary
+            // check — crossing the NEXT header start is what matters.
+            dataEnd += 12;
+        }
+        checkEntryExtent(entry, dataEnd);
         if (lfh.compressionMethod !== entry.compressionMethod) {
             throw new ZipSecurityError(
                 `zipnative: entry '${entry.name}' local header declares method ${lfh.compressionMethod} but the `
@@ -233,7 +249,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         if (!bytesEqual(lfh.name, entry.rawName)) {
             emit(nameMismatchDiagnostic(entry.name));
         }
-        return bytes.subarray(starts[index], starts[index] + entry.compressedSize);
+        return bytes.subarray(lfh.dataStart, lfh.dataStart + entry.compressedSize);
     };
 
     const codecFor = (entry: ZipEntry): ZipCodec => {
@@ -366,7 +382,13 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     };
 
     if (options?.validate === 'eager') {
-        ensureRanges();
+        // Full pass: every entry's real extent verified up front.
+        for (const entry of ensureEntries()) {
+            const lfh = parseLocalFileHeader(bytes, entry.localHeaderOffset);
+            let dataEnd = lfh.dataStart + entry.compressedSize;
+            if ((lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0) dataEnd += 12;
+            checkEntryExtent(entry, dataEnd);
+        }
     }
 
     return reader;

@@ -18,6 +18,7 @@ import {
     EOCD_SIZE,
     LOCAL_FILE_HEADER_SIZE,
     SIG_CENTRAL_FILE_HEADER,
+    SIG_DATA_DESCRIPTOR,
     SIG_EOCD,
     SIG_LOCAL_FILE_HEADER,
     SIG_ZIP64_EOCD,
@@ -209,6 +210,145 @@ export interface LocalFileHeader {
     readonly extra: Uint8Array;
     /** Offset of the entry data: header position + fixed size + variable tails. */
     readonly dataStart: number;
+}
+
+// ── Record writers (M2) ──────────────────────────────────────────────
+// Pure functions, symmetric to the parsers above. Field values may be
+// Zip64 sentinels — the BUILDER decides sentinels and extra fields; these
+// functions only lay out bytes.
+
+export interface LocalHeaderFields {
+    readonly versionNeeded: number;
+    readonly flags: number;
+    readonly compressionMethod: number;
+    readonly dosTime: number;
+    readonly dosDate: number;
+    readonly crc32: number;
+    readonly compressedSize: number;
+    readonly uncompressedSize: number;
+    readonly name: Uint8Array;
+    readonly extra: Uint8Array;
+}
+
+/** Serialize a local file header (30 bytes + name + extra). */
+export function writeLocalFileHeader(f: LocalHeaderFields): Uint8Array {
+    const out = new Uint8Array(LOCAL_FILE_HEADER_SIZE + f.name.length + f.extra.length);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, SIG_LOCAL_FILE_HEADER, true);
+    dv.setUint16(4, f.versionNeeded, true);
+    dv.setUint16(6, f.flags, true);
+    dv.setUint16(8, f.compressionMethod, true);
+    dv.setUint16(10, f.dosTime, true);
+    dv.setUint16(12, f.dosDate, true);
+    dv.setUint32(14, f.crc32 >>> 0, true);
+    dv.setUint32(18, f.compressedSize >>> 0, true);
+    dv.setUint32(22, f.uncompressedSize >>> 0, true);
+    dv.setUint16(26, f.name.length, true);
+    dv.setUint16(28, f.extra.length, true);
+    out.set(f.name, LOCAL_FILE_HEADER_SIZE);
+    out.set(f.extra, LOCAL_FILE_HEADER_SIZE + f.name.length);
+    return out;
+}
+
+/**
+ * Serialize a data descriptor (with the PK\x07\x08 signature). 8-byte
+ * sizes are the Zip64 form — only when the entry's sizes overflowed.
+ */
+export function writeDataDescriptor(crc: number, compressedSize: number, uncompressedSize: number, zip64: boolean): Uint8Array {
+    const out = new Uint8Array(zip64 ? 24 : 16);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, SIG_DATA_DESCRIPTOR, true);
+    dv.setUint32(4, crc >>> 0, true);
+    if (zip64) {
+        dv.setBigUint64(8, BigInt(compressedSize), true);
+        dv.setBigUint64(16, BigInt(uncompressedSize), true);
+    } else {
+        dv.setUint32(8, compressedSize >>> 0, true);
+        dv.setUint32(12, uncompressedSize >>> 0, true);
+    }
+    return out;
+}
+
+export interface CentralHeaderFields extends LocalHeaderFields {
+    readonly versionMadeBy: number;
+    readonly internalAttributes: number;
+    readonly externalAttributes: number;
+    readonly localHeaderOffset: number;
+    readonly comment: Uint8Array;
+}
+
+/** Serialize a central-directory file header (46 bytes + variable tails). */
+export function writeCentralFileHeader(f: CentralHeaderFields): Uint8Array {
+    const out = new Uint8Array(CENTRAL_FILE_HEADER_SIZE + f.name.length + f.extra.length + f.comment.length);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, SIG_CENTRAL_FILE_HEADER, true);
+    dv.setUint16(4, f.versionMadeBy, true);
+    dv.setUint16(6, f.versionNeeded, true);
+    dv.setUint16(8, f.flags, true);
+    dv.setUint16(10, f.compressionMethod, true);
+    dv.setUint16(12, f.dosTime, true);
+    dv.setUint16(14, f.dosDate, true);
+    dv.setUint32(16, f.crc32 >>> 0, true);
+    dv.setUint32(20, f.compressedSize >>> 0, true);
+    dv.setUint32(24, f.uncompressedSize >>> 0, true);
+    dv.setUint16(28, f.name.length, true);
+    dv.setUint16(30, f.extra.length, true);
+    dv.setUint16(32, f.comment.length, true);
+    dv.setUint16(34, 0, true); // disk number start
+    dv.setUint16(36, f.internalAttributes, true);
+    dv.setUint32(38, f.externalAttributes >>> 0, true);
+    dv.setUint32(42, f.localHeaderOffset >>> 0, true);
+    let pos = CENTRAL_FILE_HEADER_SIZE;
+    out.set(f.name, pos);
+    pos += f.name.length;
+    out.set(f.extra, pos);
+    pos += f.extra.length;
+    out.set(f.comment, pos);
+    return out;
+}
+
+/** Serialize the classic EOCD record. Fields may carry Zip64 sentinels. */
+export function writeEocd(totalEntries: number, cdSize: number, cdOffset: number, comment: Uint8Array): Uint8Array {
+    const out = new Uint8Array(EOCD_SIZE + comment.length);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, SIG_EOCD, true);
+    dv.setUint16(4, 0, true);
+    dv.setUint16(6, 0, true);
+    dv.setUint16(8, totalEntries, true);
+    dv.setUint16(10, totalEntries, true);
+    dv.setUint32(12, cdSize >>> 0, true);
+    dv.setUint32(16, cdOffset >>> 0, true);
+    dv.setUint16(20, comment.length, true);
+    out.set(comment, EOCD_SIZE);
+    return out;
+}
+
+/** Serialize the Zip64 EOCD record (fixed 56-byte form, no extensible data). */
+export function writeZip64Eocd(totalEntries: number, cdSize: number, cdOffset: number): Uint8Array {
+    const out = new Uint8Array(ZIP64_EOCD_MIN_SIZE);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, SIG_ZIP64_EOCD, true);
+    dv.setBigUint64(4, 44n, true); // size of the remainder of this record
+    dv.setUint16(12, 0x032D, true); // version made by: Unix, spec 4.5
+    dv.setUint16(14, 45, true);     // version needed
+    dv.setUint32(16, 0, true);
+    dv.setUint32(20, 0, true);
+    dv.setBigUint64(24, BigInt(totalEntries), true);
+    dv.setBigUint64(32, BigInt(totalEntries), true);
+    dv.setBigUint64(40, BigInt(cdSize), true);
+    dv.setBigUint64(48, BigInt(cdOffset), true);
+    return out;
+}
+
+/** Serialize the Zip64 EOCD locator. */
+export function writeZip64Locator(zip64EocdOffset: number): Uint8Array {
+    const out = new Uint8Array(ZIP64_EOCD_LOCATOR_SIZE);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, SIG_ZIP64_EOCD_LOCATOR, true);
+    dv.setUint32(4, 0, true);
+    dv.setBigUint64(8, BigInt(zip64EocdOffset), true);
+    dv.setUint32(16, 1, true);
+    return out;
 }
 
 /** Parse the local file header at `pos`. */

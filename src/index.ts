@@ -25,7 +25,17 @@ export {
     type ExtractOptions,
 } from './parser/zip-extract.js';
 
-// ── 3. Entries and shared types ──────────────────────────────────────
+// ── 3. Writing: deterministic archives, buffered and streaming ───────
+export {
+    createZip,
+    type AddEntryOptions,
+    type CreateZipOptions,
+    type ZipCompressionOptions,
+    type ZipWriter,
+} from './core/zip-builder.js';
+export { type StreamOptions } from './core/zip-stream-writer.js';
+
+// ── 4. Entries and shared types ──────────────────────────────────────
 export type {
     EntryVerification,
     ZipCommonOptions,
@@ -37,7 +47,7 @@ export type {
     ZipLimits,
 } from './types/zip-types.js';
 
-// ── 4. Errors ────────────────────────────────────────────────────────
+// ── 5. Errors ────────────────────────────────────────────────────────
 export {
     ZipDataError,
     ZipError,
@@ -47,10 +57,10 @@ export {
     ZipUnsupportedError,
 } from './types/zip-errors.js';
 
-// ── 5. Security limits ───────────────────────────────────────────────
+// ── 6. Security limits ───────────────────────────────────────────────
 export { DEFAULT_ZIP_LIMITS } from './core/zip-limits.js';
 
-// ── 6. Codecs: registry, facades, checksums ──────────────────────────
+// ── 7. Codecs: registry, facades, checksums ──────────────────────────
 export {
     getCodec,
     METHOD_DEFLATE,
@@ -63,8 +73,9 @@ export {
     initNodeZipCodecs,
     setInflateImpl,
 } from './codecs/inflate.js';
+export { setDeflateImpl } from './codecs/deflate.js';
 export { crc32 } from './codecs/crc32.js';
 
-// ── 7. Package metadata ──────────────────────────────────────────────
+// ── 8. Package metadata ──────────────────────────────────────────────
 /** Library version — kept in sync with package.json by verify:docs. */
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';

@@ -114,6 +114,101 @@ export const PRODUCERS: InteropProducer[] = [
     },
 ];
 
+// ── Foreign extractors (write-direction gate, M2) ────────────────────
+
+export interface InteropExtractor {
+    /** Stable id used in reports. */
+    readonly id: string;
+    /** Human-readable tool description, or null when unavailable. */
+    readonly describe: () => string | null;
+    /** Integrity-check the archive without extracting (preferred for huge archives). */
+    readonly test?: (archivePath: string) => boolean;
+    /** Extract the archive into `destDir` for byte comparison. */
+    readonly extract?: (archivePath: string, destDir: string) => boolean;
+}
+
+function sevenZipCmd(): string | null {
+    for (const cmd of ['7z', '7za', 'C:\\Program Files\\7-Zip\\7z.exe']) {
+        if (run(cmd, ['i']).ok) return cmd;
+    }
+    return null;
+}
+
+export const EXTRACTORS: InteropExtractor[] = [
+    {
+        id: 'powershell-expand-archive',
+        describe: () => {
+            const shell = firstWorking(['pwsh', 'powershell'], ['-NoProfile', '-Command', 'exit 0']);
+            return shell === null ? null : `${shell} Expand-Archive (System.IO.Compression)`;
+        },
+        extract: (archivePath, destDir) => {
+            const shell = firstWorking(['pwsh', 'powershell'], ['-NoProfile', '-Command', 'exit 0']);
+            if (shell === null) return false;
+            return run(shell, [
+                '-NoProfile', '-Command',
+                `Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${destDir}' -Force`,
+            ]).ok;
+        },
+    },
+    {
+        id: 'bsdtar',
+        describe: () => {
+            const probe = run('tar', ['--version']);
+            return probe.ok && probe.stdout.includes('bsdtar') ? probe.stdout.split('\n')[0].trim() : null;
+        },
+        test: (archivePath) => run('tar', ['-tf', archivePath]).ok,
+        extract: (archivePath, destDir) => run('tar', ['-xf', archivePath, '-C', destDir]).ok,
+    },
+    {
+        id: 'unzip',
+        describe: () => {
+            const probe = run('unzip', ['-v']);
+            return probe.ok ? (probe.stdout.split('\n').find((l) => l.includes('UnZip'))?.trim() ?? 'Info-ZIP unzip') : null;
+        },
+        test: (archivePath) => run('unzip', ['-t', '-qq', archivePath]).ok,
+        extract: (archivePath, destDir) => run('unzip', ['-o', '-qq', archivePath, '-d', destDir]).ok,
+    },
+    {
+        id: '7z',
+        describe: () => {
+            const cmd = sevenZipCmd();
+            return cmd === null ? null : `${cmd} (7-Zip)`;
+        },
+        test: (archivePath) => {
+            const cmd = sevenZipCmd();
+            return cmd !== null && run(cmd, ['t', '-y', archivePath]).ok;
+        },
+        extract: (archivePath, destDir) => {
+            const cmd = sevenZipCmd();
+            return cmd !== null && run(cmd, ['x', '-y', `-o${destDir}`, archivePath]).ok;
+        },
+    },
+    {
+        id: 'python-zipfile',
+        describe: () => {
+            const python = firstWorking(['python3', 'python'], ['--version']);
+            return python === null ? null : `${python} -m zipfile`;
+        },
+        test: (archivePath) => {
+            const python = firstWorking(['python3', 'python'], ['--version']);
+            return python !== null && run(python, ['-m', 'zipfile', '-t', archivePath]).ok;
+        },
+        extract: (archivePath, destDir) => {
+            const python = firstWorking(['python3', 'python'], ['--version']);
+            return python !== null && run(python, ['-m', 'zipfile', '-e', archivePath, destDir]).ok;
+        },
+    },
+    {
+        id: 'jar',
+        describe: () => {
+            const probe = run('jar', ['--version']);
+            return probe.ok ? probe.stdout.split('\n')[0].trim() : null;
+        },
+        test: (archivePath) => run('jar', ['tf', archivePath]).ok,
+        extract: (archivePath, destDir) => run('jar', ['xf', archivePath], destDir).ok,
+    },
+];
+
 /** The canonical interop content set: text, binary-ish, subdir, non-ASCII name. */
 export interface InteropCase {
     readonly path: string;

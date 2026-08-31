@@ -21,6 +21,20 @@
       "surface": ["extractZip"],
       "since": "0.1.0",
       "expects": ["extracted=2", "traversal-rejected=true"]
+    },
+    {
+      "file": "deterministic-build.ts",
+      "task": "Build a reproducible archive — identical inputs, identical SHA-256",
+      "surface": ["createZip", "toBytes"],
+      "since": "0.2.0",
+      "expects": ["identical=true"]
+    },
+    {
+      "file": "create-streaming.ts",
+      "task": "Create an archive with bounded memory via stream() and addStream()",
+      "surface": ["createZip", "addStream", "stream"],
+      "since": "0.2.0",
+      "expects": ["multiple-chunks=true", "round-trip=true"]
     }
   ]
 }

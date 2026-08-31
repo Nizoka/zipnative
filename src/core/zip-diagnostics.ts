@@ -125,6 +125,25 @@ export function extraFieldMalformedDiagnostic(entryName: string): ZipDiagnostic 
     };
 }
 
+export function timestampNotPinnedDiagnostic(): ZipDiagnostic {
+    return {
+        code: 'ZIP_TIMESTAMP_NOT_PINNED',
+        severity: 'info',
+        message: "createZip used the wall clock (defaultDate: 'now') — output bytes will differ on every "
+            + 'run. Pass a fixed Date (or omit defaultDate for the DOS-epoch default) for reproducible archives.',
+    };
+}
+
+export function nondeterministicCodecDiagnostic(): ZipDiagnostic {
+    return {
+        code: 'ZIP_NONDETERMINISTIC_CODEC',
+        severity: 'info',
+        message: 'this archive pins its timestamps but compresses through the platform codec, so bytes are '
+            + 'stable only per zlib build — pass compression: { deterministic: true } for cross-runtime '
+            + 'byte-identical output (see docs/determinism.md).',
+    };
+}
+
 export function zip64ExtraIgnoredDiagnostic(entryName: string): ZipDiagnostic {
     return {
         code: 'ZIP_ZIP64_EXTRA_IGNORED',

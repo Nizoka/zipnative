@@ -23,9 +23,27 @@ export {
 export { DEFAULT_ZIP_LIMITS, enforceLimit, resolveLimits } from './zip-limits.js';
 export { createDiagnosticEmitter } from './zip-diagnostics.js';
 export {
+    buildZip64Extra,
     parseExtraFields,
     resolveUnicodePath,
     resolveUtMtime,
     resolveZip64,
+    serializeExtraFields,
     type Zip64Resolution,
 } from './zip-extra-fields.js';
+export {
+    createZip,
+    type AddEntryOptions,
+    type CreateZipOptions,
+    type ZipCompressionOptions,
+    type ZipWriter,
+} from './zip-builder.js';
+export { streamArchive, type StreamOptions } from './zip-stream-writer.js';
+export {
+    archiveSegments,
+    planArchive,
+    type EntrySpec,
+    type PlannedEntry,
+    type ZipCtx,
+    type ZipSegment,
+} from './zip-segments.js';

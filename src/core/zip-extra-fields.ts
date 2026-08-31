@@ -115,6 +115,56 @@ export function resolveZip64(
     return { uncompressedSize, compressedSize, localHeaderOffset, diskNumberStart, usesZip64, suppliedNonSentinel };
 }
 
+/**
+ * Build a Zip64 (0x0001) extra field carrying exactly the given fields,
+ * in spec order (uncompressed size, compressed size, local-header
+ * offset). Pass `undefined` for fields whose classic counterpart is NOT
+ * the sentinel — the determinism contract emits only overflowed fields
+ * (with the one exception that a LFH zip64 extra always carries both
+ * sizes together, which the caller expresses by passing both).
+ */
+export function buildZip64Extra(
+    uncompressedSize: number | undefined,
+    compressedSize: number | undefined,
+    localHeaderOffset: number | undefined,
+): Uint8Array {
+    const size = (uncompressedSize !== undefined ? 8 : 0)
+        + (compressedSize !== undefined ? 8 : 0)
+        + (localHeaderOffset !== undefined ? 8 : 0);
+    const out = new Uint8Array(4 + size);
+    const dv = new DataView(out.buffer);
+    dv.setUint16(0, 0x0001, true);
+    dv.setUint16(2, size, true);
+    let pos = 4;
+    if (uncompressedSize !== undefined) {
+        dv.setBigUint64(pos, BigInt(uncompressedSize), true);
+        pos += 8;
+    }
+    if (compressedSize !== undefined) {
+        dv.setBigUint64(pos, BigInt(compressedSize), true);
+        pos += 8;
+    }
+    if (localHeaderOffset !== undefined) {
+        dv.setBigUint64(pos, BigInt(localHeaderOffset), true);
+    }
+    return out;
+}
+
+/** Serialize `{id, data}` extra fields into one block (write-side mirror). */
+export function serializeExtraFields(fields: readonly ZipExtraField[]): Uint8Array {
+    const total = fields.reduce((sum, f) => sum + 4 + f.data.length, 0);
+    const out = new Uint8Array(total);
+    const dv = new DataView(out.buffer);
+    let pos = 0;
+    for (const f of fields) {
+        dv.setUint16(pos, f.id, true);
+        dv.setUint16(pos + 2, f.data.length, true);
+        out.set(f.data, pos + 4);
+        pos += 4 + f.data.length;
+    }
+    return out;
+}
+
 /** Extract the UT (0x5455) modification time, when present, as a Date. */
 export function resolveUtMtime(fields: readonly ZipExtraField[]): Date | null {
     const ut = fields.find((f) => f.id === 0x5455);
