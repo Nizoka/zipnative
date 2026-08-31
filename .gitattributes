@@ -1,0 +1,16 @@
+# Normalize line endings to LF for all text files.
+# CRITICAL for a ZIP library: a single autocrlf rewrite of a binary fixture
+# silently corrupts offsets and CRCs (pdfnative lost 305–616 bytes of golden
+# PDF fixtures to exactly this before adding the equivalent file).
+* text=auto eol=lf
+
+# Binary fixtures — never touched by line-ending conversion or diffed as text.
+tests/fixtures/** binary
+*.zip binary
+*.jar binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.epub binary
+*.vsix binary
+*.png binary

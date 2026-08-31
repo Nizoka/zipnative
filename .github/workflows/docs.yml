@@ -1,0 +1,84 @@
+# Documentation integrity gate.
+#
+# ci.yml deliberately ignores '**.md' and 'docs/**' so code CI stays fast —
+# which is exactly how documentation drifts out of sync with reality
+# (pdfnative once advertised 19 MCP tools against a server registering 24).
+# This workflow runs on the paths ci.yml ignores and closes that gap:
+# scripts/verify-docs.ts checks every version number, count and inventory
+# quoted anywhere in the tree against the single source of truth
+# (docs/assets/ecosystem.json) and never writes.
+name: Docs
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - 'recipes/**'
+      - 'package.json'
+      - 'CITATION.cff'
+      - 'scripts/verify-docs.ts'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - 'recipes/**'
+      - 'package.json'
+      - 'CITATION.cff'
+      - 'scripts/verify-docs.ts'
+      - '.github/workflows/docs.yml'
+  schedule:
+    # Weekly npm-registry drift check (only the scheduled run goes online,
+    # so a mid-PR release never reddens someone else's PR).
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify documentation (hermetic)
+        run: npm run verify:docs
+
+  npm-drift:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify documentation against npm registry
+        run: npm run verify:docs -- --online --strict

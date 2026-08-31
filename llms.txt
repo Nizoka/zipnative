@@ -1,0 +1,37 @@
+# zipnative
+
+> Zero-dependency native ZIP engine in pure TypeScript: random-access reads,
+> secure-by-default extraction, streaming, deterministic archives (v0.2+) and
+> incremental modification (v0.4+). Node ≥22, browsers, Deno, Bun, Workers.
+
+## Essentials
+
+- Single entry point: `import { openZip, extractZip } from 'zipnative'` —
+  everything public is exported there; nothing else is API.
+- No classes: factories return interfaces (`openZip(bytes) → ZipReader`).
+- Every error message starts `zipnative: ` and contains the remedy.
+- Extraction is safe by default: traversal, symlinks, duplicates and bombs
+  are rejected unless explicitly configured otherwise via `limits` /
+  `rejectTraversal` / `rejectSymlinks` / `onDuplicate`.
+- Encrypted entries: detected (`entry.isEncrypted`), reads throw
+  `ZipUnsupportedError`. No encryption support pre-1.0.
+- The engine never touches the filesystem — `extractZip` returns
+  `{ path, data, entry }[]`; writing to disk is the caller's (or the future
+  CLI's) job. `sanitizeEntryPath()` is exported for external sinks.
+
+## Core reading API (v0.1)
+
+- `openZip(bytes, options?)` → `ZipReader` with `entries()`, `getEntry(name)`,
+  `readEntry(entryOrName)`, `readEntryStream(entryOrName)`,
+  `readEntryRaw(entryOrName)`, `verifyEntry(entryOrName)`.
+- `extractZip(bytes, options?)` → `ExtractedEntry[]` (in memory).
+- Options embed `ZipCommonOptions`: `strict` (throw on first diagnostic),
+  `onDiagnostic` (handler), `limits` (Partial<ZipLimits>).
+
+## Docs
+
+- README.md: positioning, quick start, comparison, limitations
+- SECURITY.md: threat model and every bound with CWE tags
+- ROADMAP.md: 0.1 read → 0.2 deterministic write → 0.4 incremental modify →
+  0.5 workers → 1.0
+- AGENTS.md: conventions and architecture for contributors and agents

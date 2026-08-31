@@ -1,0 +1,97 @@
+# Interop conformance gate — zipnative's analogue of pdfnative's veraPDF gate.
+#
+# Every archive zipnative generates must be accepted by the mainstream
+# extractors real users run. The driver (scripts/run-interop.ts) builds an
+# archive matrix through the public API, validates each archive with every
+# tool available on the runner, extracts, and byte-compares the content.
+#
+# Tool versions are echoed into the job summary first, so a failure is
+# attributable to "our bug" vs "runner image tool drift".
+#
+# Status: present from Phase 0, trivially green until the writer exists;
+# BLOCKING from milestone M2 (v0.2.0, deterministic write) onward.
+name: Conformance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/run-interop.ts'
+      - '.github/workflows/conformance.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/run-interop.ts'
+      - '.github/workflows/conformance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interop-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Record tool versions
+        run: |
+          {
+            echo '## Interop tool versions (ubuntu-latest)'
+            echo '```'
+            unzip -v | head -1 || true
+            7z i | head -3 || true
+            python3 --version || true
+            java -version 2>&1 | head -1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run interop matrix
+        run: npm run test:interop
+
+  interop-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Record tool versions
+        shell: pwsh
+        run: |
+          "## Interop tool versions (windows-latest)" >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          & "C:\Program Files\7-Zip\7z.exe" i | Select-Object -First 3 >> $env:GITHUB_STEP_SUMMARY
+          tar.exe --version | Select-Object -First 1 >> $env:GITHUB_STEP_SUMMARY
+          java -version 2>&1 | Select-Object -First 1 >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Run interop matrix
+        run: npm run test:interop

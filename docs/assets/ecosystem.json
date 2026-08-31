@@ -1,0 +1,33 @@
+{
+  "$comment": "Single source of truth for every version, count and inventory quoted anywhere in the tree. scripts/verify-docs.ts enforces consistency.",
+  "packages": {
+    "zipnative": {
+      "version": "0.1.0",
+      "repo": "https://github.com/Nizoka/zipnative",
+      "status": "active"
+    },
+    "zipnative-cli": {
+      "version": null,
+      "repo": null,
+      "status": "planned",
+      "pinField": "zipnative",
+      "pin": null
+    },
+    "zipnative-mcp": {
+      "version": null,
+      "repo": null,
+      "status": "planned",
+      "pinField": "zipnative",
+      "pin": null
+    }
+  },
+  "engine": {
+    "node": ">=22"
+  },
+  "milestones": {
+    "read": "0.1.0",
+    "write": "0.2.0",
+    "modify": "0.4.0",
+    "workers": "0.5.0"
+  }
+}

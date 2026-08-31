@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-test/
+dist-scripts/
+coverage/
+test-output/
+*.tsbuildinfo
+.DS_Store
+
+# Release PR scratchpads live in release-notes/, never at the root
+RELEASE_PR_*.md
+
+# Agent-drafted issues (see .github/AGENT_RULES.md) — templates stay
+.github/drafts/*
+!.github/drafts/README.md
+!.github/drafts/TEMPLATE.md

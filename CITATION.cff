@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "zipnative"
+type: software
+authors:
+  - name: "Nizoka"
+    website: "https://pdfnative.dev"
+repository-code: "https://github.com/Nizoka/zipnative"
+license: MIT
+version: 0.1.0
+abstract: "Zero-dependency native ZIP engine in pure TypeScript: random-access reads, secure-by-default extraction, streaming, deterministic archives and incremental modification, for Node.js, browsers, Deno, Bun and Workers."
+keywords:
+  - zip
+  - archive
+  - typescript
+  - zero-dependency
+  - reproducible-builds
+  - security

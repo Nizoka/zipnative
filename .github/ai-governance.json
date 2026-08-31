@@ -1,0 +1,34 @@
+{
+  "$comment": "Machine-readable AI governance contract. Prose: .github/AGENT_RULES.md",
+  "version": 1,
+  "applies_to": ["zipnative"],
+  "policy": {
+    "autonomous_github_writes_allowed": false,
+    "runtime_dependencies_allowed": false,
+    "security_default_weakening_requires_human": true,
+    "deterministic_bytes_are_semver_major": true
+  },
+  "human_in_the_loop": {
+    "role_of_agent": "draftsman",
+    "role_of_human": "reviewer and sole performer of GitHub writes"
+  },
+  "issue_drafting": {
+    "draft_dir": ".github/drafts/",
+    "validator": "scripts/verify-issue.mjs",
+    "pre_issue_checklist": [
+      "no runtime dependency proposed",
+      "no anti-goal proposed (encryption pre-1.0, other formats, multi-disk, fs-in-engine, repair)",
+      "security-bound changes name the CWE and the SECURITY.md row",
+      "reproduction archive or generator script attached for parser bugs"
+    ]
+  },
+  "compliance_report_fields": [
+    "ai_drafted_scope",
+    "instructions_followed",
+    "quality_gate_results",
+    "rules_bent_with_justification"
+  ],
+  "capability_manifest": {
+    "sources": ["package.json", "src/index.ts", "docs/assets/ecosystem.json"]
+  }
+}
