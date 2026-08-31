@@ -14,6 +14,7 @@
  */
 
 import { inflateRawStream, inflateRawSync } from './inflate.js';
+import { deflateRawSync } from './deflate.js';
 
 /** One compression codec, keyed by its CFH compression-method id. */
 export interface ZipCodec {
@@ -52,6 +53,7 @@ function registry(): Map<number, ZipCodec> {
         _registry.set(METHOD_STORE, {
             method: METHOD_STORE,
             name: 'store',
+            compressSync: (data: Uint8Array): Uint8Array => data,
             decompressSync: (data: Uint8Array): Uint8Array => data,
             decompressStream: async function* (data: Uint8Array): AsyncGenerator<Uint8Array, void, undefined> {
                 const chunkSize = 64 * 1024;
@@ -63,6 +65,8 @@ function registry(): Map<number, ZipCodec> {
         _registry.set(METHOD_DEFLATE, {
             method: METHOD_DEFLATE,
             name: 'deflate',
+            compressSync: (data: Uint8Array, options: CodecCompressOptions): Uint8Array =>
+                deflateRawSync(data, options.level, options.deterministic),
             decompressSync: inflateRawSync,
             decompressStream: inflateRawStream,
         });

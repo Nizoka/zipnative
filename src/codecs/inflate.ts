@@ -20,6 +20,7 @@
 
 import { ZipDataError } from '../types/zip-errors.js';
 import { inflateRawJS } from './inflate-pure.js';
+import { initNodeDeflate } from './deflate.js';
 
 type InflateFn = (data: Uint8Array, maxOutput: number) => Uint8Array;
 
@@ -63,10 +64,12 @@ function getNodeInflateRaw(): InflateFn | null {
 }
 
 /**
- * Resolve node:zlib in ESM contexts. Optional performance upgrade — the
- * pure-TS tier keeps every API working without it. Call once at startup.
+ * Resolve node:zlib in ESM contexts — both directions (inflate here,
+ * deflate via codecs/deflate.ts). Optional performance upgrade: the
+ * pure-TS tiers keep every API working without it. Call once at startup.
  */
 export async function initNodeZipCodecs(): Promise<void> {
+    await initNodeDeflate();
     if (_nodeInflateRaw !== undefined) return;
     try {
         const g = globalThis as Record<string, unknown>;
