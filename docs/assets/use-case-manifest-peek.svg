@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucm-title ucm-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucm-title">The manifest peek — classify archives by reading one entry</title>
+  <desc id="ucm-desc">Architecture: a stored artifact archive of ten thousand entries flows into zipnative's openZip, which walks only the central directory lazily with zero-copy views, then readEntry pulls the single manifest entry, CRC-verified. The output is the two-kilobyte answer used to classify, index or route the archive. A dashed loop notes that everything else in the archive is never decompressed. A green band states the cost is proportional to the central directory plus the one entry, with security checks always on; a closing band states the honest limit — openZip needs the archive bytes in memory, remote range transport is the caller's concern.</desc>
+
+  <marker id="ucm-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+  </marker>
+
+  <rect x="0" y="0" width="960" height="560" fill="#F8FAFC"/>
+
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">The manifest peek</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">Classify a 4 GB archive by reading 2 KB — the central directory is the index, not the payload</text>
+
+  <!-- Stored archive (indigo) -->
+  <rect x="40" y="150" width="240" height="88" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="160" y="177" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">Artifact-store archive</text>
+  <text x="160" y="197" text-anchor="middle" font-size="11.5" fill="#4F46E5">10 000 entries · 4 GB</text>
+  <text x="160" y="213" text-anchor="middle" font-size="11.5" fill="#4F46E5">OOXML · VSIX · build outputs</text>
+
+  <line x1="282" y1="194" x2="326" y2="194" stroke="#475569" stroke-width="1.75" marker-end="url(#ucm-ah)"/>
+
+  <!-- zipnative (cyan container) -->
+  <rect x="330" y="110" width="330" height="170" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="495" y="137" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">zipnative — openZip(bytes)</text>
+  <rect x="346" y="152" width="298" height="50" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="495" y="173" text-anchor="middle" font-size="12.5" font-weight="700" fill="#155E75">central directory walk</text>
+  <text x="495" y="191" text-anchor="middle" font-size="11.5" fill="#0E7490">lazy · zero-copy views · nothing decompressed</text>
+  <rect x="346" y="212" width="298" height="50" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="495" y="233" text-anchor="middle" font-size="12.5" font-weight="700" fill="#155E75">readEntry('manifest.json')</text>
+  <text x="495" y="251" text-anchor="middle" font-size="11.5" fill="#0E7490">one entry inflated · CRC-verified</text>
+
+  <line x1="662" y1="194" x2="706" y2="194" stroke="#475569" stroke-width="1.75" marker-end="url(#ucm-ah)"/>
+
+  <!-- The answer (amber) -->
+  <rect x="710" y="150" width="210" height="88" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="815" y="177" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">The 2 KB answer</text>
+  <text x="815" y="197" text-anchor="middle" font-size="11.5" fill="#B45309">classify · index · route</text>
+  <text x="815" y="213" text-anchor="middle" font-size="11.5" fill="#B45309">without touching the rest</text>
+
+  <!-- never-decompressed loop (dashed) -->
+  <path d="M160 240 C 160 330, 380 330, 470 284" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 5" marker-start="url(#ucm-ah)"/>
+  <text x="300" y="336" text-anchor="middle" font-size="11.5" fill="#64748B">the other 9 999 entries: never decompressed,</text>
+  <text x="300" y="352" text-anchor="middle" font-size="11.5" fill="#64748B">never copied — payloads stay subarray views</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="398" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="422" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">Cost is O(central directory) + O(one entry) — with every security check still on:</text>
+  <text x="480" y="442" text-anchor="middle" font-size="12.5" fill="#16A34A">overlap detection, CD/local-header cross-validation, CWE-tagged limits, CRC verification</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="470" width="880" height="56" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="494" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">Honest limits: openZip() needs the archive bytes in memory.</text>
+  <text x="480" y="514" text-anchor="middle" font-size="12.5" fill="#475569">Fetching a remote tail with HTTP ranges is your transport's job — the engine never opens a socket.</text>
+</svg>

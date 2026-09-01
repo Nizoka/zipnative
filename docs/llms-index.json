@@ -12,8 +12,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 35231,
-      "approxTokens": 8808
+      "bytes": 46694,
+      "approxTokens": 11674
     },
     {
       "url": "llms-recipes.txt",
@@ -95,6 +95,22 @@
       ],
       "bytes": 2336,
       "approxTokens": 584
+    },
+    {
+      "title": "Use cases",
+      "summary": "Four production architectures, each built from parts zipnative already ships — one-entry reads that never touch the payload, extraction behind always-on guards, byte-reproducible release artifacts, and forward streaming with no Node in sight. Every arrow in the diagrams below is a public, shipped API — nothing here is aspirational.",
+      "html": "guides/use-cases.html",
+      "markdown": "guides/use-cases.md",
+      "anchors": [
+        "case-1--the-manifest-peek",
+        "case-2--untrusted-upload-intake",
+        "case-3--the-reproducibility-gate",
+        "case-4--streaming-intake-at-the-edge",
+        "picking-parts-not-a-platform",
+        "see-also"
+      ],
+      "bytes": 11415,
+      "approxTokens": 2854
     }
   ]
 }

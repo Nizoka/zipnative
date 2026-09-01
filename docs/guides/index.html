@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guides — zipnative</title>
-  <meta name="description" content="zipnative guides: quickstart, the security model, the determinism contract, and the frozen error-code vocabulary.">
+  <meta name="description" content="zipnative guides: quickstart, security model, determinism contract, error codes, and four production use cases.">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:locale" content="en_US">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
@@ -73,6 +73,13 @@
           <span class="guide-toc-desc">The frozen machine-readable vocabulary (39 codes): branch on
           <code>err.code</code>, never on message text. Registry twin in <code>docs/data/errors.json</code>.</span>
         </li>
+        <li>
+          <a href="use-cases.html">Use cases →</a>
+          <span class="guide-toc-desc">Four production architectures with diagrams, each built from shipped
+          APIs — the manifest peek (<code>openZip</code>), untrusted-upload intake (<code>extractZip</code>),
+          the reproducibility gate (<code>deterministic: true</code>), and streaming intake at the edge
+          (<code>iterateZipEntries</code>).</span>
+        </li>
       </ul>
     </article>
   </main>
@@ -97,6 +104,7 @@
             <li><a href="security.html">Security model</a></li>
             <li><a href="determinism.html">Determinism contract</a></li>
             <li><a href="errors.html">Errors and error codes</a></li>
+            <li><a href="use-cases.html">Use cases</a></li>
           </ul>
         </div>
         <div class="footer-col">

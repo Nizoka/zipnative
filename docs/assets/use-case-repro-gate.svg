@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucr-title ucr-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucr-title">A byte-reproducibility gate for release archives in CI</title>
+  <desc id="ucr-desc">Architecture: the source tree at a commit flows into zipnative's createZip with deterministic true — pinned pure-TS encoder, epoch timestamps, canonical entry order — producing a release archive whose bytes depend only on its inputs. The archive's SHA-256 is computed and compared against the golden checksum committed in the repository. Two branches leave the comparison: the green path, on a match, publishes the artifact; the red path, on drift, fails the build — an unreviewed content change or a broken determinism contract has been caught. A green band states the guarantee: identical inputs give identical SHA-256 on every runtime, and changing the emitted bytes is a semver-major event. The closing band states the honest limit — the guarantee is scoped to deterministic true; the default tier is stable per environment only.</desc>
+
+  <marker id="ucr-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+  </marker>
+  <marker id="ucr-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+  </marker>
+  <marker id="ucr-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+  </marker>
+
+  <rect x="0" y="0" width="960" height="560" fill="#F8FAFC"/>
+
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">The reproducibility gate</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">Release archives as asserted artifacts — any byte drift fails the build, on any runner</text>
+
+  <!-- Source (neutral) -->
+  <rect x="40" y="120" width="200" height="72" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="140" y="147" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">Source tree</text>
+  <text x="140" y="167" text-anchor="middle" font-size="11.5" fill="#64748B">@ the release commit</text>
+
+  <line x1="242" y1="156" x2="286" y2="156" stroke="#475569" stroke-width="1.75" marker-end="url(#ucr-ah)"/>
+
+  <!-- createZip (cyan) -->
+  <rect x="290" y="108" width="310" height="96" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="445" y="135" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">createZip({ compression: { deterministic: true } })</text>
+  <text x="445" y="157" text-anchor="middle" font-size="11.5" fill="#0E7490">pinned pure-TS encoder · DOS-epoch timestamps</text>
+  <text x="445" y="175" text-anchor="middle" font-size="11.5" fill="#0E7490">canonical entry order · no environment leakage</text>
+
+  <line x1="602" y1="156" x2="646" y2="156" stroke="#475569" stroke-width="1.75" marker-end="url(#ucr-ah)"/>
+
+  <!-- Artifact (amber) -->
+  <rect x="650" y="120" width="270" height="72" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="785" y="147" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">release.zip</text>
+  <text x="785" y="167" text-anchor="middle" font-size="11.5" fill="#B45309">bytes depend on inputs — nothing else</text>
+
+  <!-- sha256 (blue action) -->
+  <path d="M785 194 C 785 220, 640 226, 560 244" fill="none" stroke="#475569" stroke-width="1.75" marker-end="url(#ucr-ah)"/>
+  <rect x="360" y="248" width="240" height="56" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="480" y="272" text-anchor="middle" font-size="13" font-weight="700" fill="#1E40AF">sha256(release.zip)</text>
+  <text x="480" y="292" text-anchor="middle" font-size="11.5" fill="#3B82F6">one hash is the whole assertion</text>
+
+  <!-- Golden (indigo) -->
+  <rect x="40" y="248" width="240" height="56" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="160" y="272" text-anchor="middle" font-size="13" font-weight="700" fill="#3730A3">golden.sha256 — committed</text>
+  <text x="160" y="292" text-anchor="middle" font-size="11.5" fill="#4F46E5">reviewed like any other diff</text>
+  <line x1="282" y1="276" x2="356" y2="276" stroke="#475569" stroke-width="1.75" marker-end="url(#ucr-ah)"/>
+  <text x="319" y="266" text-anchor="middle" font-size="11" fill="#64748B">compare</text>
+
+  <!-- Branches -->
+  <path d="M540 306 C 580 330, 620 340, 660 352" fill="none" stroke="#16A34A" stroke-width="2" marker-end="url(#ucr-ah-green)"/>
+  <text x="586" y="326" text-anchor="middle" font-size="11" fill="#64748B">match</text>
+  <rect x="664" y="336" width="256" height="60" rx="10" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1.25"/>
+  <text x="792" y="361" text-anchor="middle" font-size="13.5" font-weight="700" fill="#166534">Publish</text>
+  <text x="792" y="381" text-anchor="middle" font-size="11.5" fill="#16A34A">the artifact is what the commit says</text>
+
+  <path d="M420 306 C 380 330, 340 340, 300 352" fill="none" stroke="#DC2626" stroke-width="2" marker-end="url(#ucr-ah-red)"/>
+  <text x="372" y="326" text-anchor="middle" font-size="11" fill="#64748B">drift</text>
+  <rect x="40" y="336" width="256" height="60" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="168" y="361" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">Build fails</text>
+  <text x="168" y="381" text-anchor="middle" font-size="11.5" fill="#B91C1C">unreviewed content or broken contract</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="424" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="448" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">Identical inputs → identical SHA-256 on every runtime — Linux, Windows, macOS runners agree.</text>
+  <text x="480" y="468" text-anchor="middle" font-size="12.5" fill="#16A34A">The encoder's constants are frozen public API: changing the emitted bytes is a semver-major event, golden-tested.</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="496" width="880" height="44" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="523" text-anchor="middle" font-size="12.5" fill="#475569">Honest limits: the guarantee is scoped to deterministic: true — the default (platform-zlib) tier is byte-stable per environment only.</text>
+</svg>

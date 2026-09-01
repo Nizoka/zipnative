@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="uce-title uce-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="uce-title">Streaming ZIP intake at the edge — no Node, bounded memory</title>
+  <desc id="uce-desc">Architecture: a client uploads an archive as an unseekable body stream to an edge worker with no Node APIs. Inside the worker, zipnative's iterateZipEntries consumes the stream forward entry by entry — bounded memory, CRC verified, data-descriptor entries supported — while skip discards entries the route does not need without buffering them. Selected entries stream onward to object storage or a processing queue. A green band states the portability guarantee: the same API runs on Workers, Deno, Bun, browsers and Node, with zero dependencies and Fetch-native types. The closing band states the honest limit — forward reading trusts local headers alone; openZip on the complete archive remains the authoritative path.</desc>
+
+  <marker id="uce-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+  </marker>
+  <marker id="uce-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+  </marker>
+
+  <rect x="0" y="0" width="960" height="560" fill="#F8FAFC"/>
+
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Streaming intake at the edge</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">Read an archive off an unseekable request body — entry by entry, memory bounded, no Node required</text>
+
+  <!-- Client (neutral) -->
+  <rect x="40" y="150" width="210" height="80" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="145" y="177" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">Client upload</text>
+  <text x="145" y="197" text-anchor="middle" font-size="11.5" fill="#64748B">multi-GB archive as an</text>
+  <text x="145" y="213" text-anchor="middle" font-size="11.5" fill="#64748B">unseekable body stream</text>
+
+  <line x1="252" y1="190" x2="296" y2="190" stroke="#475569" stroke-width="1.75" marker-end="url(#uce-ah)"/>
+
+  <!-- Edge worker (cyan container with nested cards) -->
+  <rect x="300" y="104" width="350" height="240" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="475" y="131" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">Edge worker — no Node APIs</text>
+  <rect x="316" y="146" width="318" height="70" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="475" y="169" text-anchor="middle" font-size="12.5" font-weight="700" fill="#155E75">for await (entry of iterateZipEntries(body))</text>
+  <text x="475" y="188" text-anchor="middle" font-size="11.5" fill="#0E7490">bounded memory · CRC verified · all limits enforced</text>
+  <text x="475" y="204" text-anchor="middle" font-size="11.5" fill="#0E7490">data-descriptor (bit 3) entries supported</text>
+  <rect x="316" y="226" width="318" height="50" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="475" y="247" text-anchor="middle" font-size="12.5" font-weight="700" fill="#155E75">entry.skip()</text>
+  <text x="475" y="265" text-anchor="middle" font-size="11.5" fill="#0E7490">discard what the route ignores — never buffered</text>
+  <text x="475" y="304" text-anchor="middle" font-size="11.5" fill="#0E7490">the resumable pure-TS inflater delimits each</text>
+  <text x="475" y="320" text-anchor="middle" font-size="11.5" fill="#0E7490">entry exactly — no central directory needed</text>
+
+  <line x1="652" y1="190" x2="696" y2="190" stroke="#16A34A" stroke-width="2" marker-end="url(#uce-ah-green)"/>
+  <text x="674" y="180" text-anchor="middle" font-size="11" fill="#64748B">selected</text>
+
+  <!-- Storage (amber) -->
+  <rect x="700" y="150" width="220" height="80" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="810" y="177" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">Object storage / queue</text>
+  <text x="810" y="197" text-anchor="middle" font-size="11.5" fill="#B45309">entries stream onward —</text>
+  <text x="810" y="213" text-anchor="middle" font-size="11.5" fill="#B45309">the archive is never held whole</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="398" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="422" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">One API everywhere: Cloudflare Workers, Deno, Bun, browsers and Node ≥ 22 —</text>
+  <text x="480" y="442" text-anchor="middle" font-size="12.5" fill="#16A34A">zero dependencies, Fetch-native types, capability detection instead of platform builds</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="470" width="880" height="56" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="494" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">Honest limits: forward reading trusts local headers alone — there is no central directory to cross-check.</text>
+  <text x="480" y="514" text-anchor="middle" font-size="12.5" fill="#475569">openZip() on the complete archive remains the authoritative path; store+bit3 and encrypted+bit3 entries are refused.</text>
+</svg>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Use cases — zipnative</title>
+  <meta name="description" content="Four production architectures built from shipped zipnative APIs: the manifest peek, untrusted-upload intake, the reproducibility gate, and streaming intake at the edge.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://zipnative.dev/guides/use-cases.html">
+  <meta property="og:title" content="Use cases — zipnative">
+  <meta property="og:description" content="Four production architectures built from shipped zipnative APIs: the manifest peek, untrusted-upload intake, the reproducibility gate, and streaming intake at the edge.">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/guides/use-cases.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/use-cases.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/use-cases.html">
+  <link rel="alternate" type="text/markdown" href="use-cases.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/index.html" },
+          { "@type": "ListItem", "position": 3, "name": "Use cases" }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Use cases",
+        "inLanguage": "en",
+        "description": "Four production architectures built from shipped zipnative APIs.",
+        "url": "https://zipnative.dev/guides/use-cases.html",
+        "author": { "@type": "Organization", "name": "Nizoka", "url": "https://zipnative.dev/" }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="index.html">Guides</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="index.html">Guides</a> › Use cases</div>
+    <article id="guide-content" class="guide-content" data-md="use-cases.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="use-cases">Use cases</h1>
+<blockquote>
+<p><strong>Four production architectures, each built from parts zipnative
+already ships</strong> — one-entry reads that never touch the payload,
+extraction behind always-on guards, byte-reproducible release
+artifacts, and forward streaming with no Node in sight. Every arrow in
+the diagrams below is a public, shipped API — nothing here is
+aspirational.</p>
+</blockquote>
+<p>The <a href="quickstart.html">quickstart</a> tells you <em>what</em> each call does; this
+guide shows <em>how they compose</em>. Each case names its exact building
+blocks, shows the load-bearing code, and states its limits.</p>
+<h2 id="case-1--the-manifest-peek">Case 1 — The manifest peek<a class="heading-anchor" href="#case-1--the-manifest-peek" aria-label="Link to this section">#</a></h2>
+<p>Most pipelines that &quot;check an archive&quot; decompress all of it to read one
+file: the <code>[Content_Types].xml</code> of a DOCX, the <code>extension.vsixmanifest</code>
+of a VSIX, the <code>manifest.json</code> of a build output. At ten thousand
+entries that is gigabytes of inflate work to answer a two-kilobyte
+question. <code>openZip()</code> inverts the cost model: the central directory is
+parsed lazily as the index it already is, payloads stay zero-copy
+subarray views, and <strong>only the one entry you read is ever decompressed —
+CRC-verified, with every security check still on</strong>.</p>
+<p><img src="../assets/use-case-manifest-peek.svg" alt="Architecture: a stored artifact archive of ten thousand entries flows into zipnative&#39;s openZip, which walks only the central directory lazily with zero-copy views, then readEntry pulls the single manifest entry, CRC-verified. The output is the two-kilobyte answer used to classify, index or route the archive. A dashed loop notes that everything else in the archive is never decompressed. A green band states the cost is proportional to the central directory plus the one entry, with security checks always on; a closing band states the honest limit — openZip needs the archive bytes in memory, remote range transport is the caller&#39;s concern."></p>
+<pre><code class="language-ts">import { openZip, ZipError } from &#39;zipnative&#39;;
+
+const zip = openZip(bytes);                    // lazy: only the trailer is parsed
+const entry = zip.getEntry(&#39;[Content_Types].xml&#39;);
+if (entry === null) return reject(&#39;not an OOXML package&#39;);
+
+const manifest = zip.readEntry(entry);         // ONE entry inflated, CRC-verified
+route(classify(manifest));                     // the other 9 999 stay compressed
+</code></pre>
+<p>What you gain, concretely:</p>
+<ul>
+<li><strong>Latency</strong> — classifying is O(central directory) + O(one entry),
+not O(archive). On the 10 000-entry benchmark corpus, inventory plus
+one read is the scenario zipnative wins outright.</li>
+<li><strong>Memory</strong> — payloads are <code>subarray</code> views of the input; nothing is
+copied until you decompress it.</li>
+<li><strong>Safety</strong> — the peek runs behind the same overlap detection,
+CD/local-header cross-validation and CWE-tagged limits as a full
+extraction. A hostile archive fails with a stable <code>err.code</code>, not
+with a wrong answer.</li>
+</ul>
+<p>Honest limits: <code>openZip()</code> needs the archive bytes in memory — fetching
+a remote tail with HTTP range requests is your transport&#39;s job (the
+engine never opens a socket), and archives above
+<code>Number.MAX_SAFE_INTEGER</code> offsets are refused rather than approximated.</p>
+<h2 id="case-2--untrusted-upload-intake">Case 2 — Untrusted-upload intake<a class="heading-anchor" href="#case-2--untrusted-upload-intake" aria-label="Link to this section">#</a></h2>
+<p>Accepting user archives is the classic parser-attack surface: zip-slip
+paths, decompression bombs, symlink redirects, overlapping entries,
+Zip64 field spoofing. The usual mitigation is a checklist the intake
+service must remember to implement. zipnative inverts the default:
+<strong><code>extractZip()</code> refuses all of it out of the box, and every refusal
+throws a typed error whose stable
+<a href="errors.html"><code>err.code</code></a> routes the archive to quarantine without
+string matching</strong>.</p>
+<p><img src="../assets/use-case-untrusted-intake.svg" alt="Architecture: a user upload, hostile until proven otherwise, flows into zipnative&#39;s extractZip with its defaults on — zip-slip, decompression bombs, symlinks, overlapping entries and Zip64 spoofing are all checked. Two branches leave the guard box: the green path, when every guard passes, yields clean path-and-data pairs joined under the caller&#39;s own root; the red path, when any guard trips, throws a typed error whose stable err.code routes the archive to quarantine with an audit log. An indigo card notes the CWE-tagged ZipLimits bounds are raised only explicitly. The closing band states the honest limit — extraction is in-memory; writing to disk is the sink&#39;s job."></p>
+<pre><code class="language-ts">import { extractZip, ZipError } from &#39;zipnative&#39;;
+
+try {
+  const files = extractZip(upload, {
+    limits: { maxTotalUncompressedSize: 512 * 1024 * 1024 }, // explicit, audited
+  });
+  for (const f of files) store(join(ROOT, f.path), f.data);  // path is sanitized
+} catch (err) {
+  if (err instanceof ZipError) {
+    quarantine(upload, err.code);            // ZIP_PATH_TRAVERSAL, ZIP_LIMIT_EXCEEDED…
+    audit.log({ code: err.code, message: err.message });
+    return;
+  }
+  throw err;
+}
+</code></pre>
+<p>The dispatch above is the whole intake policy: security refusals carry
+codes like <code>ZIP_PATH_TRAVERSAL</code> or <code>ZIP_ENTRY_OVERLAP</code>
+(<code>ZipSecurityError</code>), resource refusals carry <code>ZIP_LIMIT_EXCEEDED</code> with
+the offending <code>limit</code> key and both values — so the audit log is
+machine-readable for free.</p>
+<p>Honest limits: extraction is in-memory — the engine never touches a
+filesystem, so writing to disk (and choosing the root) is your sink&#39;s
+job; <code>sanitizeEntryPath()</code> is exported for external sinks that need the
+same path rules. Encrypted entries are detected, never decrypted.</p>
+<h2 id="case-3--the-reproducibility-gate">Case 3 — The reproducibility gate<a class="heading-anchor" href="#case-3--the-reproducibility-gate" aria-label="Link to this section">#</a></h2>
+<p>A release archive that cannot be rebuilt byte-for-byte cannot be
+audited: nobody can prove the published artifact matches the reviewed
+commit. Zip tools leak timestamps, entry order and encoder versions
+into their output, so &quot;rebuild and compare&quot; normally fails for boring
+reasons. With <code>deterministic: true</code>, zipnative&#39;s output bytes depend on
+the input files and nothing else — <strong>so one committed SHA-256 turns the
+release artifact into an asserted artifact, on any CI runner</strong>.</p>
+<p><img src="../assets/use-case-repro-gate.svg" alt="Architecture: the source tree at a commit flows into zipnative&#39;s createZip with deterministic true — pinned pure-TS encoder, epoch timestamps, canonical entry order — producing a release archive whose bytes depend only on its inputs. The archive&#39;s SHA-256 is computed and compared against the golden checksum committed in the repository. Two branches leave the comparison: the green path, on a match, publishes the artifact; the red path, on drift, fails the build — an unreviewed content change or a broken determinism contract has been caught. A green band states the guarantee: identical inputs give identical SHA-256 on every runtime, and changing the emitted bytes is a semver-major event. The closing band states the honest limit — the guarantee is scoped to deterministic true; the default tier is stable per environment only."></p>
+<pre><code class="language-ts">import { createZip } from &#39;zipnative&#39;;
+import { createHash } from &#39;node:crypto&#39;;
+
+const zip = createZip({ compression: { deterministic: true } });
+for (const [name, data] of releaseFiles) zip.add(name, data);
+const archive = zip.toBytes();                 // same inputs → same bytes, anywhere
+
+const digest = createHash(&#39;sha256&#39;).update(archive).digest(&#39;hex&#39;);
+if (digest !== GOLDEN_SHA256) {
+  throw new Error(`release.zip drifted: ${digest} != ${GOLDEN_SHA256}`);
+}                                              // promote the golden in-PR when intended
+</code></pre>
+<p>Changing the golden is a reviewed diff like any other; an <em>unintended</em>
+change — a file that slipped into the artifact, an encoder change —
+fails the build on every platform, because the pinned pure-TS encoder
+produces identical bytes on Linux, Windows and macOS runners alike. The
+contract is <a href="determinism.html">written down</a> and golden-tested in
+zipnative&#39;s own suite; changing the emitted bytes is semver-major.</p>
+<p>Honest limits: the byte guarantee is scoped to <code>deterministic: true</code> —
+the default tier uses the platform&#39;s zlib and is byte-stable per
+environment only. <code>defaultDate: &#39;now&#39;</code> opts out of reproducibility and
+says so with a diagnostic.</p>
+<h2 id="case-4--streaming-intake-at-the-edge">Case 4 — Streaming intake at the edge<a class="heading-anchor" href="#case-4--streaming-intake-at-the-edge" aria-label="Link to this section">#</a></h2>
+<p>Edge runtimes have no filesystem, tight memory, and no Node APIs — and
+uploads arrive as unseekable body streams, which rules out every
+ZIP library that wants a file or a full buffer. <code>iterateZipEntries()</code>
+reads the stream <em>forward</em>, entry by entry, in bounded memory — <strong>and
+because the resumable pure-TS inflater reports exactly where each
+compressed stream ends, even data-descriptor archives (the shape
+streaming producers emit) delimit correctly without a central
+directory</strong>.</p>
+<p><img src="../assets/use-case-edge-stream.svg" alt="Architecture: a client uploads an archive as an unseekable body stream to an edge worker with no Node APIs. Inside the worker, zipnative&#39;s iterateZipEntries consumes the stream forward entry by entry — bounded memory, CRC verified, data-descriptor entries supported — while skip discards entries the route does not need without buffering them. Selected entries stream onward to object storage or a processing queue. A green band states the portability guarantee: the same API runs on Workers, Deno, Bun, browsers and Node, with zero dependencies and Fetch-native types. The closing band states the honest limit — forward reading trusts local headers alone; openZip on the complete archive remains the authoritative path."></p>
+<pre><code class="language-ts">import { iterateZipEntries } from &#39;zipnative&#39;;
+
+export default {
+  async fetch(request: Request): Promise&lt;Response&gt; {
+    let kept = 0;
+    for await (const entry of iterateZipEntries(bodyChunks(request))) {
+      if (!wanted(entry.header.name)) { await entry.skip(); continue; }
+      await bucket.put(entry.header.name, collect(entry.data())); // CRC-verified
+      kept++;
+    }
+    return Response.json({ kept });              // the archive was never held whole
+  },
+};
+</code></pre>
+<p>The same code runs unchanged on Cloudflare Workers, Deno Deploy, Bun
+and Node ≥ 22 — zero dependencies means there is nothing to polyfill,
+and capability detection (not platform builds) picks the fastest
+available inflate tier.</p>
+<p>Honest limits: forward reading trusts local headers alone — there is no
+central directory to cross-check, so <code>openZip()</code> on the complete
+archive remains the authoritative path, and the <a href="security.html">security
+guide</a> spells out the trust caveat. store+bit3 and
+encrypted+bit3 entries are structurally undelimitable and are refused
+with <code>ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR</code>.</p>
+<h2 id="picking-parts-not-a-platform">Picking parts, not a platform<a class="heading-anchor" href="#picking-parts-not-a-platform" aria-label="Link to this section">#</a></h2>
+<p>Each case is assembled from surfaces that also work alone, so none of
+them locks you in: the manifest peek (Case 1) is just <code>openZip</code> +
+<code>readEntry</code>; the reproducibility gate (Case 3) adds nothing but a hash
+of <code>createZip</code>&#39;s output; the edge intake (Case 4) is one async iterator
+over the same entries the buffered reader would yield. Start with the
+case closest to your bottleneck and borrow pieces from the others.</p>
+<h2 id="see-also">See also<a class="heading-anchor" href="#see-also" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="quickstart.html">Quickstart</a> — the four core workflows behind Cases
+1–3, runnable in five minutes.</li>
+<li><a href="security.html">Security model</a> — the threat table and CWE-tagged
+bounds Case 2 leans on, and Case 4&#39;s trust caveat in full.</li>
+<li><a href="determinism.html">The determinism contract</a> — the three guarantee
+levels behind Case 3&#39;s one-hash assertion.</li>
+<li><a href="errors.html">Errors and error codes</a> — the frozen <code>err.code</code>
+vocabulary Case 2 dispatches on.</li>
+<li><a href="../assets/api.json">api.json</a> — the mechanically extracted export
+surface every case is built from.</li>
+</ul>
+<!-- guide:render:end -->
+  </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CONTRIBUTING.md" rel="noopener" target="_blank">Contributing</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="index.html">All guides</a></li>
+            <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="security.html">Security model</a></li>
+            <li><a href="determinism.html">Determinism contract</a></li>
+            <li><a href="use-cases.html">Errors and error codes</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+            <li><a href="../data/errors.json">errors.json</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">Benchmarks</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>
