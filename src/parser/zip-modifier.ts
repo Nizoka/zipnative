@@ -140,6 +140,33 @@ interface SourceRecord {
 const te = new TextEncoder();
 
 /**
+ * @internal Zip64 treatment for an appended LOCAL file header. APPNOTE
+ * §4.5.3: when a local header carries a Zip64 extra it MUST contain BOTH
+ * the original and compressed sizes (the emit-only-overflowed-fields rule
+ * applies to the central directory only). So: if either size overflows,
+ * sentinel both classic fields and put both u64s in the extra. Exported
+ * from this module (not from src/index.ts) so the ≥4 GiB path is unit-
+ * testable without a 4 GiB buffer.
+ */
+export function lfhZip64Fields(uncompressedSize: number, compressedSize: number): {
+    readonly classicUncompressed: number;
+    readonly classicCompressed: number;
+    readonly extra: Uint8Array | null;
+    readonly usesZip64: boolean;
+} {
+    const usesZip64 = uncompressedSize > SENTINEL_U32 - 1 || compressedSize > SENTINEL_U32 - 1;
+    if (!usesZip64) {
+        return { classicUncompressed: uncompressedSize, classicCompressed: compressedSize, extra: null, usesZip64 };
+    }
+    return {
+        classicUncompressed: SENTINEL_U32,
+        classicCompressed: SENTINEL_U32,
+        extra: buildZip64Extra(uncompressedSize, compressedSize, undefined),
+        usesZip64,
+    };
+}
+
+/**
  * Wrap an opened archive in an incremental modifier.
  *
  * Construction is O(entries): the central directory is walked once to
@@ -260,16 +287,21 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
     /**
      * A copied source entry as a PlannedEntry (no recompression, bit 3
      * cleared). `nameIsUtf8` is true when `nameBytes` is a fresh UTF-8
-     * re-encoding (rename): the UTF-8 flag (bit 11) must then track the
-     * bytes actually written — set it for non-ASCII, clear it for ASCII —
-     * so a CP437 source renamed to a non-ASCII name is not mislabeled.
-     * For a verbatim survivor (`nameIsUtf8` false, original `rawName`),
-     * the source's own flag is preserved untouched.
+     * re-encoding (rename): the UTF-8 flag (bit 11) is then SET when the
+     * bytes are non-ASCII so a CP437 source renamed to a non-ASCII name is
+     * not mislabeled — and never cleared (ASCII is valid UTF-8). For a
+     * verbatim survivor (`nameIsUtf8` false, original `rawName`), the
+     * source's own flag is preserved untouched.
      */
     const planForCopy = (source: ZipEntry, nameBytes: Uint8Array, nameIsUtf8: boolean): PlannedEntry => {
         let flags = source.flags & ~FLAG_DATA_DESCRIPTOR;
-        if (nameIsUtf8) {
-            flags = nameBytes.some((b) => b >= 0x80) ? (flags | FLAG_UTF8) : (flags & ~FLAG_UTF8);
+        // Set-only: a non-ASCII UTF-8 re-encoding needs bit 11 to stay
+        // truthful; an ASCII name is valid under BOTH encodings, so an
+        // already-set bit stays set (clearing it would gratuitously mutate
+        // copied metadata and contradict the determinism contract's
+        // "always UTF-8 with bit 11" writer rule).
+        if (nameIsUtf8 && nameBytes.some((b) => b >= 0x80)) {
+            flags |= FLAG_UTF8;
         }
         return {
         nameBytes,
@@ -430,24 +462,21 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 storedOffsets[i] = abs - base;
                 // Raw-copied payloads can be ≥4 GiB (a slice of an existing
                 // archive, not a freshly-compressed ≤2 GiB buffer), so the
-                // LFH needs the Zip64 size form — mirror archiveSegments'
-                // sentinel-exactly-the-overflowed-field policy so our own
-                // reader parses the extra in lock-step.
-                const lfhZ64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : undefined;
-                const lfhZ64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : undefined;
-                const lfhUsesZip64 = lfhZ64Unc !== undefined || lfhZ64Comp !== undefined;
+                // LFH needs the Zip64 size form. APPNOTE §4.5.3: a local-
+                // header Zip64 extra must carry BOTH sizes (unlike the CD).
+                const lfh64 = lfhZip64Fields(plan.uncompressedSize, plan.compressedSize);
                 const lfhExtraParts: Uint8Array[] = [];
-                if (lfhUsesZip64) lfhExtraParts.push(buildZip64Extra(lfhZ64Unc, lfhZ64Comp, undefined));
+                if (lfh64.extra !== null) lfhExtraParts.push(lfh64.extra);
                 if (plan.extraFields.length > 0) lfhExtraParts.push(serializeExtraFields(plan.extraFields));
                 emitSeg(writeLocalFileHeader({
-                    versionNeeded: Math.max(lfhUsesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
+                    versionNeeded: Math.max(lfh64.usesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
                     flags: plan.flags,
                     compressionMethod: plan.method,
                     dosTime: plan.dosTime,
                     dosDate: plan.dosDate,
                     crc32: plan.crc32,
-                    compressedSize: lfhZ64Comp !== undefined ? SENTINEL_U32 : plan.compressedSize,
-                    uncompressedSize: lfhZ64Unc !== undefined ? SENTINEL_U32 : plan.uncompressedSize,
+                    compressedSize: lfh64.classicCompressed,
+                    uncompressedSize: lfh64.classicUncompressed,
                     name: plan.nameBytes,
                     extra: lfhExtraParts.length === 0 ? new Uint8Array(0)
                         : lfhExtraParts.length === 1 ? lfhExtraParts[0] : concatBytes(lfhExtraParts),

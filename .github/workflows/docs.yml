@@ -60,6 +60,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The playground-bundle rule byte-compares docs/playgrounds/zipnative.js
+      # against dist/index.js — without a build, dist/ is absent and the rule
+      # silently degrades to a version-string check. Build first so the
+      # comparison actually runs in CI.
+      - name: Build (playground-bundle byte comparison needs dist/)
+        run: npm run build
+
       - name: Verify documentation (hermetic)
         run: npm run verify:docs
 
@@ -79,6 +86,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build (playground-bundle byte comparison needs dist/)
+        run: npm run build
 
       - name: Verify documentation against npm registry
         run: npm run verify:docs -- --online --strict

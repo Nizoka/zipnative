@@ -134,12 +134,22 @@ function planExtraction(
         const path = sanitizeEntryPath(entry.name);
         if (path === null) {
             if (rejectTraversal) {
+                // Name the actual rule that fired: a Windows reserved device
+                // name (CWE-67) is not a traversal, and saying "zip-slip"
+                // would send the caller chasing one. The code stays
+                // ZIP_PATH_TRAVERSAL — one gate, one code, two causes.
+                const isDeviceName = entry.name.replace(/\\/g, '/').split('/')
+                    .some((segment) => RESERVED_WIN_DEVICE.test(segment));
                 throw new ZipSecurityError('ZIP_PATH_TRAVERSAL',
-                    `zipnative: entry name '${entry.name}' escapes the extraction root (zip-slip, CWE-22) — `
-                    + 'this archive is hostile or corrupt; pass rejectTraversal: false to skip such entries instead',
+                    isDeviceName
+                        ? `zipnative: entry name '${entry.name}' is a Windows reserved device name (CWE-67) — `
+                        + 'writing it under any directory opens the device on Windows; '
+                        + 'pass rejectTraversal: false to skip such entries instead'
+                        : `zipnative: entry name '${entry.name}' escapes the extraction root (zip-slip, CWE-22) — `
+                        + 'this archive is hostile or corrupt; pass rejectTraversal: false to skip such entries instead',
                     entry.name);
             }
-            continue; // skipped — a traversal-capable path is never emitted
+            continue; // skipped — an unsafe path is never emitted
         }
 
         totalUncompressed += entry.uncompressedSize;

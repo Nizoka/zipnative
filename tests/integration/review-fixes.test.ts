@@ -1,11 +1,11 @@
 /**
  * Regression suite for the v0.8.1 multi-agent code review — one test per
  * confirmed finding (A1–A6, B1–B7). Each reproduces the reviewer's failure
- * scenario and asserts the fix. Findings A4 (Zip64 ≥4 GiB sizes in the
- * append path) and B7 (dispatch-time slicing) are verified by inspection —
- * A4 needs a >4 GiB buffer, B7 is an allocation-timing change with no
- * observable behavior difference — and are exercised structurally by the
- * existing modifier / worker suites.
+ * scenario and asserts the fix. A4's ≥4 GiB path is covered at the helper
+ * level (`lfhZip64Fields`, no 4 GiB buffer needed); B7 (dispatch-time
+ * slicing) is an allocation-timing change with no observable behavior
+ * difference, verified by inspection and exercised structurally by the
+ * worker suites.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -18,6 +18,7 @@ import {
 import { buildHuffmanTable } from '../../src/codecs/inflate-shared.ts';
 import { inflateRawJS } from '../../src/codecs/inflate-pure.ts';
 import { matchDataDescriptor } from '../../src/core/zip-structs.ts';
+import { lfhZip64Fields } from '../../src/parser/zip-modifier.ts';
 import { createDeflatePool } from '../../src/worker/worker-pool.ts';
 import { buildRawZip } from '../helpers/raw-zip-builder.ts';
 
@@ -61,18 +62,41 @@ describe('review fix A3 — validateEntryName rejects names its extractor nulls'
 });
 
 describe('review fix A5 — readExact(0) never leaks a TypeError', () => {
-    it('reads an empty-name local entry without throwing a raw error', async () => {
-        // Local file header with an empty name and no extra, one chunk.
+    it('a zero-length read on a fully-drained cursor is a clean empty read', async () => {
+        // The exact failure mode: readExact(30) consumes the single chunk
+        // whole, leaving the deque EMPTY; readExact(0) then used to touch
+        // pending[0] (undefined) and leak a raw TypeError — the state a
+        // 30-byte LFH with empty name + empty extra puts the forward
+        // reader in at a chunk boundary.
         const raw = buildRawZip([{ name: 'ok.txt', data: te.encode('x') }]);
-        // Craft a stream of a single nameless stored entry via the raw builder
-        // is awkward; instead assert the cursor contract directly through the
-        // forward reader over a truncated nameless header is covered by
-        // zip-chunk-cursor; here we just prove n===0 is a clean empty read.
         const { createChunkCursor } = await import('../../src/parser/zip-chunk-cursor.ts');
         async function* one(): AsyncGenerator<Uint8Array> { yield raw.subarray(0, 30); }
         const cursor = createChunkCursor(one());
-        await cursor.readExact(30);
+        await cursor.readExact(30); // drains the deque completely
         await expect(cursor.readExact(0)).resolves.toEqual(new Uint8Array(0));
+    });
+});
+
+describe('review fix A4 — appended LFH Zip64 carries BOTH sizes (APPNOTE §4.5.3)', () => {
+    it('either overflowing size sentinels both classic fields and emits a two-u64 extra', () => {
+        const big = 5 * 1024 ** 3; // 5 GiB uncompressed
+        const small = 123_456;     // compressed < 4 GiB — the aggravating case
+        const f = lfhZip64Fields(big, small);
+        expect(f.usesZip64).toBe(true);
+        expect(f.classicUncompressed).toBe(0xFFFFFFFF);
+        expect(f.classicCompressed).toBe(0xFFFFFFFF);
+        // 0x0001 extra: 4-byte header + BOTH u64 sizes = 20 bytes.
+        expect(f.extra).not.toBeNull();
+        const dv = new DataView((f.extra as Uint8Array).buffer);
+        expect((f.extra as Uint8Array).length).toBe(20);
+        expect(dv.getUint16(0, true)).toBe(0x0001);
+        expect(dv.getUint16(2, true)).toBe(16);
+        expect(Number(dv.getBigUint64(4, true))).toBe(big);
+        expect(Number(dv.getBigUint64(12, true))).toBe(small);
+    });
+    it('sub-4GiB sizes emit no Zip64 extra at all', () => {
+        const f = lfhZip64Fields(1000, 500);
+        expect(f).toEqual({ classicUncompressed: 1000, classicCompressed: 500, extra: null, usesZip64: false });
     });
 });
 
@@ -104,13 +128,19 @@ describe('review fix A6 — zero-length Zip64 descriptor is not mis-parsed', () 
 });
 
 describe('review fix B1 — oversized extra fields are refused at write time', () => {
-    it('throws instead of emitting a u16-wrapped corrupt archive', () => {
+    it('the configurable maxExtraFieldBytes limit fires first', () => {
         const zip = createZip();
         zip.add('a.txt', te.encode('x'), { extraFields: [{ id: 0x9999, data: new Uint8Array(70_000) }] });
-        // Refused during planning, before any bytes are emitted. Either the
-        // configurable limit or the hard 65535 structural cap.
         const err = grab(() => zip.toBytes());
-        expect(['ZIP_LIMIT_EXCEEDED', 'ZIP_INVALID_OPTION']).toContain(err.code);
+        expect(err.code).toBe('ZIP_LIMIT_EXCEEDED');
+    });
+    it('the hard 65535 structural cap holds even with the limit raised', () => {
+        // With the configurable limit lifted, the u16 header field itself is
+        // still the ceiling — the wrap that shipped corrupt archives.
+        const zip = createZip({ limits: { maxExtraFieldBytes: Infinity } });
+        zip.add('a.txt', te.encode('x'), { extraFields: [{ id: 0x9999, data: new Uint8Array(70_000) }] });
+        const err = grab(() => zip.toBytes());
+        expect(err.code).toBe('ZIP_INVALID_OPTION');
     });
 });
 
@@ -127,7 +157,10 @@ describe('review fix B2 — pool main-thread fallback rejects, never hangs', () 
             terminate(): void { /* no-op */ },
         } as never);
         const pool = await createDeflatePool({ workers: 1, jobTimeout: 1000, _spawn: spawn });
-        await expect(pool.deflate(te.encode('data'.repeat(100)), 99, false)).rejects.toBeDefined();
+        // The rejection must be the fallback's own deflate error (a real
+        // Error about the invalid level), not an arbitrary sentinel.
+        await expect(pool.deflate(te.encode('data'.repeat(100)), 99, false))
+            .rejects.toThrowError(/level|0-9|out of range/i);
         pool.close();
     });
 });
@@ -159,6 +192,10 @@ describe('review fix B4 — over-subscribed Huffman tables are rejected', () => 
     });
     it('still accepts an empty table (no codes)', () => {
         expect(() => buildHuffmanTable(new Uint8Array([0, 0, 0]), 3)).not.toThrow();
+    });
+    it('the code-length alphabet rejects even a single-code incomplete set (zlib CODES strictness)', () => {
+        const err = grab(() => buildHuffmanTable(new Uint8Array([1, 0, 0]), 3, true));
+        expect(err.code).toBe('ZIP_DEFLATE_CORRUPT');
     });
 });
 
@@ -193,8 +230,12 @@ describe('review fix B6 — abandoning a stream entry releases the source', () =
         const gen = zip.stream({ chunkSize: 1024 });
         await gen.next();            // start producing
         await gen.return(undefined); // abandon early
-        // Give the detached writer loop a tick to unwind.
-        await new Promise((r) => setTimeout(r, 20));
+        // The detached writer loop unwinds asynchronously — poll with a
+        // bounded deadline instead of a fixed sleep (CI-load resilient).
+        const deadline = Date.now() + 2000;
+        while (!returned && Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 10));
+        }
         expect(returned).toBe(true);
     });
 });
