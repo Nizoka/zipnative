@@ -15,7 +15,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - CWE-tagged configurable limits; diagnostics channel; typed errors
 - Adversarial fuzzing suite; interop read corpus (foreign-tool fixtures)
 
-## 0.2.x — M2: Deterministic write + streaming ✅ *(shipped 2026-09-01, current)*
+## 0.2.x — M2: Deterministic write + streaming ✅ *(shipped 2026-09-01)*
 
 - `createZip()` with `toBytes()` and `stream()` over one shared segment
   generator (byte-identical by construction)
@@ -27,7 +27,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   jar on Linux; 7z, Expand-Archive, bsdtar, jar on Windows)
 - Benchmarks vs fflate/jszip/adm-zip + committed `bench/RESULTS.md`
 
-## 0.4.x — M3: Incremental modification ✅ *(shipped 2026-09-01, current)*
+## 0.4.x — M3: Incremental modification ✅ *(shipped 2026-09-01)*
 
 - `createZipModifier()` — append-only `save()` (original bytes verbatim, no
   recompression, no-op returns the identical buffer, SFX prefixes supported)
@@ -36,7 +36,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   byte-compared by foreign extractors in the interop matrix
 - Contributor sample corpus (`npm run test:generate` → `test-output/`)
 
-## 0.5.x — M4: Workers + parallelism + forward streaming ✅ *(shipped 2026-09-01, current)*
+## 0.5.x — M4: Workers + parallelism + forward streaming ✅ *(shipped 2026-09-01)*
 
 - `zipnative/worker`: `createParallelZip()` — real worker pool (Node
   worker_threads + Web Workers), byte-identical to `createZip` per tier,
@@ -47,7 +47,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - Perf policy recorded: no blocking CI gate; per-minor bench refresh +
   scheduled non-blocking trend workflow
 
-## 0.6.x — Resumable inflater + docs infrastructure ✅ *(shipped 2026-09-01, current)*
+## 0.6.x — Resumable inflater + docs infrastructure ✅ *(shipped 2026-09-01)*
 
 - Chunk-fed, suspendable raw-deflate decoder with exact consumed-byte
   reporting — the forward reader's bit-3 refusal is lifted for plain
@@ -57,11 +57,20 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   (`docs/`), mechanical `api.json`, llms pipeline, verify-docs at ~15
   named rules
 
-## 0.7 → 0.9 — Hardening to API freeze
+## 0.7.x — Interop corpus expansion + docs finish ✅ *(shipped 2026-09-01, current)*
 
-- Interop corpus expansion (SFX stubs, comments, clean refusals),
-  guide renderer + guide-render-sync/anchor-parity rules, og:image
-- API-freeze release candidates
+- Interop write gate: 11 → 17 validations (SFX stubs via the modifier,
+  comment-heavy, empty archive, store-only); refusal-posture suite
+  pinning the typed refusals foreign tools tolerate
+- Guide renderer (`docs:guides`, .md as the source of truth) +
+  `guide-render-sync`/`anchor-parity` rules (~17 named rules total)
+- og:image shipped (the 0.6 deferral is closed), favicon/logo redesign,
+  architecture diagrams, `docs:serve`
+
+## 0.8 → 0.9 — Hardening to API freeze
+
+- API-freeze release candidates (decide `createInflator`'s public
+  surface, error-code stability + `error-parity` docs rule)
 
 ## 1.0.0
 

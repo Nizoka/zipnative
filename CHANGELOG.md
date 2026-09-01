@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-01
+
+**Interop corpus expansion + docs finish** (first slice of the 0.7→0.9 hardening band). No engine behavior changes.
+
+### Added
+
+- **Guide renderer** ([scripts/build-guides.ts](scripts/build-guides.ts), `npm run docs:guides`, wired into `docs:all`): guide `.html` shells are now machine-rendered from their `.md` sources (the `.md` stays the single source of truth) with GFM parsing pinned to `marked` 12.0.2 exact, deep-linkable heading anchors from the shared `slugify` (the same one the llms index uses — anchor parity by construction), externalised outbound links, and an idempotent `data-prerendered` marker. Prerendered-only: the pages ship zero client-side rendering code and no CDN scripts.
+- **verify-docs grown to ~17 named rules**: `guide-render-sync` (rebuilds every guide article in memory through the same pure `applyGuideRender` and byte-compares — a hand-edited or stale shell fails CI) and `anchor-parity` (every internal `#fragment` link must resolve to a real id in its target; `.md` targets resolve to the paired `.html`).
+- **`npm run docs:serve`** (transient `npx serve`, nothing added to package dependencies) plus a CONTRIBUTING "Docs local preview" section — the site is static, any static server works.
+- **Visual identity**: redesigned [docs/favicon.svg](docs/favicon.svg) (gradient tile, geometric Z monogram, the family folded-corner mark), new [docs/assets/logo.svg](docs/assets/logo.svg), and the previously deferred **og:image shipped** — [docs/assets/og-image.svg](docs/assets/og-image.svg) as the committed source, rasterised once to the 1200×630 [og-image.png](docs/assets/og-image.png) via headless Edge (an OS tool; the command is documented in the SVG header), with `og:image`/`twitter:card` metadata wired into every page.
+- **Architecture diagrams**: a new `#architecture` landing section with two inline, theme-aware, accessible SVGs — the strict `types → codecs → core → parser → worker` layer flow ("zero reverse edges"), and the shared segment generator feeding both `toBytes()` and `stream()` byte-identically.
+- **Interop write corpus expanded to 17 validations**: `sfx-prefixed` (a stub-prepended archive produced by the incremental modifier, extracted by foreign tools — Expand-Archive excluded with its documented .NET offset limitation), `comment-heavy` (archive + per-entry comments), `empty-archive` (a bare EOCD must be accepted everywhere), `store-only`; `excludeTools` now accepts platform-qualified ids (`tool@platform`).
+- **Refusal-posture integration suite** ([tests/integration/refusal-posture.test.ts](tests/integration/refusal-posture.test.ts)): archives many foreign tools tolerate — multi-disk EOCDs (classic and zip64-locator forms), contradictory entry counts, trailing garbage — are pinned to their typed refusals (`ZipUnsupportedError('multi-disk')`, `ZipFormatError`); the posture gap with foreign tools is deliberate and now regression-tested.
+
+### Changed
+
+- Inter-guide links in the `.md` sources now target the paired `.html` pages (kept honest by `anchor-parity`).
+
 ## [0.6.0] - 2026-09-01
 
 **Resumable inflater + documentation infrastructure.**
