@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-01
+
+**Resumable inflater + documentation infrastructure.**
+
+### Added
+
+- **Resumable pure-TS raw-deflate decoder** ([src/codecs/inflate-stream.ts](src/codecs/inflate-stream.ts)) — a chunk-fed, suspendable coroutine (sync-generator design: language-level suspension persists all decoder state) with EXACT consumed-byte reporting via the decoder's `bitCnt ≤ 7` refill invariant, a sliding 64 KiB window, and incremental output bounding. Differentially fuzzed against zlib at 1-byte-to-whole chunkings with `bytesConsumed` asserted exact.
+- **`iterateZipEntries` now reads data-descriptor entries (flag bit 3)** for plain deflate — zipnative's own `addStream()` output and bsdtar-style archives are forward-readable. The trailing descriptor is identified by **validation against the measured CRC and sizes** (all four spec forms — signed/signless × 32/64-bit; the `PK\x07\x08` signature is a hint, never authoritative, so the CRC-equals-signature collision is handled). Still refused: store+bit3 (not self-delimiting), encrypted+bit3, custom codecs+bit3. `skip()` on a bit-3 entry costs a full decompress-and-discard (documented). Bit-3 protection = output counting + an incremental ratio guard (declared sizes don't exist).
+- The known-size no-`DecompressionStream` fallback now streams through the resumable inflater — the old buffer-the-whole-entry caveat is gone.
+- **Documentation infrastructure** (the 0.6 hardening band): mechanical [docs/assets/api.json](docs/assets/api.json) (`npm run docs:api` — regex extraction, null-never-guessed), the llms pipeline (`npm run docs:llms` → llms-full.txt / llms-recipes.txt / llms-index.json with shared slugify and LF-normalised sizes), and the static docs site v1 ([docs/](docs/): landing page with the load-bearing SEO/JSON-LD set, three guides as .md+.html pairs, sitemap with audit-date lastmod, robots.txt naming llms.txt, zero build dependencies).
+- **verify-docs expanded to ~15 named rules** (Problem/walk/allow-marker infrastructure): api-json-sync, llms-sync, llms-index-sync, llms-index-quality, verified-on-parity, seo-head, internal-links, sitemap-parity, jsonld-version, cdn-sri, contrast (WCAG on the theme tokens), plus the existing version/manifest/sample rules — it caught real defects (broken links from the guide move, a stale JSON-LD version) during its own introduction.
+
+### Changed
+
+- `docs/determinism.md` moved to [docs/guides/determinism.md](docs/guides/determinism.md) (guides are the llms-pipeline source of truth); references updated.
+- Shared inflate tables extracted to [src/codecs/inflate-shared.ts](src/codecs/inflate-shared.ts) (one-shot and resumable decoders import one implementation; the encoder stays deliberately self-contained — its bytes are the frozen contract).
+
 ## [0.5.0] - 2026-09-01
 
 Milestone **M4 — workers, parallelism and forward streaming**.
@@ -46,7 +63,7 @@ Milestone **M2 — deterministic write + streaming**.
 
 - `createZip()` — archive writer with `add`, `addDirectory`, `addStream`, `setComment`, and two output paths consuming ONE shared segment generator: `toBytes()` (sync, buffered) and `stream()` (async, fixed-size chunks, bounded memory) — byte-identical by construction ([src/core/zip-segments.ts](src/core/zip-segments.ts)).
 - **Pure-TS raw DEFLATE encoder** ([src/codecs/deflate-pure.ts](src/codecs/deflate-pure.ts)): LZ77 hash chains with zlib's level configuration, one-step lazy matching, fixed + dynamic Huffman with the 15-bit overflow fix, exact-cost block selection. Within 5% of zlib -6 on typical corpora; validated by differential fuzzing against zlib inflate (200 seeded rounds) and frozen golden SHA-256 hashes.
-- **Determinism contract** ([docs/determinism.md](docs/determinism.md)): canonical entry ordering, DOS-epoch default timestamps, constant metadata; `compression: { deterministic: true }` pins the pure encoder for cross-runtime byte-identical archives. Golden-tested.
+- **Determinism contract** ([docs/guides/determinism.md](docs/guides/determinism.md)): canonical entry ordering, DOS-epoch default timestamps, constant metadata; `compression: { deterministic: true }` pins the pure encoder for cross-runtime byte-identical archives. Golden-tested.
 - 4-tier deflate compression facade ([src/codecs/deflate.ts](src/codecs/deflate.ts)): injection (with `level`) → node:zlib → pure TS; `CompressionStream('deflate-raw')` used on streaming paths.
 - `addStream()` entries with data-descriptor layout; Zip64 auto-promotion for >65 535 entries and >4 GiB offsets (round-trip tested with a real 70 000-entry archive).
 - Interop **write gate now blocking**: zipnative's archive matrix (store/deflate, streamed descriptors, deterministic mode, unicode names, zip64 counts) validated and byte-compared by foreign extractors (Expand-Archive, bsdtar, unzip, 7z, python zipfile, jar — whichever are present).

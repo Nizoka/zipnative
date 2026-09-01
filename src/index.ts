@@ -93,4 +93,4 @@ export { crc32 } from './codecs/crc32.js';
 
 // ── 9. Package metadata ──────────────────────────────────────────────
 /** Library version — kept in sync with package.json by verify:docs. */
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';

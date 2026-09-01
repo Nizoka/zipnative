@@ -72,7 +72,7 @@ types/  ◄─ codecs/ ◄─ core/ ◄─ parser/ ◄─ worker/
 | Zip64 anything | `src/parser/zip-eocd.ts` header comment (sentinel/cross-check policy) |
 | Codecs, compression tiers | `src/codecs/inflate.ts` (tier order + memoization pattern) |
 | Tests / fixtures | `.github/instructions/testing.instructions.md`, `tests/fixtures/README.md` |
-| Determinism (M2+) | `docs/determinism.md` — bytes under `deterministic: true` are a frozen contract |
+| Determinism (M2+) | `docs/guides/determinism.md` — bytes under `deterministic: true` are a frozen contract |
 
 ## Files to never touch without explicit instruction
 

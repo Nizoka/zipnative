@@ -7,7 +7,7 @@ authors:
     website: "https://pdfnative.dev"
 repository-code: "https://github.com/Nizoka/zipnative"
 license: MIT
-version: 0.5.0
+version: 0.6.0
 abstract: "Zero-dependency native ZIP engine in pure TypeScript: random-access reads, secure-by-default extraction, streaming, deterministic archives and incremental modification, for Node.js, browsers, Deno, Bun and Workers."
 keywords:
   - zip

@@ -47,17 +47,20 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - Perf policy recorded: no blocking CI gate; per-minor bench refresh +
   scheduled non-blocking trend workflow
 
-## 0.6.x — Resumable pure-TS inflater
+## 0.6.x — Resumable inflater + docs infrastructure ✅ *(shipped 2026-09-01, current)*
 
-- Chunk-fed, suspendable raw-deflate decoder reporting its consumed-byte
-  position — lifts the forward reader's bit-3 refusal (zipnative's own
-  `addStream` output and bsdtar-style producers become forward-readable)
+- Chunk-fed, suspendable raw-deflate decoder with exact consumed-byte
+  reporting — the forward reader's bit-3 refusal is lifted for plain
+  deflate (zipnative's own `addStream` output and bsdtar-style producers
+  are forward-readable; store/encrypted/custom-codec + bit 3 stay refused)
+- Docs infrastructure shipped ahead of the band: static site v1
+  (`docs/`), mechanical `api.json`, llms pipeline, verify-docs at ~15
+  named rules
 
-## 0.6 → 0.9 — Hardening to API freeze
+## 0.7 → 0.9 — Hardening to API freeze
 
-- Docs site (`docs/`, GitHub Pages), `ecosystem.json` single source of truth,
-  `verify-docs` named rules, mechanical `api.json`
-- Interop corpus expansion (SFX stubs, comments, clean refusals)
+- Interop corpus expansion (SFX stubs, comments, clean refusals),
+  guide renderer + guide-render-sync/anchor-parity rules, og:image
 - API-freeze release candidates
 
 ## 1.0.0

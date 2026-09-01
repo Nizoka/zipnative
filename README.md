@@ -4,7 +4,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** All four engine milestones are implemented and hardened — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5). The [roadmap](ROADMAP.md) continues with API-freeze hardening toward 1.0. APIs may change before 1.0.
+> **Status: pre-1.0.** The engine is feature-complete — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), resumable inflater + docs infrastructure (v0.6). The [roadmap](ROADMAP.md) continues with API-freeze hardening toward 1.0. Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/)).
 
 ## Why zipnative?
 
@@ -13,7 +13,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 - **Safe by default.** Extraction refuses path traversal (zip-slip), symlink entries, duplicate names and decompression bombs unless you explicitly opt out. Every parser loop runs under a named, CWE-tagged, caller-configurable bound. Ambiguous archives (conflicting end-of-central-directory records, Zip64 field spoofing, overlapping entries) are rejected, not guessed at.
 - **Random access.** Read one entry from a 4 GB archive without extracting — or even scanning — the rest. The central directory is parsed lazily; entry payloads are zero-copy subarrays.
 - **Streaming.** Iterate entries and decompress through async iterables with bounded memory. Designed for serverless and Cloudflare Workers, not just long-lived servers.
-- **Deterministic.** Reproducible-build mode with a [written determinism contract](docs/determinism.md): same inputs, same SHA-256 on every runtime via the pinned pure-TS deflate encoder. Canonical entry ordering, pinned timestamps, no environment leakage.
+- **Deterministic.** Reproducible-build mode with a [written determinism contract](docs/guides/determinism.md): same inputs, same SHA-256 on every runtime via the pinned pure-TS deflate encoder. Canonical entry ordering, pinned timestamps, no environment leakage.
 - **Incremental modification.** Replace, remove, add or rename entries and `save()` without recompressing the untouched 99% of the archive — the append-only overlay model proven in pdfnative's PDF incremental updates. `saveCompact()` is the true-deletion path (removed content is otherwise still recoverable — [documented loudly](SECURITY.md)).
 - **Agent-pilotable.** Typed errors with the remedy in the message, a structured diagnostics channel, executable recipes, `llms.txt`, and a human-in-the-loop AI governance policy.
 
@@ -73,7 +73,7 @@ import { createZip } from 'zipnative';
 
 const zip = createZip({
     // Pin the pure-TS encoder: identical inputs → identical SHA-256,
-    // on every runtime. See docs/determinism.md.
+    // on every runtime. See docs/guides/determinism.md.
     compression: { deterministic: true },
 });
 zip.add('manifest.json', JSON.stringify(manifest));
@@ -158,13 +158,13 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 
 ## Known limitations
 
-- `iterateZipEntries` refuses data-descriptor entries (flag bit 3) with a typed error: without the central directory their payload cannot be delimited safely. **This includes archives produced by zipnative's own `addStream()` path, and by some producers (bsdtar among them).** A resumable inflater lifting this is roadmapped; `openZip()` reads such archives fine.
+- `iterateZipEntries` reads data-descriptor entries (flag bit 3) for plain deflate since v0.6 — including zipnative's own `addStream()` output and bsdtar-style archives. Still refused: store+bit3 (not self-delimiting), encrypted+bit3, and custom-codec+bit3; `skip()` on a bit-3 entry costs a full decompress-and-discard.
 - Codec injection (`setDeflateImpl`, `registerCodec`) on the main entry does not propagate to the `zipnative/worker` bundle (separate module state); parallel/sequential byte-identity is promised for the built-in tiers.
 - `save()` keeps every original byte: removed/replaced content remains recoverable in the output (use `saveCompact()` for true deletion); `saveCompact()` drops SFX prefixes; archives with duplicate entry names cannot be modified incrementally.
 - `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; Zip64 streaming is scheduled post-M4. Buffered entries, entry counts and archive offsets are fully Zip64.
 - Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.
 - Number fields above `Number.MAX_SAFE_INTEGER` (≈ 9 PB) are rejected; the public API uses `number`, not `bigint`.
-- Default deflate output is byte-stable per environment but not across zlib builds; pin `compression: { deterministic: true }` for cross-runtime identity — the full contract lives in [docs/determinism.md](docs/determinism.md).
+- Default deflate output is byte-stable per environment but not across zlib builds; pin `compression: { deterministic: true }` for cross-runtime identity — the full contract lives in [docs/guides/determinism.md](docs/guides/determinism.md).
 
 ## What zipnative will NOT do
 
