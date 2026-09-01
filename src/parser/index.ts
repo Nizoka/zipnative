@@ -7,6 +7,11 @@ export {
     type ZipReader,
 } from './zip-reader.js';
 export {
+    createZipModifier,
+    type ZipModifier,
+    type ZipModifierOptions,
+} from './zip-modifier.js';
+export {
     extractZip,
     extractZipStream,
     sanitizeEntryPath,

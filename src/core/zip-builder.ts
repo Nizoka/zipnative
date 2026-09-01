@@ -24,6 +24,7 @@ import { ZipError, ZipFormatError } from '../types/zip-errors.js';
 import { activeDeflateTier } from '../codecs/deflate.js';
 import { DOS_ATTR_DIRECTORY } from './zip-constants.js';
 import { createDiagnosticEmitter, nondeterministicCodecDiagnostic, timestampNotPinnedDiagnostic } from './zip-diagnostics.js';
+import { compareNames, validateEntryName } from './zip-encoding.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from './zip-dos-time.js';
 import { resolveLimits } from './zip-limits.js';
 import { archiveSegments, planArchive, type EntrySpec, type ZipCtx } from './zip-segments.js';
@@ -99,42 +100,6 @@ export interface ZipWriter {
 }
 
 const te = new TextEncoder();
-
-/** Byte-wise lexicographic comparison of raw names (canonical order). */
-function compareNames(a: Uint8Array, b: Uint8Array): number {
-    const n = Math.min(a.length, b.length);
-    for (let i = 0; i < n; i++) {
-        if (a[i] !== b[i]) return a[i] - b[i];
-    }
-    return a.length - b.length;
-}
-
-/** Writer-side name validation: never emit a path our own extractor rejects. */
-function validateEntryName(name: string, isDirectory: boolean): string {
-    if (name.length === 0) {
-        throw new ZipFormatError('zipnative: entry name must not be empty');
-    }
-    if (name.includes('\0')) {
-        throw new ZipFormatError('zipnative: entry name must not contain NUL bytes');
-    }
-    if (name.includes('\\')) {
-        throw new ZipFormatError(
-            `zipnative: entry name '${name}' contains a backslash — ZIP paths use forward slashes ('/')`);
-    }
-    if (name.startsWith('/') || /^[A-Za-z]:/.test(name)) {
-        throw new ZipFormatError(
-            `zipnative: entry name '${name}' is absolute — archive paths must be relative`);
-    }
-    for (const segment of name.split('/')) {
-        if (segment === '..') {
-            throw new ZipFormatError(
-                `zipnative: entry name '${name}' contains a '..' segment — zipnative never writes `
-                + 'traversal-capable archives');
-        }
-    }
-    if (isDirectory && !name.endsWith('/')) return `${name}/`;
-    return name;
-}
 
 /**
  * Create an archive writer.

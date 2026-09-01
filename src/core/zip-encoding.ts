@@ -10,6 +10,8 @@
  * @module core/zip-encoding
  */
 
+import { ZipFormatError } from '../types/zip-errors.js';
+
 /**
  * CP437 high half (0x80–0xFF). The low half maps to ASCII — the universal
  * convention for ZIP filenames (true CP437 glyphs for control codes are
@@ -39,6 +41,47 @@ export function decodeCp437(bytes: Uint8Array): string {
         out += b < 0x80 ? String.fromCharCode(b) : CP437_HIGH[b - 0x80];
     }
     return out;
+}
+
+/** Byte-wise lexicographic comparison of raw names (canonical entry order). */
+export function compareNames(a: Uint8Array, b: Uint8Array): number {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+        if (a[i] !== b[i]) return a[i] - b[i];
+    }
+    return a.length - b.length;
+}
+
+/**
+ * Writer-side name validation: zipnative never emits a path its own
+ * extractor rejects. Returns the final name (a trailing `/` is appended
+ * for directories); throws `ZipFormatError` with the remedy otherwise.
+ * Shared by the builder and the modifier.
+ */
+export function validateEntryName(name: string, isDirectory: boolean): string {
+    if (name.length === 0) {
+        throw new ZipFormatError('zipnative: entry name must not be empty');
+    }
+    if (name.includes('\0')) {
+        throw new ZipFormatError('zipnative: entry name must not contain NUL bytes');
+    }
+    if (name.includes('\\')) {
+        throw new ZipFormatError(
+            `zipnative: entry name '${name}' contains a backslash — ZIP paths use forward slashes ('/')`);
+    }
+    if (name.startsWith('/') || /^[A-Za-z]:/.test(name)) {
+        throw new ZipFormatError(
+            `zipnative: entry name '${name}' is absolute — archive paths must be relative`);
+    }
+    for (const segment of name.split('/')) {
+        if (segment === '..') {
+            throw new ZipFormatError(
+                `zipnative: entry name '${name}' contains a '..' segment — zipnative never writes `
+                + 'traversal-capable archives');
+        }
+    }
+    if (isDirectory && !name.endsWith('/')) return `${name}/`;
+    return name;
 }
 
 /** Byte-wise equality of two raw-name views. */

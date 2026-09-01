@@ -144,6 +144,17 @@ export function nondeterministicCodecDiagnostic(): ZipDiagnostic {
     };
 }
 
+export function deadBytesRatioDiagnostic(deadBytes: number, totalBytes: number): ZipDiagnostic {
+    const percent = Math.round((deadBytes / totalBytes) * 100);
+    return {
+        code: 'ZIP_DEAD_BYTES_RATIO',
+        severity: 'info',
+        message: `incremental save(): ${percent}% of the output (${deadBytes} of ${totalBytes} bytes) is dead — `
+            + 'removed/replaced content REMAINS RECOVERABLE in this file. Use saveCompact() for true '
+            + 'deletion and a compact layout.',
+    };
+}
+
 export function zip64ExtraIgnoredDiagnostic(entryName: string): ZipDiagnostic {
     return {
         code: 'ZIP_ZIP64_EXTRA_IGNORED',

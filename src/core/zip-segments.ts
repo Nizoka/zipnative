@@ -83,6 +83,13 @@ export interface PlannedEntry {
     crc32: number;
     compressedSize: number;
     uncompressedSize: number;
+    // ── Source-fidelity overrides (set only by the modifier when copying
+    //    existing entries; planArchive never sets them, so createZip's
+    //    bytes — the determinism contract — are untouched) ─────────────
+    readonly versionMadeBy?: number;
+    readonly internalAttributes?: number;
+    /** Floor for version-needed (e.g. an exotic-method source entry). */
+    readonly versionNeededMin?: number;
 }
 
 /** Fully planned archive — drain with `archiveSegments()` exactly once. */
@@ -246,8 +253,8 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
         const extra = concat(extraParts);
 
         yield seg(writeCentralFileHeader({
-            versionMadeBy: 0x032D, // Unix, spec 4.5 — constant (determinism contract)
-            versionNeeded: usesZip64 ? 45 : 20,
+            versionMadeBy: plan.versionMadeBy ?? 0x032D, // Unix, spec 4.5 — constant (determinism contract)
+            versionNeeded: Math.max(usesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
             flags: plan.flags,
             compressionMethod: plan.method,
             dosTime: plan.dosTime,
@@ -255,7 +262,7 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
             crc32: plan.crc32,
             compressedSize: z64Comp !== undefined ? SENTINEL_U32 : plan.compressedSize,
             uncompressedSize: z64Unc !== undefined ? SENTINEL_U32 : plan.uncompressedSize,
-            internalAttributes: 0,
+            internalAttributes: plan.internalAttributes ?? 0,
             externalAttributes: plan.externalAttributes,
             localHeaderOffset: z64Off !== undefined ? SENTINEL_U32 : offsets[i],
             name: plan.nameBytes,

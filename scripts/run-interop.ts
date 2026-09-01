@@ -19,7 +19,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createZip, openZip } from '../src/index.ts';
+import { createZip, createZipModifier, openZip } from '../src/index.ts';
 import {
     cleanupDir,
     EXTRACTORS,
@@ -164,6 +164,47 @@ function writeCases(): WriteCase[] {
                     }
                 })());
                 return collect(zip.stream());
+            },
+        },
+        {
+            // Incremental save() output: dead bytes (the old CD + old EOCD +
+            // replaced payloads) sit inside the file — foreign extractors
+            // must still accept and extract it correctly.
+            name: 'modified-incremental',
+            mode: 'extract',
+            expected: [
+                { path: 'readme.txt', content: te.encode('written by zipnative\n') },
+                { path: 'data/compressible.txt', content: te.encode('REPLACED CONTENT\n'.repeat(100)) },
+                { path: 'added-later.txt', content: te.encode('appended by the modifier\n') },
+            ],
+            build: async () => {
+                const zip = createZip();
+                zip.add('readme.txt', 'written by zipnative\n');
+                zip.add('data/compressible.txt', text);
+                zip.add('data/binary.bin', binary);
+                const modifier = createZipModifier(openZip(zip.toBytes()), { onDiagnostic: () => undefined });
+                modifier.replaceEntry('data/compressible.txt', 'REPLACED CONTENT\n'.repeat(100));
+                modifier.addEntry('added-later.txt', 'appended by the modifier\n');
+                modifier.removeEntry('data/binary.bin');
+                return modifier.save();
+            },
+        },
+        {
+            name: 'modified-compacted',
+            mode: 'extract',
+            expected: [
+                { path: 'readme.txt', content: te.encode('written by zipnative\n') },
+                { path: 'data/compressible.txt', content: te.encode('REPLACED CONTENT\n'.repeat(100)) },
+            ],
+            build: async () => {
+                const zip = createZip();
+                zip.add('readme.txt', 'written by zipnative\n');
+                zip.add('data/compressible.txt', text);
+                zip.add('data/binary.bin', binary);
+                const modifier = createZipModifier(openZip(zip.toBytes()), { onDiagnostic: () => undefined });
+                modifier.replaceEntry('data/compressible.txt', 'REPLACED CONTENT\n'.repeat(100));
+                modifier.removeEntry('data/binary.bin');
+                return modifier.saveCompact();
             },
         },
         {
