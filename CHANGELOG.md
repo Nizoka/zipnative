@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-01
+
+Milestone **M4 — workers, parallelism and forward streaming**.
+
+### Added
+
+- **`zipnative/worker` subpath** — `createParallelZip()` ([src/worker/](src/worker/)): per-entry deflate fanned out across a real worker pool (Node `worker_threads` AND Web Workers, sized from available cores, capped at 8), with a readiness handshake, per-job timeout, slice-before-transfer rule (caller buffers are never detached), and graceful degradation — worker failures recompress the affected job inline; an archive never fails for infrastructure reasons. `ParallelZipWriter` matches `ZipWriter` except `toBytes(): Promise<Uint8Array>`. **Byte-identity with `createZip` per resolved compression tier is a tested contract** (including through real worker threads); `deterministic: true` guarantees it unconditionally. Worker script resolved by the library (`new URL('./zip-worker.js', import.meta.url)`) with a `workerUrl` escape hatch.
+- **`iterateZipEntries()`** ([src/parser/zip-iterate.ts](src/parser/zip-iterate.ts)) — forward, central-directory-less streaming reader for pipes and unseekable bodies: bounded memory (incremental `DecompressionStream` pump), all security limits enforced with output counting, CRC verified, drain contract enforced, clean stop at the central directory. **Trust caveat documented**: local headers only — `openZip()` remains the authoritative path. v0.5 scope: data-descriptor entries (flag bit 3) are refused with `ZipUnsupportedError('cd-less-descriptor')` — this includes zipnative's own `addStream()` output and some producers (bsdtar among them); a resumable inflater is roadmapped.
+- Fuzzing: `streaming-boundaries` suite (1-byte/prime chunkings, truncation at every point, seeded corruption — which caught and pinned a real `DecompressionStream` hang on truncated input during development).
+- CI: real-worker integration step post-build on Linux and Windows; scheduled non-blocking `bench.yml` trend archive. Perf-gate decision recorded: no blocking benchmark gate (shared-runner variance), reference numbers refreshed per minor in `bench/RESULTS.md`.
+- Recipe: `iterate-stream`.
+
+### Changed
+
+- Core planning refactored behavior-frozen: shared `finishBufferedPlan` (the deterministic method rules exist once), `planArchiveAsync` with injected compressor, `createSpecCollector` behind both writers, shared `assembleArchive`. `createZip` bytes unchanged (goldens prove it).
+
 ## [0.4.0] - 2026-09-01
 
 Milestone **M3 — incremental modification**.

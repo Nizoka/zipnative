@@ -55,8 +55,14 @@ raising a limit is always an explicit decision, never a silent default.
   the append-only save model keeps original bytes verbatim, so removed
   entries remain recoverable from the file. `saveCompact()` is the true
   deletion path. This is documented loudly on the API.
-- The forward streaming reader (v0.5+) parses local headers without central
-  directory verification by design; its output is marked untrusted in the docs.
+- **The forward streaming reader (`iterateZipEntries`) trusts local headers
+  alone** — there is no central directory to cross-check names, sizes or
+  methods, so a hostile archive can present different content there than
+  `openZip()` authoritatively reports (the upload-scanner differential,
+  CWE-436 adjacent). All size limits are enforced by output counting and
+  CRCs are verified, but treat forward-read metadata as unverified: use it
+  only for streams you cannot seek, and never feed its names to a
+  filesystem without `sanitizeEntryPath()`.
 
 ## Disclosure policy
 

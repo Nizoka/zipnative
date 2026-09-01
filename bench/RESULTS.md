@@ -1,6 +1,14 @@
 # Benchmark results
 
-Regenerated manually per minor release (`npm run bench`); never a CI gate.
+Regenerated manually per minor release (`npm run bench`); never a CI gate
+(shared-runner variance — see `.github/workflows/bench.yml` for the
+non-blocking trend archive).
+
+> **v0.5.0 note (2026-09-01):** the read/write hot paths are unchanged in
+> this release, so the v0.2.0 scenario numbers below remain the reference.
+> Parallel creation (`createParallelZip`) scales with cores on entries
+> above the 32 KiB dispatch threshold; its win is workload-shaped
+> (many/large entries) and is not drag-raced here by policy.
 
 **Machine**: Windows 11 Pro (win32), Node.js v22.17.0 (V8 12.4, zlib via
 node:zlib), zipnative v0.2.0, vitest bench v4.1.11.

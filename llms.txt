@@ -34,6 +34,29 @@
   (`order: 'insertion'` preserves call order — EPUB/JAR mimetype case),
   and Zip64 records appear exactly when a field overflows.
 
+## Parallel creation (v0.5, subpath zipnative/worker)
+
+- `createParallelZip(options?)` — same surface as createZip but
+  `toBytes(): Promise<Uint8Array>`; per-entry deflate runs across a
+  worker pool (Node worker_threads / Web Workers). Byte-identical to
+  createZip per compression tier; unconditional with
+  `compression: { deterministic: true }`. Worker failures degrade
+  gracefully — archives never fail for infra reasons. `workers: 0`
+  forces main-thread mode.
+
+## Forward streaming read (v0.5)
+
+- `iterateZipEntries(asyncIterable)` — read a ZIP off an UNSEEKABLE
+  stream: yields `{ header, data(), skip() }` per local entry; consume
+  or skip each before advancing. Bounded memory; CRC verified; stops
+  cleanly at the central directory.
+- TRUST CAVEAT for agents: forward iteration reads local headers ALONE
+  (no central-directory cross-check) — prefer openZip() whenever the
+  complete archive is available; it is the authoritative path.
+- Refuses data-descriptor entries (flag bit 3) with
+  `ZipUnsupportedError('cd-less-descriptor')` — including archives made
+  by zipnative's own addStream() and by bsdtar; use openZip() for those.
+
 ## Incremental modification API (v0.4)
 
 - `createZipModifier(openZip(bytes))` → `ZipModifier` with

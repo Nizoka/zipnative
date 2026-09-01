@@ -36,11 +36,22 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   byte-compared by foreign extractors in the interop matrix
 - Contributor sample corpus (`npm run test:generate` → `test-output/`)
 
-## 0.5.x — M4: Workers + parallelism + forward streaming
+## 0.5.x — M4: Workers + parallelism + forward streaming ✅ *(shipped 2026-09-01, current)*
 
-- `zipnative/worker` subpath: parallel per-entry deflate pool
-- `iterateZipEntries()` — forward, CD-less streaming reader for pipes
-- Performance budgets in CI
+- `zipnative/worker`: `createParallelZip()` — real worker pool (Node
+  worker_threads + Web Workers), byte-identical to `createZip` per tier,
+  graceful degradation, library-resolved worker URL
+- `iterateZipEntries()` — forward CD-less streaming reader (bounded
+  memory, trust caveat documented; bit-3 entries refused pending the
+  resumable inflater below)
+- Perf policy recorded: no blocking CI gate; per-minor bench refresh +
+  scheduled non-blocking trend workflow
+
+## 0.6.x — Resumable pure-TS inflater
+
+- Chunk-fed, suspendable raw-deflate decoder reporting its consumed-byte
+  position — lifts the forward reader's bit-3 refusal (zipnative's own
+  `addStream` output and bsdtar-style producers become forward-readable)
 
 ## 0.6 → 0.9 — Hardening to API freeze
 

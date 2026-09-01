@@ -4,7 +4,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** The read path (v0.1), the deterministic writer (v0.2) and incremental modification (v0.4) are implemented and hardened; worker parallelism follows the [roadmap](ROADMAP.md). APIs may change before 1.0.
+> **Status: pre-1.0.** All four engine milestones are implemented and hardened — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5). The [roadmap](ROADMAP.md) continues with API-freeze hardening toward 1.0. APIs may change before 1.0.
 
 ## Why zipnative?
 
@@ -107,6 +107,42 @@ const updated = modifier.save();
 const compacted = modifier.saveCompact();
 ```
 
+Parallel creation across worker threads (v0.5, `zipnative/worker`):
+
+```ts
+import { createParallelZip } from 'zipnative/worker';
+
+const zip = createParallelZip(); // pool sized from your cores, capped at 8
+zip.add('a.bin', bigBufferA);    // entries deflate concurrently
+zip.add('b.bin', bigBufferB);
+const bytes = await zip.toBytes(); // async — the one signature difference
+
+// Byte-identical to createZip() for the same inputs (per compression
+// tier; unconditional with compression: { deterministic: true }).
+// Worker failures degrade gracefully — the archive never fails for
+// infrastructure reasons.
+```
+
+Reading an unseekable stream (v0.5 — pipes, uploads, serverless bodies):
+
+```ts
+import { iterateZipEntries } from 'zipnative';
+
+for await (const entry of iterateZipEntries(request.body)) {
+    console.log(entry.header.name, entry.header.uncompressedSize);
+    if (wanted(entry.header.name)) {
+        for await (const chunk of entry.data()) { /* bounded memory */ }
+    } else if (entry.header.compressedSize > 0) {
+        await entry.skip();
+    }
+}
+// TRUST CAVEAT: forward iteration reads local headers alone — no central
+// directory cross-check. Use openZip() whenever the full archive is
+// available; it is the authoritative path.
+```
+
+**Bundler notes for `zipnative/worker`**: the worker script is resolved as `new URL('./zip-worker.js', import.meta.url)`, which Vite and webpack 5 detect and bundle automatically. If your bundler cannot (or your CSP restricts worker sources), pass `workerUrl` explicitly — e.g. `createParallelZip({ workerUrl: new URL('zip-worker.js', yourAssetBase) })` — pointing at a copy of `node_modules/zipnative/dist/worker/zip-worker.js` served from your origin. On runtimes without workers the same code runs entirely on the calling thread.
+
 Everything public is exported from the single entry point; if it is not in `zipnative`'s root import, it is private.
 
 ## Security model
@@ -122,7 +158,8 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 
 ## Known limitations
 
-- Worker parallelism and the forward CD-less streaming reader land per the [roadmap](ROADMAP.md) (v0.5).
+- `iterateZipEntries` refuses data-descriptor entries (flag bit 3) with a typed error: without the central directory their payload cannot be delimited safely. **This includes archives produced by zipnative's own `addStream()` path, and by some producers (bsdtar among them).** A resumable inflater lifting this is roadmapped; `openZip()` reads such archives fine.
+- Codec injection (`setDeflateImpl`, `registerCodec`) on the main entry does not propagate to the `zipnative/worker` bundle (separate module state); parallel/sequential byte-identity is promised for the built-in tiers.
 - `save()` keeps every original byte: removed/replaced content remains recoverable in the output (use `saveCompact()` for true deletion); `saveCompact()` drops SFX prefixes; archives with duplicate entry names cannot be modified incrementally.
 - `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; Zip64 streaming is scheduled post-M4. Buffered entries, entry counts and archive offsets are fully Zip64.
 - Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.

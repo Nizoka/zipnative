@@ -1,0 +1,49 @@
+# Benchmark trend archive — NEVER a gate.
+#
+# Shared runners exhibit 2-5x run-to-run variance, so a blocking perf
+# threshold either fires false-red weekly or is too loose to catch real
+# regressions (bench/README.md records the policy). This workflow only
+# archives results on a schedule for human trend review; the per-minor
+# reference numbers live in bench/RESULTS.md, refreshed on a documented
+# machine at release time.
+name: Bench (trend, non-blocking)
+
+on:
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run benchmarks
+        run: npx vitest bench --run 2>&1 | tee bench-results.txt
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bench-results-${{ github.run_number }}
+          path: bench-results.txt
+          retention-days: 90
