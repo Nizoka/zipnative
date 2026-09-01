@@ -57,7 +57,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   (`docs/`), mechanical `api.json`, llms pipeline, verify-docs at ~15
   named rules
 
-## 0.7.x — Interop corpus expansion + docs finish ✅ *(shipped 2026-09-01, current)*
+## 0.7.x — Interop corpus expansion + docs finish ✅ *(shipped 2026-09-01)*
 
 - Interop write gate: 11 → 17 validations (SFX stubs via the modifier,
   comment-heavy, empty archive, store-only); refusal-posture suite
@@ -67,10 +67,30 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - og:image shipped (the 0.6 deferral is closed), favicon/logo redesign,
   architecture diagrams, `docs:serve`
 
-## 0.8 → 0.9 — Hardening to API freeze
+## 0.8.x — Error-code stability + docs charter ✅ *(shipped 2026-09-01, current)*
 
-- API-freeze release candidates (decide `createInflator`'s public
-  surface, error-code stability + `error-parity` docs rule)
+- **Stable machine-readable error codes**: every thrown error carries
+  `err.code` from a closed 39-code union, frozen from 0.8.0
+  (removal/renaming is semver-major); registry `docs/data/errors.json`
+  + `error-parity` verify rule + the errors guide
+- Freeze decisions resolved: `createInflator`/`Inflator` published
+  (exact `bytesConsumed` — the resumable-inflate differentiator),
+  `ZipUnsupportedFeature` closed, `FLAG_*` masks and
+  `activeDeflateTier()` exported, `_spawn` removed from public types,
+  `./worker/zip-worker.js` subpath export, api.json covers `./worker`
+- Docs site rethemed to the exact pdfnative charter (tokens, layout,
+  guide chrome, Prism, architecture diagram, metrics/comparison/
+  benchmarks sections)
+
+## 0.9 — Final pre-freeze release candidate
+
+- `verifyZip(data, options?)` — one-call deep validation returning a
+  stable machine-readable report (the agent-facing archive inventory)
+- `iterateZipEntries` source widening (`ReadableStream<Uint8Array>`)
+- Entry attribute helpers (`isSymlinkEntry`, `getUnixMode`)
+- Zip64-streaming decision record (per-entry opt-in design; the typed
+  refusal lifts additively, implementation may land post-1.0)
+- Freeze checklist + last-chance taxonomy renames, RC tag
 
 ## 1.0.0
 

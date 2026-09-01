@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-01
+
+**Error-code stability + the pdfnative docs charter** (API-freeze band, wave 1). No archive-byte changes; the API is additive.
+
+### Added
+
+- **Stable machine-readable error codes on every thrown error** ([src/types/zip-errors.ts](src/types/zip-errors.ts)): `ZipError` gains a required readonly `code: ZipErrorCode` — a closed union of **39 codes** in per-class sub-unions (`'ZIP_EOCD_NOT_FOUND'`, `'ZIP_PATH_TRAVERSAL'`, `'ZIP_LIMIT_EXCEEDED'`, …), populated at every one of ~110 throw sites with per-cause granularity. **Frozen from 0.8.0**: removal or renaming is semver-major; additions are semver-minor. Branch on `err.code`, never on message text (messages are byte-identical to 0.7). `ZipUnsupportedError.feature` narrows to the closed `ZipUnsupportedFeature` union; `ZipLimitError.limit` types as `keyof ZipLimits`.
+- **[docs/data/errors.json](docs/data/errors.json)** — the machine-readable registry (code, class, cause, remedy, CWE) covering the 39 error codes and 11 diagnostic codes — plus the **`error-parity` verify-docs rule** (bidirectional source↔registry sync, class membership, guide completeness, literal-code discipline at throw sites) and the new **[errors guide](docs/guides/errors.md)**.
+- **`createInflator()` / `Inflator` published** — the freeze decision named in the 0.6 notes, resolved: the resumable raw-deflate decoder with exact `bytesConsumed` reporting (the capability neither `DecompressionStream` nor `node:zlib` exposes) is public API. `maxOutput` stays positional and required — inflate output on untrusted input must be bounded.
+- Surface hygiene: `FLAG_ENCRYPTED`/`FLAG_DATA_DESCRIPTOR`/`FLAG_STRONG_ENCRYPTION`/`FLAG_UTF8` exported (the masks for the public `entry.flags`), `activeDeflateTier()` + `DeflateTier` (tier introspection for the determinism story), `StreamOptions` re-exported from `zipnative/worker`, `"./worker/zip-worker.js"` added to the exports map (resolve worker-script copies via `import.meta.resolve`).
+- **Docs site rethemed to the exact pdfnative charter**: the 23-token palette (dark declared under both `[data-theme]` and `prefers-color-scheme` — no more dark-preference flash), gradient hero with CTAs and static badges, measured metrics band, icon-chip feature cards, ARIA code tabs with SRI-pinned Prism highlighting, the honest comparison table and real benchmark bars on the landing, a standalone [assets/architecture.svg](docs/assets/architecture.svg) in the pdfnative visual language, the full guide chrome (`guide.css`/`guide.js`, breadcrumbs, source bar, per-block copy buttons) and a 3-column footer.
+
+### Changed
+
+- Error constructors are code-first (construction-only signature change; nobody constructs zipnative errors externally pre-1.0). `strict: true` escalation now throws `ZipError` with code `ZIP_STRICT_DIAGNOSTIC` instead of a bare `Error` (a strict widening; the message now embeds the diagnostic code).
+- [docs/assets/api.json](docs/assets/api.json) is multi-entry: every export carries a `subpath` field and the `./worker` surface is finally in the manifest (69 exports).
+- Dead layer barrels `src/{codecs,core,parser}/index.ts` deleted (zero imports, unreachable via the exports map).
+
+### Fixed
+
+None engine-side.
+
 ## [0.7.0] - 2026-09-01
 
 **Interop corpus expansion + docs finish** (first slice of the 0.7→0.9 hardening band). No engine behavior changes.
