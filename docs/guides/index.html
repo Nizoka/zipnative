@@ -42,27 +42,80 @@
   <main class="guide-shell" id="main-content" tabindex="-1">
     <div class="guide-breadcrumb"><a href="../">Home</a> › Guides</div>
     <article class="guide-content">
-      <h1>Guides</h1>
+      <h1>Documentation Guides</h1>
+      <blockquote>
+        <p><strong>New to zipnative?</strong> Start with the <a href="quickstart.html">Quickstart</a> —
+        the four core workflows in about five minutes. For the full export surface, see
+        <a href="../assets/api.json">api.json</a> (mechanically extracted, never guessed).</p>
+      </blockquote>
+      <p>Hands-on guides covering installation, the security model, the determinism
+      contract and the frozen error vocabulary. Every guide is written as Markdown
+      (the source of truth for the llms pipeline) and pre-rendered — use the
+      “Copy page as Markdown” button on any guide to feed it to an agent.</p>
       <ul class="guide-toc-list">
         <li>
-          <a href="quickstart.html">Quickstart</a>
-          <span class="guide-toc-desc">Install and cover the four core workflows in five minutes.</span>
+          <a href="quickstart.html">Quickstart →</a>
+          <span class="guide-toc-desc">Install zipnative and cover the four core workflows — random-access
+          reading, secure extraction, deterministic creation and incremental modification — in about five minutes.</span>
         </li>
         <li>
-          <a href="security.html">Security model</a>
-          <span class="guide-toc-desc">The threat table, the CWE-tagged bounds, and the forward reader's trust caveat.</span>
+          <a href="security.html">Security model →</a>
+          <span class="guide-toc-desc">Every archive is untrusted input: the threat table, the CWE-tagged
+          configurable bounds, the refusals that never opt out, and the forward reader's trust caveat.</span>
         </li>
         <li>
-          <a href="determinism.html">The determinism contract</a>
-          <span class="guide-toc-desc">Three guarantee levels and the frozen encoder constants behind reproducible archives.</span>
+          <a href="determinism.html">The determinism contract →</a>
+          <span class="guide-toc-desc">Three guarantee levels, the frozen pure-TS encoder constants behind
+          <code>deterministic: true</code>, and the documented ways reproducibility can be lost.</span>
         </li>
         <li>
-          <a href="errors.html">Errors and error codes</a>
-          <span class="guide-toc-desc">The frozen machine-readable vocabulary: branch on err.code, never on message text.</span>
+          <a href="errors.html">Errors and error codes →</a>
+          <span class="guide-toc-desc">The frozen machine-readable vocabulary (39 codes): branch on
+          <code>err.code</code>, never on message text. Registry twin in <code>docs/data/errors.json</code>.</span>
         </li>
       </ul>
     </article>
   </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CONTRIBUTING.md" rel="noopener" target="_blank">Contributing</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="security.html">Security model</a></li>
+            <li><a href="determinism.html">Determinism contract</a></li>
+            <li><a href="errors.html">Errors and error codes</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+            <li><a href="../data/errors.json">errors.json</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">Benchmarks</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
 
   <script src="guide.js" defer></script>
 </body>

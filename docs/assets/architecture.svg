@@ -9,6 +9,9 @@
     <marker id="ah-gen" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
       <path d="M0 0 L10 4 L0 8 Z" fill="#6366F1"/>
     </marker>
+    <marker id="ah-forbidden" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 4 L0 8 Z" fill="#DC2626"/>
+    </marker>
 
     <linearGradient id="g-canvas" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFFFFF"/>
@@ -117,7 +120,11 @@
   <line x1="578" y1="174" x2="558" y2="174" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
   <line x1="752" y1="174" x2="732" y2="174" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
 
-  <text x="480" y="266" text-anchor="middle" font-size="10.5" fill="#64748B">arrows = imports from · reverse edges forbidden by policy — cross-layer needs travel by parameter injection</text>
+  <!-- The one thing the codebase may NEVER contain: a lower layer
+       importing a higher one (here: core reaching into parser). -->
+  <line x1="404" y1="248" x2="574" y2="248" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="4,3" marker-end="url(#ah-forbidden)"/>
+  <path d="M483 242 l12 12 M495 242 l-12 12" stroke="#DC2626" stroke-width="2" stroke-linecap="round"/>
+  <text x="480" y="272" text-anchor="middle" font-size="10.5" fill="#64748B">arrows = imports from · the struck red edge (core → parser) is the shape the policy forbids — cross-layer needs travel by parameter injection</text>
 
   <!-- ════════════ WRITE-PATH BAND ════════════ -->
   <rect x="28" y="312" width="904" height="208" rx="16" fill="url(#g-write)" stroke="#C7D2FE" stroke-width="1.25"/>
