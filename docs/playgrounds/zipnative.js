@@ -2894,9 +2894,10 @@ function planExtraction(entries, options) {
     const path = sanitizeEntryPath(entry.name);
     if (path === null) {
       if (rejectTraversal) {
+        const isDeviceName = entry.name.replace(/\\/g, "/").split("/").some((segment) => RESERVED_WIN_DEVICE.test(segment));
         throw new ZipSecurityError(
           "ZIP_PATH_TRAVERSAL",
-          `zipnative: entry name '${entry.name}' escapes the extraction root (zip-slip, CWE-22) \u2014 this archive is hostile or corrupt; pass rejectTraversal: false to skip such entries instead`,
+          isDeviceName ? `zipnative: entry name '${entry.name}' is a Windows reserved device name (CWE-67) \u2014 writing it under any directory opens the device on Windows; pass rejectTraversal: false to skip such entries instead` : `zipnative: entry name '${entry.name}' escapes the extraction root (zip-slip, CWE-22) \u2014 this archive is hostile or corrupt; pass rejectTraversal: false to skip such entries instead`,
           entry.name
         );
       }
@@ -3410,6 +3411,18 @@ function createZip(options) {
 
 // src/parser/zip-modifier.ts
 var te2 = new TextEncoder();
+function lfhZip64Fields(uncompressedSize, compressedSize) {
+  const usesZip64 = uncompressedSize > SENTINEL_U32 - 1 || compressedSize > SENTINEL_U32 - 1;
+  if (!usesZip64) {
+    return { classicUncompressed: uncompressedSize, classicCompressed: compressedSize, extra: null, usesZip64 };
+  }
+  return {
+    classicUncompressed: SENTINEL_U32,
+    classicCompressed: SENTINEL_U32,
+    extra: buildZip64Extra(uncompressedSize, compressedSize, void 0),
+    usesZip64
+  };
+}
 function createZipModifier(reader, options) {
   const limits = resolveLimits(options?.limits);
   const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
@@ -3500,8 +3513,8 @@ function createZipModifier(reader, options) {
   };
   const planForCopy = (source, nameBytes, nameIsUtf8) => {
     let flags = source.flags & ~FLAG_DATA_DESCRIPTOR;
-    if (nameIsUtf8) {
-      flags = nameBytes.some((b) => b >= 128) ? flags | FLAG_UTF8 : flags & ~FLAG_UTF8;
+    if (nameIsUtf8 && nameBytes.some((b) => b >= 128)) {
+      flags |= FLAG_UTF8;
     }
     return {
       nameBytes,
@@ -3645,21 +3658,19 @@ function createZipModifier(reader, options) {
       for (let i = 0; i < appended.length; i++) {
         const plan = appended[i];
         storedOffsets[i] = abs - base;
-        const lfhZ64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : void 0;
-        const lfhZ64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : void 0;
-        const lfhUsesZip64 = lfhZ64Unc !== void 0 || lfhZ64Comp !== void 0;
+        const lfh64 = lfhZip64Fields(plan.uncompressedSize, plan.compressedSize);
         const lfhExtraParts = [];
-        if (lfhUsesZip64) lfhExtraParts.push(buildZip64Extra(lfhZ64Unc, lfhZ64Comp, void 0));
+        if (lfh64.extra !== null) lfhExtraParts.push(lfh64.extra);
         if (plan.extraFields.length > 0) lfhExtraParts.push(serializeExtraFields(plan.extraFields));
         emitSeg(writeLocalFileHeader({
-          versionNeeded: Math.max(lfhUsesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
+          versionNeeded: Math.max(lfh64.usesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
           flags: plan.flags,
           compressionMethod: plan.method,
           dosTime: plan.dosTime,
           dosDate: plan.dosDate,
           crc32: plan.crc32,
-          compressedSize: lfhZ64Comp !== void 0 ? SENTINEL_U32 : plan.compressedSize,
-          uncompressedSize: lfhZ64Unc !== void 0 ? SENTINEL_U32 : plan.uncompressedSize,
+          compressedSize: lfh64.classicCompressed,
+          uncompressedSize: lfh64.classicUncompressed,
           name: plan.nameBytes,
           extra: lfhExtraParts.length === 0 ? new Uint8Array(0) : lfhExtraParts.length === 1 ? lfhExtraParts[0] : concatBytes(lfhExtraParts)
         }));
@@ -3769,6 +3780,6 @@ function concatBytes(parts) {
 }
 
 // src/index.ts
-var VERSION = "0.8.1";
+var VERSION = "0.8.2";
 
 export { DEFAULT_ZIP_LIMITS, FLAG_DATA_DESCRIPTOR, FLAG_ENCRYPTED, FLAG_STRONG_ENCRYPTION, FLAG_UTF8, METHOD_DEFLATE, METHOD_STORE, VERSION, ZipDataError, ZipError, ZipFormatError, ZipLimitError, ZipSecurityError, ZipUnsupportedError, activeDeflateTier, crc32, createInflator, createZip, createZipModifier, extractZip, extractZipStream, getCodec, initNodeZipCodecs, iterateZipEntries, openZip, registerCodec, sanitizeEntryPath, setDeflateImpl, setInflateImpl };

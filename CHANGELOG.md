@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-09-01
+
+**Conformance pass on 0.8.1.** A follow-up forensic review of the 0.8.1 release (two investigation agents + manual verification) — navigation 404s root-caused and fixed, one spec-conformance fix, honest disclosures, and a documentation-wide factuality sweep. verify-docs stands at **21 named rules**.
+
+### Fixed
+
+- **`docs:serve` 404s / unstyled guides hub** — `npx serve`'s default `cleanUrls` redirects `/guides/index.html` → `/guides` *without* a trailing slash, shifting the relative-URL base to `/`: `guide.css` and every hub link then 404'd. All hub links, canonicals, sitemap entries and JSON-LD URLs are now **directory-form** (`guides/`, `playgrounds/`, `./`), the shape pdfnative uses and every static host serves correctly. The use-cases footer clone artifact (mislabelled link, missing entry) is repaired.
+- **APPNOTE §4.5.3 conformance** — the incremental `save()` append path's local-header Zip64 extra now carries **both** sizes and sentinels both classic fields (the emit-only-overflowed-fields rule applies to central-directory records only); extracted into a unit-tested `lfhZip64Fields()` helper, closing the missing A4 regression test.
+- The archive-comment line in the inspector playground decodes the comment bytes (it printed `{}` for every commentless archive); `planForCopy` sets the UTF-8 name flag only and never clears it (ASCII is valid UTF-8); `docs.yml` builds before `verify:docs` so the `playground-bundle` byte comparison actually runs in CI.
+
+### Changed
+
+- **Honest disclosure of the 0.8.1 behavioral change**: default extraction refuses Windows reserved device names (`CON`, `NUL`, `COM1`…`LPT9`, CWE-67) and names that collapse to nothing — POSIX-authored archives containing e.g. `aux.h` now throw by default on every platform (opt out with `rejectTraversal: false`). The refusal message now names CWE-67 instead of claiming a zip-slip; README/security/errors docs updated.
+- Documentation factuality sweep: interop numbers corrected (write corpus 7 → 11 cases; 17 = gate total with the 6 producer reads), landing metrics measured (350+ tests, 91.7% coverage), "every fix has a regression test" corrected to twelve of thirteen, playground tier claim corrected (pure-TS, sync APIs), README badges + err.code contract added, playgrounds discoverable from guides and `llms.txt`.
+
 ## [0.8.1] - 2026-09-01
 
 **Docs finish + a full multi-agent code review.** Patch release: 13 verified correctness/security/resource fixes (no archive-byte change for valid inputs; the deterministic encoder contract is untouched) plus the documentation the 0.8 site was still missing.

@@ -4,7 +4,7 @@
 
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
-![91.7 percent statement coverage](https://img.shields.io/badge/coverage-91.7%25-brightgreen)
+![92.2 percent statement coverage](https://img.shields.io/badge/coverage-92.2%25-brightgreen)
 ![Node 22 or newer](https://img.shields.io/badge/node-%E2%89%A522-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-blue)
 

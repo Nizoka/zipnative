@@ -118,4 +118,4 @@ export {
 
 // ── 9. Package metadata ──────────────────────────────────────────────
 /** Library version — kept in sync with package.json by verify:docs. */
-export const VERSION = '0.8.1';
+export const VERSION = '0.8.2';
