@@ -27,7 +27,7 @@ import { createDiagnosticEmitter, nondeterministicCodecDiagnostic, timestampNotP
 import { compareNames, validateEntryName } from './zip-encoding.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from './zip-dos-time.js';
 import { resolveLimits } from './zip-limits.js';
-import { archiveSegments, planArchive, type EntrySpec, type ZipCtx } from './zip-segments.js';
+import { assembleArchive, planArchive, type EntrySpec, type ZipCtx } from './zip-segments.js';
 import { streamArchive, type StreamOptions } from './zip-stream-writer.js';
 
 /** Per-entry / archive-default compression settings. */
@@ -102,12 +102,29 @@ export interface ZipWriter {
 const te = new TextEncoder();
 
 /**
- * Create an archive writer.
- *
- * Cheap by design: nothing is compressed until `toBytes()`/`stream()`,
- * each of which plans the archive fresh from the added entries.
+ * @internal Shared add/validate/order state behind `createZip` and the
+ * worker subpath's `createParallelZip` — ONE implementation of the name
+ * rules, defaults resolution, ordering and plan-time diagnostics, so the
+ * two writers' bytes cannot drift. Exported from this module but not
+ * from `src/index.ts` (private by doctrine).
  */
-export function createZip(options?: CreateZipOptions): ZipWriter {
+export interface SpecCollector {
+    readonly limits: ReturnType<typeof resolveLimits>;
+    readonly emit: ReturnType<typeof createDiagnosticEmitter>;
+    add(name: string, data: Uint8Array | string, options?: AddEntryOptions): void;
+    addDirectory(name: string, options?: AddEntryOptions): void;
+    addStream(name: string, source: AsyncIterable<Uint8Array>, options?: AddEntryOptions): void;
+    setComment(comment: string | Uint8Array): void;
+    hasStreamEntries(): boolean;
+    /** Specs in emission order (canonical sort or insertion order). */
+    orderedSpecs(): EntrySpec[];
+    comment(): Uint8Array;
+    /** The plan-time reproducibility-intent diagnostic (once per output call). */
+    emitPlanDiagnostics(): void;
+}
+
+/** @internal See {@link SpecCollector}. */
+export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
     // Validate early, before any entry is accepted.
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
@@ -177,64 +194,68 @@ export function createZip(options?: CreateZipOptions): ZipWriter {
         });
     };
 
-    /** Plan a fresh context for one output call (contexts drain once). */
-    const plan = (): ZipCtx => {
-        const ordered = order === 'canonical'
-            ? [...specs].sort((a, b) => compareNames(a.nameBytes, b.nameBytes))
-            : specs;
-        // Reproducibility-intent heuristic: a caller who pinned an explicit
-        // date but left the codec unpinned gets one info diagnostic that
-        // bytes still vary across zlib builds.
-        if (datePinned && !defaultDeterministic && activeDeflateTier(false) !== 'pure') {
-            emit(nondeterministicCodecDiagnostic());
-        }
-        return planArchive(ordered, archiveComment, limits, emit);
-    };
-
     return {
+        limits,
+        emit,
         add(name: string, data: Uint8Array | string, entryOptions?: AddEntryOptions): void {
             const bytes = typeof data === 'string' ? te.encode(data) : data;
             makeSpec(name, false, bytes, null, entryOptions);
         },
-
         addDirectory(name: string, entryOptions?: AddEntryOptions): void {
             makeSpec(name, true, null, null, entryOptions);
         },
-
         addStream(name: string, source: AsyncIterable<Uint8Array>, entryOptions?: AddEntryOptions): void {
             hasStreamEntries = true;
             makeSpec(name, false, null, source, entryOptions);
         },
-
         setComment(comment: string | Uint8Array): void {
             archiveComment = typeof comment === 'string' ? te.encode(comment) : comment;
         },
+        hasStreamEntries: (): boolean => hasStreamEntries,
+        orderedSpecs: (): EntrySpec[] =>
+            order === 'canonical'
+                ? [...specs].sort((a, b) => compareNames(a.nameBytes, b.nameBytes))
+                : specs,
+        comment: (): Uint8Array => archiveComment,
+        emitPlanDiagnostics: (): void => {
+            // Reproducibility-intent heuristic: a caller who pinned an explicit
+            // date but left the codec unpinned gets one info diagnostic that
+            // bytes still vary across zlib builds.
+            if (datePinned && !defaultDeterministic && activeDeflateTier(false) !== 'pure') {
+                emit(nondeterministicCodecDiagnostic());
+            }
+        },
+    };
+}
+
+/**
+ * Create an archive writer.
+ *
+ * Cheap by design: nothing is compressed until `toBytes()`/`stream()`,
+ * each of which plans the archive fresh from the added entries.
+ */
+export function createZip(options?: CreateZipOptions): ZipWriter {
+    const collector = createSpecCollector(options);
+
+    /** Plan a fresh context for one output call (contexts drain once). */
+    const plan = (): ZipCtx => {
+        collector.emitPlanDiagnostics();
+        return planArchive(collector.orderedSpecs(), collector.comment(), collector.limits, collector.emit);
+    };
+
+    return {
+        add: collector.add,
+        addDirectory: collector.addDirectory,
+        addStream: collector.addStream,
+        setComment: collector.setComment,
 
         toBytes(): Uint8Array {
-            if (hasStreamEntries) {
+            if (collector.hasStreamEntries()) {
                 throw new ZipError(
                     'zipnative: toBytes() is incompatible with addStream() entries (their sizes are only '
                     + 'known after the source is consumed). Use stream(), or buffer the content via add().');
             }
-            const ctx = plan();
-            const segments: Uint8Array[] = [];
-            let total = 0;
-            const generator = archiveSegments(ctx);
-            for (let res = generator.next(); !res.done; res = generator.next()) {
-                const segment = res.value;
-                if (segment.kind !== 'bytes') {
-                    throw new ZipError('zipnative: unexpected stream segment in the buffered writer (internal invariant)');
-                }
-                segments.push(segment.bytes);
-                total += segment.bytes.length;
-            }
-            const out = new Uint8Array(total);
-            let pos = 0;
-            for (const segment of segments) {
-                out.set(segment, pos);
-                pos += segment.length;
-            }
-            return out;
+            return assembleArchive(plan());
         },
 
         stream(streamOptions?: StreamOptions): AsyncGenerator<Uint8Array, void, undefined> {

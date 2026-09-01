@@ -103,6 +103,85 @@ export type ZipSegment =
     | { readonly kind: 'bytes'; readonly bytes: Uint8Array }
     | { readonly kind: 'stream-entry'; readonly plan: PlannedEntry };
 
+/** Per-spec guards shared by the sync and async planners. */
+function checkSpec(spec: EntrySpec, limits: ZipLimits): void {
+    enforceLimit(limits, 'maxNameBytes', spec.nameBytes.length, 'entry name length');
+    enforceLimit(limits, 'maxCommentBytes', spec.comment.length, 'entry comment length');
+}
+
+/** Build the plan for one stream-sourced spec (data-descriptor layout). */
+function buildStreamPlan(spec: EntrySpec): PlannedEntry {
+    return {
+        nameBytes: spec.nameBytes,
+        method: spec.method === 'store' ? METHOD_STORE : METHOD_DEFLATE,
+        flags: FLAG_UTF8 | FLAG_DATA_DESCRIPTOR,
+        dosDate: spec.dosDate,
+        dosTime: spec.dosTime,
+        externalAttributes: spec.externalAttributes,
+        comment: spec.comment,
+        extraFields: spec.extraFields,
+        payload: null,
+        source: spec.source,
+        level: spec.level,
+        deterministic: spec.deterministic,
+        crc32: 0,
+        compressedSize: 0,
+        uncompressedSize: 0,
+    };
+}
+
+/**
+ * Finish one buffered spec into a PlannedEntry, applying THE deterministic
+ * method rules in one place (sync and parallel planning both land here, so
+ * the rules physically cannot drift): empty content is always stored, and
+ * deflate falls back to store when it does not shrink the payload — both
+ * pure functions of the content (docs/determinism.md).
+ *
+ * @param compressed - Deflate output for this data, or null when the spec
+ *                     asked for store (or the data is empty)
+ */
+function finishBufferedPlan(
+    spec: EntrySpec,
+    data: Uint8Array,
+    compressed: Uint8Array | null,
+    crc: number,
+): PlannedEntry {
+    let method = spec.method === 'store' || data.length === 0 ? METHOD_STORE : METHOD_DEFLATE;
+    let payload: Uint8Array;
+    if (method === METHOD_DEFLATE && compressed !== null) {
+        if (compressed.length >= data.length) {
+            method = METHOD_STORE;
+            payload = data;
+        } else {
+            payload = compressed;
+        }
+    } else {
+        method = METHOD_STORE;
+        payload = data;
+    }
+    return {
+        nameBytes: spec.nameBytes,
+        method,
+        flags: FLAG_UTF8,
+        dosDate: spec.dosDate,
+        dosTime: spec.dosTime,
+        externalAttributes: spec.externalAttributes,
+        comment: spec.comment,
+        extraFields: spec.extraFields,
+        payload,
+        source: null,
+        level: spec.level,
+        deterministic: spec.deterministic,
+        crc32: crc,
+        compressedSize: payload.length,
+        uncompressedSize: data.length,
+    };
+}
+
+function needsDeflate(spec: EntrySpec, data: Uint8Array): boolean {
+    return spec.method === 'deflate' && data.length > 0;
+}
+
 /**
  * Phase 1: compress, canonicalize and validate. Entries arrive already
  * ordered and de-duplicated by the builder. Throws before any emission.
@@ -120,71 +199,104 @@ export function planArchive(
     let hasStreamEntries = false;
 
     for (const spec of specs) {
-        enforceLimit(limits, 'maxNameBytes', spec.nameBytes.length, 'entry name length');
-        enforceLimit(limits, 'maxCommentBytes', spec.comment.length, 'entry comment length');
-
+        checkSpec(spec, limits);
         if (spec.source !== null) {
             hasStreamEntries = true;
-            plans.push({
-                nameBytes: spec.nameBytes,
-                method: spec.method === 'store' ? METHOD_STORE : METHOD_DEFLATE,
-                flags: FLAG_UTF8 | FLAG_DATA_DESCRIPTOR,
-                dosDate: spec.dosDate,
-                dosTime: spec.dosTime,
-                externalAttributes: spec.externalAttributes,
-                comment: spec.comment,
-                extraFields: spec.extraFields,
-                payload: null,
-                source: spec.source,
-                level: spec.level,
-                deterministic: spec.deterministic,
-                crc32: 0,
-                compressedSize: 0,
-                uncompressedSize: 0,
-            });
+            plans.push(buildStreamPlan(spec));
             continue;
         }
-
         const data = spec.data ?? new Uint8Array(0);
-        // Deterministic method rules: empty content is always stored, and
-        // deflate falls back to store when it does not actually shrink the
-        // payload (a pure function of the content — part of the contract).
-        let method = spec.method === 'store' || data.length === 0 ? METHOD_STORE : METHOD_DEFLATE;
-        let payload: Uint8Array;
-        if (method === METHOD_DEFLATE) {
+        let compressed: Uint8Array | null = null;
+        if (needsDeflate(spec, data)) {
             const codec = getCodec(METHOD_DEFLATE);
             if (codec?.compressSync === undefined) {
                 throw new ZipError('zipnative: the deflate codec has no compressor registered (internal invariant)');
             }
-            payload = codec.compressSync(data, { level: spec.level, deterministic: spec.deterministic });
-            if (payload.length >= data.length) {
-                method = METHOD_STORE;
-                payload = data;
-            }
-        } else {
-            payload = data;
+            compressed = codec.compressSync(data, { level: spec.level, deterministic: spec.deterministic });
         }
-
-        plans.push({
-            nameBytes: spec.nameBytes,
-            method,
-            flags: FLAG_UTF8,
-            dosDate: spec.dosDate,
-            dosTime: spec.dosTime,
-            externalAttributes: spec.externalAttributes,
-            comment: spec.comment,
-            extraFields: spec.extraFields,
-            payload,
-            source: null,
-            level: spec.level,
-            deterministic: spec.deterministic,
-            crc32: crc32(data),
-            compressedSize: payload.length,
-            uncompressedSize: data.length,
-        });
+        plans.push(finishBufferedPlan(spec, data, compressed, crc32(data)));
     }
 
     return { plans, comment, hasStreamEntries };
+}
+
+/**
+ * @internal Injected compressor for {@link planArchiveAsync} — the worker
+ * pool supplies it (injection keeps the layering: core never imports
+ * worker). Returns the raw-deflate bytes AND the CRC-32 of the input
+ * (computed wherever the bytes already are).
+ */
+export type AsyncDeflate = (data: Uint8Array, level: number, deterministic: boolean)
+    => Promise<{ compressed: Uint8Array; crc: number }>;
+
+/**
+ * @internal Async twin of {@link planArchive}: identical guards, identical
+ * method rules (both call `finishBufferedPlan`), but deflate jobs run
+ * CONCURRENTLY through the injected compressor. Plans assemble in spec
+ * order — parallelism changes scheduling, never bytes.
+ */
+export async function planArchiveAsync(
+    specs: readonly EntrySpec[],
+    comment: Uint8Array,
+    limits: ZipLimits,
+    _emit: ZipDiagnosticEmitter,
+    deflate: AsyncDeflate,
+): Promise<ZipCtx> {
+    enforceLimit(limits, 'maxEntries', specs.length, 'archive entry count');
+    enforceLimit(limits, 'maxCommentBytes', comment.length, 'archive comment length');
+
+    for (const spec of specs) {
+        checkSpec(spec, limits);
+    }
+
+    const jobs = specs.map((spec): Promise<{ compressed: Uint8Array; crc: number } | null> => {
+        if (spec.source !== null) return Promise.resolve(null);
+        const data = spec.data ?? new Uint8Array(0);
+        if (!needsDeflate(spec, data)) return Promise.resolve(null);
+        return deflate(data, spec.level, spec.deterministic);
+    });
+    const results = await Promise.all(jobs);
+
+    const plans: PlannedEntry[] = [];
+    let hasStreamEntries = false;
+    for (let i = 0; i < specs.length; i++) {
+        const spec = specs[i];
+        if (spec.source !== null) {
+            hasStreamEntries = true;
+            plans.push(buildStreamPlan(spec));
+            continue;
+        }
+        const data = spec.data ?? new Uint8Array(0);
+        const result = results[i];
+        plans.push(finishBufferedPlan(spec, data, result?.compressed ?? null, result?.crc ?? crc32(data)));
+    }
+    return { plans, comment, hasStreamEntries };
+}
+
+/**
+ * @internal Drain a context through the buffered path into one archive.
+ * Shared by `createZip.toBytes`, the modifier's `saveCompact`, and the
+ * worker writer.
+ */
+export function assembleArchive(ctx: ZipCtx): Uint8Array {
+    const segments: Uint8Array[] = [];
+    let total = 0;
+    const generator = archiveSegments(ctx);
+    for (let res = generator.next(); !res.done; res = generator.next()) {
+        const segment = res.value;
+        if (segment.kind !== 'bytes') {
+            throw new ZipError('zipnative: unexpected stream segment in the buffered writer (internal invariant)');
+        }
+        segments.push(segment.bytes);
+        total += segment.bytes.length;
+    }
+    const out = new Uint8Array(total);
+    let pos = 0;
+    for (const segment of segments) {
+        out.set(segment, pos);
+        pos += segment.length;
+    }
+    return out;
 }
 
 /**

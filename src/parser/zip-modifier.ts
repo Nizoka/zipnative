@@ -74,7 +74,7 @@ import {
     writeZip64Eocd,
     writeZip64Locator,
 } from '../core/zip-structs.js';
-import { archiveSegments, planArchive, type EntrySpec, type PlannedEntry, type ZipCtx } from '../core/zip-segments.js';
+import { assembleArchive, planArchive, type EntrySpec, type PlannedEntry, type ZipCtx } from '../core/zip-segments.js';
 import { type AddEntryOptions, type ZipCompressionOptions } from '../core/zip-builder.js';
 import { locateEocd, type ArchiveLayout } from './zip-eocd.js';
 import { type ZipReader } from './zip-reader.js';
@@ -529,24 +529,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 comment: pendingComment ?? layout.comment,
                 hasStreamEntries: false,
             };
-            const segments: Uint8Array[] = [];
-            let total = 0;
-            const generator = archiveSegments(ctx);
-            for (let res = generator.next(); !res.done; res = generator.next()) {
-                const segment = res.value;
-                if (segment.kind !== 'bytes') {
-                    throw new ZipError('zipnative: unexpected stream segment in saveCompact (internal invariant)');
-                }
-                segments.push(segment.bytes);
-                total += segment.bytes.length;
-            }
-            const out = new Uint8Array(total);
-            let pos = 0;
-            for (const segment of segments) {
-                out.set(segment, pos);
-                pos += segment.length;
-            }
-            return out;
+            return assembleArchive(ctx);
         },
     };
 }
