@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Errors and error codes — zipnative</title>
+  <meta name="description" content="Every error zipnative throws carries a stable, machine-readable code — branch on it, never on message text. The vocabulary is frozen from 0.8.0.">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/guides/errors.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/errors.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/errors.html">
+  <link rel="alternate" type="text/markdown" href="errors.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <nav class="nav" aria-label="Main">
+    <a class="nav-brand" href="../">zip<span>native</span></a>
+    <div class="nav-links">
+      <a href="index.html">Guides</a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
+      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    </div>
+  </nav>
+  <article id="guide-content" class="guide-content" data-md="errors.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="errors-and-error-codes">Errors and error codes</h1>
+<blockquote>
+<p>Every error zipnative throws carries a stable, machine-readable <code>code</code> —
+branch on it, never on message text. The vocabulary below is frozen from
+0.8.0: removing or renaming a code is semver-major; additions are
+semver-minor.</p>
+</blockquote>
+<h2 id="the-contract">The contract<a class="heading-anchor" href="#the-contract" aria-label="Link to this section">#</a></h2>
+<p>Every thrown error is a <code>ZipError</code> (or one of its five subclasses), and
+every one carries three stable signals:</p>
+<ul>
+<li><strong><code>err.code</code></strong> — a <code>ZipErrorCode</code> literal from the closed union in
+<code>src/types/zip-errors.ts</code>. This is the machine key: it survives message
+rewording and localization of your own wrappers.</li>
+<li><strong><code>err.name</code> / <code>instanceof</code></strong> — the class, for coarse routing
+(<code>ZipSecurityError</code> means an active-attack shape; <code>ZipLimitError</code> means
+a configurable bound fired).</li>
+<li><strong><code>err.message</code></strong> — always starts with <code>zipnative: </code> and names the
+remedy. For humans and logs, never for branching.</li>
+</ul>
+<p>The machine-readable registry lives at
+<a href="../data/errors.json"><code>docs/data/errors.json</code></a> — one entry per code with
+its class, cause and remedy. The <code>error-parity</code> rule of <code>verify:docs</code>
+keeps registry, source unions and this guide in bidirectional sync.</p>
+<pre><code class="language-ts">import { openZip, ZipError } from &#39;zipnative&#39;;
+
+try {
+  const reader = openZip(bytes);
+} catch (err) {
+  if (err instanceof ZipError) {
+    switch (err.code) {
+      case &#39;ZIP_EOCD_NOT_FOUND&#39;:   return notAZip();
+      case &#39;ZIP_LIMIT_EXCEEDED&#39;:   return tooBig(err);
+      case &#39;ZIP_PATH_TRAVERSAL&#39;:   return quarantine(err);
+      default:                     return fail(err.code, err.message);
+    }
+  }
+  throw err;
+}
+</code></pre>
+<h2 id="when-to-branch-on-instanceof-vs-code">When to branch on <code>instanceof</code> vs <code>code</code><a class="heading-anchor" href="#when-to-branch-on-instanceof-vs-code" aria-label="Link to this section">#</a></h2>
+<p>Use <code>instanceof</code> when the <em>policy</em> is per-class: everything
+<code>ZipSecurityError</code> goes to quarantine, everything <code>ZipLimitError</code> retries
+with raised limits on trusted input. Use <code>code</code> when the <em>cause</em> matters:
+<code>ZIP_CRC_MISMATCH</code> (corrupt payload) deserves a different message than
+<code>ZIP_DESCRIPTOR_MISMATCH</code> (hostile stream shape), though both are
+<code>ZipDataError</code>.</p>
+<h2 id="the-vocabulary">The vocabulary<a class="heading-anchor" href="#the-vocabulary" aria-label="Link to this section">#</a></h2>
+<h3 id="ziperror-base--usage-and-invariant-faults"><code>ZipError</code> (base — usage and invariant faults)<a class="heading-anchor" href="#ziperror-base--usage-and-invariant-faults" aria-label="Link to this section">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIP_INVALID_OPTION</code></td>
+<td>An option value fails validation (compression level, chunk size, argument shape).</td>
+</tr>
+<tr>
+<td><code>ZIP_INPUT_TOO_LARGE</code></td>
+<td>The pure-TS deflate encoder received more than 2 GiB in one call.</td>
+</tr>
+<tr>
+<td><code>ZIP_ENTRY_NOT_FOUND</code></td>
+<td>A named entry is absent where one is required. Names are case-sensitive.</td>
+</tr>
+<tr>
+<td><code>ZIP_ENTRY_EXISTS</code></td>
+<td>A named entry is present where absence is required (add over existing; rename onto existing).</td>
+</tr>
+<tr>
+<td><code>ZIP_API_MISUSE</code></td>
+<td>A usage contract was violated: <code>toBytes()</code> with <code>addStream()</code> entries, drain-order violations, single-shot reuse.</td>
+</tr>
+<tr>
+<td><code>ZIP_STRICT_DIAGNOSTIC</code></td>
+<td><code>strict: true</code> escalated a conformance diagnostic; the message embeds the diagnostic code.</td>
+</tr>
+<tr>
+<td><code>ZIP_INTERNAL</code></td>
+<td>An internal invariant broke — a zipnative bug; report it with a reproduction.</td>
+</tr>
+</tbody></table>
+<h3 id="zipformaterror-structurally-invalid-archives"><code>ZipFormatError</code> (structurally invalid archives)<a class="heading-anchor" href="#zipformaterror-structurally-invalid-archives" aria-label="Link to this section">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIP_EOCD_NOT_FOUND</code></td>
+<td>No self-consistent end-of-central-directory record: not a ZIP, truncated, or hostile trailing bytes (zipnative refuses to guess).</td>
+</tr>
+<tr>
+<td><code>ZIP_EOCD_INCONSISTENT</code></td>
+<td>The EOCD contradicts the layout: entry counts disagree, or the central directory overlaps the record.</td>
+</tr>
+<tr>
+<td><code>ZIP_ZIP64_LOCATOR_MISSING</code></td>
+<td>Zip64 sentinels are set but the locator record is absent.</td>
+</tr>
+<tr>
+<td><code>ZIP_ZIP64_EOCD_MISPLACED</code></td>
+<td>The zip64 EOCD is not where the locator points.</td>
+</tr>
+<tr>
+<td><code>ZIP_CD_INCONSISTENT</code></td>
+<td>The central-directory walk contradicts its declared counts or size.</td>
+</tr>
+<tr>
+<td><code>ZIP_RECORD_TRUNCATED</code></td>
+<td>A record or an entry&#39;s payload overruns the available bytes.</td>
+</tr>
+<tr>
+<td><code>ZIP_SIGNATURE_MISMATCH</code></td>
+<td>An expected PK signature is absent at a declared position.</td>
+</tr>
+<tr>
+<td><code>ZIP_STREAM_TRUNCATED</code></td>
+<td>A forward byte stream ended mid-record or mid-entry.</td>
+</tr>
+<tr>
+<td><code>ZIP_VALUE_UNREPRESENTABLE</code></td>
+<td>A 64-bit field exceeds <code>Number.MAX_SAFE_INTEGER</code>.</td>
+</tr>
+<tr>
+<td><code>ZIP_INVALID_ENTRY_NAME</code></td>
+<td>A writer-side name violates the rules (empty, NUL, backslash, absolute, <code>..</code>).</td>
+</tr>
+<tr>
+<td><code>ZIP_DUPLICATE_ENTRY_NAME</code></td>
+<td>Duplicate names where uniqueness is required (writer <code>add()</code>, modifier source archives).</td>
+</tr>
+<tr>
+<td><code>ZIP_DEFLATE_TRUNCATED</code></td>
+<td>A deflate stream ends mid-block.</td>
+</tr>
+<tr>
+<td><code>ZIP_DEFLATE_CORRUPT</code></td>
+<td>A deflate stream is structurally invalid (Huffman codes, symbols, back-references, block types).</td>
+</tr>
+</tbody></table>
+<h3 id="zipsecurityerror-active-attack-shapes--cwe-tagged"><code>ZipSecurityError</code> (active-attack shapes — CWE-tagged)<a class="heading-anchor" href="#zipsecurityerror-active-attack-shapes--cwe-tagged" aria-label="Link to this section">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>CWE</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIP_ENTRY_OVERLAP</code></td>
+<td>CWE-405</td>
+<td>Two entries share bytes. Always rejected; no opt-out.</td>
+</tr>
+<tr>
+<td><code>ZIP_CD_LFH_MISMATCH</code></td>
+<td>CWE-436</td>
+<td>Local header contradicts the central directory on the method.</td>
+</tr>
+<tr>
+<td><code>ZIP_ZIP64_CONTRADICTION</code></td>
+<td>CWE-1288</td>
+<td>A zip64 value contradicts a non-sentinel classic field.</td>
+</tr>
+<tr>
+<td><code>ZIP_PATH_TRAVERSAL</code></td>
+<td>CWE-22</td>
+<td>An entry name escapes the extraction root (zip-slip).</td>
+</tr>
+<tr>
+<td><code>ZIP_SYMLINK_REJECTED</code></td>
+<td>CWE-59</td>
+<td>A symlink entry under <code>rejectSymlinks</code> (the default).</td>
+</tr>
+<tr>
+<td><code>ZIP_EXTRACT_DUPLICATE_PATH</code></td>
+<td>CWE-694</td>
+<td>Duplicate output paths under <code>onDuplicate: &#39;error&#39;</code> (the default).</td>
+</tr>
+</tbody></table>
+<h3 id="zipdataerror-content-integrity"><code>ZipDataError</code> (content integrity)<a class="heading-anchor" href="#zipdataerror-content-integrity" aria-label="Link to this section">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIP_CRC_MISMATCH</code></td>
+<td>Decompressed bytes fail the declared CRC-32; <code>expectedCrc</code>/<code>actualCrc</code> carry both values.</td>
+</tr>
+<tr>
+<td><code>ZIP_SIZE_MISMATCH</code></td>
+<td>Sizes contradict: declared vs measured, or local vs central metadata.</td>
+</tr>
+<tr>
+<td><code>ZIP_INFLATE_OUTPUT_OVERFLOW</code></td>
+<td>Inflate produced more than the declared or permitted output.</td>
+</tr>
+<tr>
+<td><code>ZIP_DESCRIPTOR_MISMATCH</code></td>
+<td>No data-descriptor form matches the measured CRC and sizes of a bit-3 entry.</td>
+</tr>
+<tr>
+<td><code>ZIP_DECOMPRESSION_FAILED</code></td>
+<td>The active codec failed mid-decompression on a corrupt payload.</td>
+</tr>
+</tbody></table>
+<h3 id="ziplimiterror-configurable-security-bounds"><code>ZipLimitError</code> (configurable security bounds)<a class="heading-anchor" href="#ziplimiterror-configurable-security-bounds" aria-label="Link to this section">#</a></h3>
+<p>Carries <code>limit</code> (the <code>ZipLimits</code> key), <code>configured</code> and <code>observed</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIP_LIMIT_EXCEEDED</code></td>
+<td>A configured bound was exceeded — raise <code>limits.&lt;key&gt;</code> explicitly if the archive is trusted.</td>
+</tr>
+<tr>
+<td><code>ZIP_LIMIT_INVALID</code></td>
+<td>The limits override itself is invalid (unknown key, non-positive value); <code>configured</code>/<code>observed</code> are <code>NaN</code>.</td>
+</tr>
+</tbody></table>
+<h3 id="zipunsupportederror-deliberate-refusals"><code>ZipUnsupportedError</code> (deliberate refusals)<a class="heading-anchor" href="#zipunsupportederror-deliberate-refusals" aria-label="Link to this section">#</a></h3>
+<p>Carries <code>feature</code> from the closed <code>ZipUnsupportedFeature</code> vocabulary:
+<code>&#39;zipcrypto&#39;</code>, <code>&#39;strong-encryption&#39;</code>, <code>&#39;multi-disk&#39;</code>, <code>&#39;zip64-streaming&#39;</code>,
+<code>&#39;cd-less-descriptor&#39;</code>, or <code>`method:${n}`</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIP_UNSUPPORTED_ENCRYPTION</code></td>
+<td>An entry is encrypted — unsupported through 1.0 by policy; check <code>entry.isEncrypted</code> to route around it.</td>
+</tr>
+<tr>
+<td><code>ZIP_UNSUPPORTED_METHOD</code></td>
+<td>A compression method has no registered codec — <code>registerCodec()</code> one.</td>
+</tr>
+<tr>
+<td><code>ZIP_UNSUPPORTED_MULTI_DISK</code></td>
+<td>The archive is multi-disk/spanned — an explicit anti-goal.</td>
+</tr>
+<tr>
+<td><code>ZIP_UNSUPPORTED_ZIP64_STREAMING</code></td>
+<td>An <code>addStream()</code> entry exceeds 4 GiB — buffer via <code>add()</code> or split.</td>
+</tr>
+<tr>
+<td><code>ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR</code></td>
+<td>Forward reading met a bit-3 entry it cannot delimit (store/encrypted/custom codec) — use <code>openZip()</code>.</td>
+</tr>
+<tr>
+<td><code>ZIP_UNSUPPORTED_CODEC_MODE</code></td>
+<td>A registered codec supports only the other access mode — the message names the compliant call.</td>
+</tr>
+</tbody></table>
+<h2 id="diagnostics-are-not-errors">Diagnostics are not errors<a class="heading-anchor" href="#diagnostics-are-not-errors" aria-label="Link to this section">#</a></h2>
+<p>Non-fatal conformance concerns (odd-but-tolerated shapes, determinism
+losses) never throw by default — they flow through the diagnostics
+channel with their own closed 11-code vocabulary (<code>ZipDiagnosticCode</code>),
+documented alongside the errors in
+<a href="../data/errors.json"><code>docs/data/errors.json</code></a>. <code>strict: true</code> escalates
+the first diagnostic into a thrown <code>ZipError</code> with code
+<code>ZIP_STRICT_DIAGNOSTIC</code>; <code>onDiagnostic</code> receives every diagnostic
+un-deduplicated.</p>
+<h2 id="see-also">See also<a class="heading-anchor" href="#see-also" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="security.html">Security model</a> — the threat table behind the
+<code>ZipSecurityError</code> and <code>ZipLimitError</code> families.</li>
+<li><a href="determinism.html">The determinism contract</a> — the diagnostics that
+flag reproducibility losses.</li>
+</ul>
+<!-- guide:render:end -->
+  </article>
+  <script src="../app.js" defer></script>
+</body>
+</html>

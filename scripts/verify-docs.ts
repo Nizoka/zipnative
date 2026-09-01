@@ -402,6 +402,116 @@ for (const page of htmlPages) {
     }
 }
 
+// ── Rule: error-parity ───────────────────────────────────────────────
+// The frozen code vocabulary (src/types/zip-errors.ts + zip-types.ts) and
+// the registry docs/data/errors.json must agree bidirectionally, class
+// membership included, and every code must be documented in the errors
+// guide. Also: every throw site must pass a literal 'ZIP_*' code (a
+// computed code would defeat the freeze).
+{
+    const errorsSource = read('src/types/zip-errors.ts');
+    // The union terminator is the quote-adjacent semicolon of the last
+    // member (`'ZIP_X';`) — a bare first-`;` would stop inside a comment.
+    const unionOf = (name: string): { codes: string[]; line: number } => {
+        const m = errorsSource.match(new RegExp(`export type ${name} =([\\s\\S]*?'ZIP_[A-Z0-9_]+';)`));
+        if (m === null) {
+            report('src/types/zip-errors.ts', 1, 'error-parity', `union ${name} not found`);
+            return { codes: [], line: 1 };
+        }
+        const codes = [...m[1].matchAll(/'(ZIP_[A-Z0-9_]+)'/g)].map((x) => x[1]);
+        return { codes, line: lineOf(errorsSource, m.index ?? 0) };
+    };
+    const CLASS_UNIONS: ReadonlyArray<[string, string]> = [
+        ['ZipBaseErrorCode', 'ZipError'],
+        ['ZipFormatErrorCode', 'ZipFormatError'],
+        ['ZipSecurityErrorCode', 'ZipSecurityError'],
+        ['ZipDataErrorCode', 'ZipDataError'],
+        ['ZipLimitErrorCode', 'ZipLimitError'],
+        ['ZipUnsupportedErrorCode', 'ZipUnsupportedError'],
+    ];
+    const codeToClass = new Map<string, string>();
+    for (const [union, cls] of CLASS_UNIONS) {
+        for (const code of unionOf(union).codes) codeToClass.set(code, cls);
+    }
+
+    interface ErrorRegistry {
+        errors?: ReadonlyArray<{ code?: string; class?: string; raisedWhen?: string; remedy?: string }>;
+        diagnostics?: ReadonlyArray<{ code?: string }>;
+    }
+    const registryPath = 'docs/data/errors.json';
+    if (!existsSync(resolve(ROOT, registryPath))) {
+        report(registryPath, 1, 'error-parity', 'missing — the error-code registry is part of the freeze contract');
+    } else {
+        const registry = JSON.parse(read(registryPath)) as ErrorRegistry;
+        const registered = new Map<string, string>();
+        for (const entry of registry.errors ?? []) {
+            if (typeof entry.code !== 'string' || typeof entry.class !== 'string'
+                || typeof entry.raisedWhen !== 'string' || typeof entry.remedy !== 'string') {
+                report(registryPath, 1, 'error-parity', `entry ${entry.code ?? '(no code)'} must carry code, class, raisedWhen and remedy`);
+                continue;
+            }
+            if (registered.has(entry.code)) {
+                report(registryPath, 1, 'error-parity', `duplicate registry entry for ${entry.code}`);
+            }
+            registered.set(entry.code, entry.class);
+        }
+        for (const [code, cls] of codeToClass) {
+            const regClass = registered.get(code);
+            if (regClass === undefined) {
+                report(registryPath, 1, 'error-parity', `code ${code} exists in the source union but is missing from the registry`);
+            } else if (regClass !== cls) {
+                report(registryPath, 1, 'error-parity', `code ${code} is registered as ${regClass} but the source union places it on ${cls}`);
+            }
+        }
+        for (const code of registered.keys()) {
+            if (!codeToClass.has(code)) {
+                report(registryPath, 1, 'error-parity', `registry code ${code} does not exist in any source union — stale entry`);
+            }
+        }
+
+        // Diagnostics parity against the closed ZipDiagnosticCode union.
+        const typesSource = read('src/types/zip-types.ts');
+        const diagUnion = typesSource.match(/export type ZipDiagnosticCode =([\s\S]*?'ZIP_[A-Z0-9_]+';)/);
+        const diagCodes = new Set([...(diagUnion?.[1] ?? '').matchAll(/'(ZIP_[A-Z0-9_]+)'/g)].map((x) => x[1]));
+        const diagRegistered = new Set((registry.diagnostics ?? []).map((d) => d.code ?? ''));
+        for (const code of diagCodes) {
+            if (!diagRegistered.has(code)) report(registryPath, 1, 'error-parity', `diagnostic ${code} missing from the registry`);
+        }
+        for (const code of diagRegistered) {
+            if (!diagCodes.has(code)) report(registryPath, 1, 'error-parity', `registry diagnostic ${code} does not exist in ZipDiagnosticCode`);
+        }
+
+        // Guide completeness: every registered error code appears in the guide.
+        const guidePath = 'docs/guides/errors.md';
+        if (!existsSync(resolve(ROOT, guidePath))) {
+            report(guidePath, 1, 'error-parity', 'missing — the errors guide documents the frozen vocabulary');
+        } else {
+            const guide = read(guidePath);
+            for (const code of registered.keys()) {
+                if (!guide.includes(code)) {
+                    report(guidePath, 1, 'error-parity', `code ${code} is not documented in the errors guide`);
+                }
+            }
+            for (const mention of guide.matchAll(/\bZIP_[A-Z0-9_]+\b/g)) {
+                const name = mention[0];
+                if (!registered.has(name) && !diagCodes.has(name)) {
+                    report(guidePath, lineOf(guide, mention.index ?? 0), 'error-parity', `guide names unknown code ${name}`);
+                }
+            }
+        }
+    }
+
+    // Literal-code discipline at every throw site in src/.
+    for (const path of walk('src').filter((p) => p.endsWith('.ts'))) {
+        const text = read(path);
+        for (const site of text.matchAll(/new Zip\w*Error\(\s*(?![`'"]ZIP_)[^)\s]/g)) {
+            if (allowed(text, site.index ?? 0, 'error-parity')) continue;
+            report(path, lineOf(text, site.index ?? 0), 'error-parity',
+                'error constructed without a literal ZIP_* code as its first argument — computed codes defeat the freeze');
+        }
+    }
+}
+
 // ── Rule: npm-drift (online only) ────────────────────────────────────
 if (online) {
     try {

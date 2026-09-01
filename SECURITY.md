@@ -36,6 +36,12 @@ headers), and mixes 16/32/64-bit size fields. zipnative defends against:
 Every bound is named, documented on `ZipLimits`, and caller-configurable —
 raising a limit is always an explicit decision, never a silent default.
 
+Every refusal above is thrown with a **stable machine-readable error code**
+(v0.8+, e.g. `ZIP_PATH_TRAVERSAL`, `ZIP_ENTRY_OVERLAP`,
+`ZIP_LIMIT_EXCEEDED`) — the frozen vocabulary lives in
+[docs/data/errors.json](docs/data/errors.json) and is documented in
+[docs/guides/errors.md](docs/guides/errors.md).
+
 ### Code safety
 
 - Zero runtime dependencies — the supply chain is this repository.

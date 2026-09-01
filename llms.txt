@@ -7,15 +7,21 @@
 Verified on: 2026-09-01
 
 Machine-readable artefacts: docs/assets/api.json (the full export surface —
-mechanically extracted, never guessed), docs/llms-full.txt (concatenated
-documentation), docs/llms-index.json (artefact/guide index with sizes).
+mechanically extracted, never guessed), docs/data/errors.json (the frozen
+error-code and diagnostic registry — code, class, cause, remedy),
+docs/llms-full.txt (concatenated documentation), docs/llms-index.json
+(artefact/guide index with sizes).
 
 ## Essentials
 
 - Single entry point: `import { openZip, extractZip } from 'zipnative'` —
   everything public is exported there; nothing else is API.
 - No classes: factories return interfaces (`openZip(bytes) → ZipReader`).
-- Every error message starts `zipnative: ` and contains the remedy.
+- Every error message starts `zipnative: ` and contains the remedy, and
+  every thrown error carries a STABLE machine-readable `err.code` (v0.8+,
+  frozen vocabulary — e.g. `ZIP_EOCD_NOT_FOUND`, `ZIP_PATH_TRAVERSAL`,
+  `ZIP_LIMIT_EXCEEDED`): branch on the code, never on message text.
+  Registry: docs/data/errors.json; guide: docs/guides/errors.md.
 - Extraction is safe by default: traversal, symlinks, duplicates and bombs
   are rejected unless explicitly configured otherwise via `limits` /
   `rejectTraversal` / `rejectSymlinks` / `onDuplicate`.
@@ -33,7 +39,7 @@ documentation), docs/llms-index.json (artefact/guide index with sizes).
   `stream({ chunkSize? })` (async, byte-identical to toBytes).
 - Reproducible archives: `createZip({ compression: { deterministic: true } })`
   → identical inputs give identical SHA-256 on every runtime (contract:
-  docs/determinism.md). Default timestamps are the DOS epoch — already
+  docs/guides/determinism.md). Default timestamps are the DOS epoch — already
   reproducible; `defaultDate: 'now'` opts into wall-clock time.
 - The writer never emits traversal-capable names (validated at `add()`),
   entries are sorted canonically by raw name bytes

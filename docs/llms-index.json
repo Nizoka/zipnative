@@ -6,14 +6,14 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 5076,
-      "approxTokens": 1269
+      "bytes": 5469,
+      "approxTokens": 1367
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 27022,
-      "approxTokens": 6756
+      "bytes": 35157,
+      "approxTokens": 8789
     },
     {
       "url": "llms-recipes.txt",
@@ -24,8 +24,8 @@
     {
       "url": "assets/api.json",
       "description": "The mechanically extracted export surface — the API ground truth.",
-      "bytes": 13076,
-      "approxTokens": 3269
+      "bytes": 15140,
+      "approxTokens": 3785
     },
     {
       "url": "assets/ecosystem.json",
@@ -49,6 +49,21 @@
       ],
       "bytes": 4718,
       "approxTokens": 1180
+    },
+    {
+      "title": "Errors and error codes",
+      "summary": "Every error zipnative throws carries a stable, machine-readable `code` — branch on it, never on message text. The vocabulary below is frozen from 0.8.0: removing or renaming a code is semver-major; additions are semver-minor.",
+      "html": "guides/errors.html",
+      "markdown": "guides/errors.md",
+      "anchors": [
+        "the-contract",
+        "when-to-branch-on-instanceof-vs-code",
+        "the-vocabulary",
+        "diagnostics-are-not-errors",
+        "see-also"
+      ],
+      "bytes": 7697,
+      "approxTokens": 1924
     },
     {
       "title": "Quickstart",
