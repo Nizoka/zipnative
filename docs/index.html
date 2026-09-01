@@ -15,9 +15,13 @@
   <meta property="og:url" content="https://zipnative.dev/">
   <meta property="og:title" content="zipnative — safe, deterministic, streaming ZIP engine for TypeScript">
   <meta property="og:description" content="Zero-dependency ZIP engine: random access, secure extraction, reproducible archives, incremental modification, worker parallelism.">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="zipnative">
   <meta name="twitter:description" content="The safe, deterministic, streaming ZIP engine for modern TypeScript apps and AI agents.">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
   <link rel="canonical" href="https://zipnative.dev/">
   <link rel="alternate" hreflang="en" href="https://zipnative.dev/">
   <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/">
@@ -68,6 +72,7 @@
       <a href="#features">Features</a>
       <a href="#security">Security</a>
       <a href="#determinism">Determinism</a>
+      <a href="#architecture">Architecture</a>
       <a href="#examples">Examples</a>
       <a href="guides/index.html">Guides</a>
       <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
@@ -142,6 +147,80 @@
       emitted bytes is a semver-major event.
     </p>
     <p><a href="guides/determinism.html">Read the determinism contract →</a></p>
+  </section>
+
+  <section class="section" id="architecture">
+    <h2>Architecture</h2>
+    <p>
+      Five strict layers, one direction of imports, and — by policy — zero
+      reverse edges: cross-layer needs (diagnostics in codecs, compression
+      in the segment generator) are met by parameter injection, never by
+      imports.
+    </p>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 880 190" role="img" class="diagram">
+        <title>zipnative layer architecture</title>
+        <desc>Five layers — types, codecs, core, parser, worker — where each layer imports only from the layers to its left. No reverse edges.</desc>
+        <g style="font-family: ui-monospace, Consolas, monospace; font-size: 15px;">
+          <rect x="10"  y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="80"  y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">types/</text>
+          <text x="80"  y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">errors · limits</text>
+          <rect x="190" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="260" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">codecs/</text>
+          <text x="260" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">deflate · crc32</text>
+          <rect x="370" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="440" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">core/</text>
+          <text x="440" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">segments · builder</text>
+          <rect x="550" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="620" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">parser/</text>
+          <text x="620" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">reader · modifier</text>
+          <rect x="730" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="800" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">worker/</text>
+          <text x="800" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">parallel pool</text>
+          <g style="stroke: var(--c-accent); stroke-width: 2; fill: none;">
+            <path d="M190 62 h-30 m8 -6 l-8 6 l8 6"/>
+            <path d="M370 62 h-30 m8 -6 l-8 6 l8 6"/>
+            <path d="M550 62 h-30 m8 -6 l-8 6 l8 6"/>
+            <path d="M730 62 h-30 m8 -6 l-8 6 l8 6"/>
+          </g>
+          <text x="440" y="135" text-anchor="middle" style="fill: var(--c-text-muted); font-size: 13px;">arrows = “imports from” — reverse edges are forbidden by policy (AGENTS.md)</text>
+          <text x="440" y="160" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 13px;">cross-layer needs travel by parameter injection: emitters, codecs, compressors</text>
+        </g>
+      </svg>
+    </div>
+    <p>
+      The write path is one algorithm with two consumers: planning validates
+      and compresses everything up front, then a single segment generator is
+      drained either into a buffer or into fixed-size chunks — so the two
+      outputs are <em>byte-identical by construction</em>, not by parallel
+      maintenance.
+    </p>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 880 210" role="img" class="diagram">
+        <title>The shared segment generator</title>
+        <desc>planArchive feeds archiveSegments, whose output is consumed by both toBytes and stream, producing byte-identical archives.</desc>
+        <g style="font-family: ui-monospace, Consolas, monospace; font-size: 15px;">
+          <rect x="20"  y="72" width="200" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="120" y="99"  text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">planArchive()</text>
+          <text x="120" y="121" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">validate · compress · order</text>
+          <rect x="290" y="72" width="230" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-accent); stroke-width: 2;"/>
+          <text x="405" y="99"  text-anchor="middle" style="fill: var(--c-accent); font-weight: 700;">archiveSegments()</text>
+          <text x="405" y="121" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">one generator, exact offsets</text>
+          <rect x="620" y="16"  width="180" height="56" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="710" y="40"  text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">toBytes()</text>
+          <text x="710" y="60"  text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">sync, buffered</text>
+          <rect x="620" y="136" width="180" height="56" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
+          <text x="710" y="160" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">stream()</text>
+          <text x="710" y="180" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">chunked, bounded memory</text>
+          <g style="stroke: var(--c-accent); stroke-width: 2; fill: none;">
+            <path d="M220 104 h70 m-8 -6 l8 6 l-8 6"/>
+            <path d="M520 96 C570 80, 580 56, 620 46 m-10 -2 l10 2 l-7 8"/>
+            <path d="M520 112 C570 128, 580 152, 620 162 m-7 -9 l7 9 l-10 2"/>
+          </g>
+          <text x="710" y="112" text-anchor="middle" style="fill: var(--c-text-muted); font-size: 13px;">byte-identical</text>
+        </g>
+      </svg>
+    </div>
   </section>
 
   <section class="section" id="examples">

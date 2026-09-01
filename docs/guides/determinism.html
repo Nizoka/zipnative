@@ -6,6 +6,11 @@
   <title>The determinism contract — zipnative</title>
   <meta name="description" content="Reproducible output as a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what deterministic: true pins bit-for-bit on every runtime.">
   <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
   <link rel="canonical" href="https://zipnative.dev/guides/determinism.html">
   <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/determinism.html">
   <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/determinism.html">
@@ -23,35 +28,148 @@
       <button class="theme-toggle" aria-label="Toggle theme">◐</button>
     </div>
   </nav>
-  <article id="guide-content" class="guide-content" data-md="determinism.md">
-    <h1>The zipnative determinism contract</h1>
-    <blockquote><p>Reproducible output is a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what <code>compression: { deterministic: true }</code> pins bit-for-bit on every runtime.</p></blockquote>
+  <article id="guide-content" class="guide-content" data-md="determinism.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="the-zipnative-determinism-contract">The zipnative determinism contract</h1>
+<blockquote>
+<p>Reproducible output is a product feature with a written contract: what is
+guaranteed always, what is guaranteed per environment, and what
+<code>compression: { deterministic: true }</code> pins bit-for-bit on every runtime.</p>
+</blockquote>
+<p>This document is the contract; it was written down <em>before</em> anyone depended
+on it, and the golden tests
+(<a href="https://github.com/Nizoka/zipnative/blob/main/tests/core/zip-determinism.test.ts" target="_blank" rel="noopener">tests/core/zip-determinism.test.ts</a>,
+<a href="https://github.com/Nizoka/zipnative/blob/main/tests/codecs/deflate-pure.test.ts" target="_blank" rel="noopener">tests/codecs/deflate-pure.test.ts</a>)
+enforce it byte-for-byte.</p>
+<h2 id="the-three-levels-of-guarantee">The three levels of guarantee<a class="heading-anchor" href="#the-three-levels-of-guarantee" aria-label="Link to this section">#</a></h2>
+<ol>
+<li><strong>Structurally deterministic — always.</strong> Entry order, header layout,
+flags, attributes, timestamps and Zip64 decisions never depend on the
+clock, randomness, locale or environment. Two <code>createZip</code> runs with
+identical inputs produce structurally identical archives everywhere.</li>
+<li><strong>Bitwise deterministic per environment — the default.</strong> Deflate
+compresses through the best available tier (<code>node:zlib</code>, or the pure-TS
+encoder elsewhere), so bytes are stable for a given runtime + zlib
+build, but may differ across environments.</li>
+<li><strong>Bitwise deterministic everywhere — <code>compression: { deterministic: true }</code>.</strong>
+The pure-TS encoder is pinned: <code>SHA256(A) === SHA256(B)</code> for identical
+inputs on every runtime (Node, browsers, Deno, Bun, Workers). This is
+the mode for content addressing, reproducible builds, caching and
+signatures.</li>
+</ol>
+<h2 id="canonicalization-rules-level-1-always">Canonicalization rules (level 1, always)<a class="heading-anchor" href="#canonicalization-rules-level-1-always" aria-label="Link to this section">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Entry order</td>
+<td>sorted by raw UTF-8 name bytes, unsigned bytewise (<code>order: &#39;insertion&#39;</code> preserves call order — still deterministic given identical calls)</td>
+</tr>
+<tr>
+<td>Timestamps</td>
+<td>DOS epoch <code>1980-01-01 00:00:00</code> unless a <code>Date</code> is given; <code>&#39;now&#39;</code> emits <code>ZIP_TIMESTAMP_NOT_PINNED</code></td>
+</tr>
+<tr>
+<td>Name encoding</td>
+<td>always UTF-8 with flag bit 11, including pure-ASCII names</td>
+</tr>
+<tr>
+<td>version-made-by</td>
+<td>constant <code>0x032D</code> (Unix, spec 4.5)</td>
+</tr>
+<tr>
+<td>versions-needed</td>
+<td>20, or 45 exactly when the entry uses Zip64</td>
+</tr>
+<tr>
+<td>External attributes</td>
+<td>files <code>0o100644 &lt;&lt; 16</code>, directories <code>(0o40755 &lt;&lt; 16) | 0x10</code></td>
+</tr>
+<tr>
+<td>Internal attributes</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Extra fields</td>
+<td>none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied <code>extraFields</code> are embedded verbatim (their determinism is the caller&#39;s)</td>
+</tr>
+<tr>
+<td>Method selection</td>
+<td>empty content is stored; deflate falls back to store when it does not shrink the payload (a pure function of the content)</td>
+</tr>
+<tr>
+<td>Zip64 records</td>
+<td>emitted exactly when a classic field overflows; classic EOCD sentinels only the overflowed fields</td>
+</tr>
+<tr>
+<td>Data descriptors</td>
+<td>never on buffered entries; always on <code>addStream</code> entries</td>
+</tr>
+</tbody></table>
+<h2 id="the-frozen-encoder-contract-level-3">The frozen encoder contract (level 3)<a class="heading-anchor" href="#the-frozen-encoder-contract-level-3" aria-label="Link to this section">#</a></h2>
+<p>Under <code>deterministic: true</code>, deflate output bytes are produced by
+<a href="https://github.com/Nizoka/zipnative/blob/main/src/codecs/deflate-pure.ts" target="_blank" rel="noopener">src/codecs/deflate-pure.ts</a> and every
+constant in that file is frozen public API:</p>
+<ul>
+<li>hash function <code>imul(3-byte window, 0x9E3779B1) &gt;&gt;&gt; 17</code> over a 32 KiB
+window with head/prev chains;</li>
+<li>zlib&#39;s level configuration table (good/lazy/nice/chain for levels 1–9);</li>
+<li>unified one-step-lazy matching, deferred match wins ties, <code>TOO_FAR = 4096</code>;</li>
+<li>65 534-symbol blocks, hash history never reset across blocks;</li>
+<li>Huffman construction: two-queue merge over leaves sorted (frequency
+ascending, symbol ascending), leaf preferred on equal cost, zlib
+overflow fix at 15 bits (7 for the code-length tree), reassignment in
+the same sorted order;</li>
+<li>block choice at exact bit cost with the tie order stored ≤ fixed ≤ dynamic.</li>
+</ul>
+<p><strong>Changing any of these changes emitted bytes and is a semver-major
+release.</strong> The golden SHA-256 tables in the test suite are the tripwire.</p>
+<h2 id="documented-determinism-losses">Documented determinism losses<a class="heading-anchor" href="#documented-determinism-losses" aria-label="Link to this section">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Effect</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Default codec tier (no <code>deterministic: true</code>)</td>
+<td>bytes vary across zlib builds</td>
+<td><code>ZIP_NONDETERMINISTIC_CODEC</code> (info; emitted when an explicit date is pinned but the codec is not)</td>
+</tr>
+<tr>
+<td><code>defaultDate: &#39;now&#39;</code></td>
+<td>bytes vary per run</td>
+<td><code>ZIP_TIMESTAMP_NOT_PINNED</code> (info)</td>
+</tr>
+<tr>
+<td><code>addStream</code> vs <code>add</code> of identical content</td>
+<td>different layout (data descriptor)</td>
+<td>documented here; use <code>add()</code> when bytes must match</td>
+</tr>
+<tr>
+<td>Injected codec (<code>setDeflateImpl</code>)</td>
+<td>caller-defined bytes</td>
+<td>never used for <code>deterministic: true</code></td>
+</tr>
+</tbody></table>
+<h2 id="verifying-reproducibility">Verifying reproducibility<a class="heading-anchor" href="#verifying-reproducibility" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-ts">import { createZip } from &#39;zipnative&#39;;
 
-    <h2 id="the-three-levels-of-guarantee">The three levels of guarantee</h2>
-    <ol>
-      <li><strong>Structurally deterministic — always.</strong> Entry order, header layout, flags, attributes, timestamps and Zip64 decisions never depend on the clock, randomness, locale or environment.</li>
-      <li><strong>Bitwise deterministic per environment — the default.</strong> Deflate compresses through the best available tier, so bytes are stable for a given runtime + zlib build.</li>
-      <li><strong>Bitwise deterministic everywhere — <code>deterministic: true</code>.</strong> The pure-TS encoder is pinned: <code>SHA256(A) === SHA256(B)</code> for identical inputs on every runtime — the mode for content addressing, reproducible builds, caching and signatures.</li>
-    </ol>
-
-    <h2 id="canonicalization-rules">Canonicalization rules (always)</h2>
-    <p>Entries sort by raw UTF-8 name bytes (<code>order: 'insertion'</code> preserves call order); timestamps default to the DOS epoch (<code>'now'</code> costs a diagnostic); version-made-by, external attributes and flags are constants; Zip64 records appear exactly when a field overflows; empty content is stored and deflate falls back to store when it does not shrink the payload — both pure functions of the content.</p>
-
-    <h2 id="the-frozen-encoder-contract">The frozen encoder contract</h2>
-    <p>Under <code>deterministic: true</code>, every constant of the pure-TS encoder is frozen public API — the hash function, zlib's level configuration table, the one-step-lazy tie rules, the Huffman construction ordering and the block-cost tie order. <strong>Changing any of them changes emitted bytes and is a semver-major release</strong>; golden SHA-256 tables in the test suite are the tripwire.</p>
-
-    <h2 id="documented-determinism-losses">Documented determinism losses</h2>
-    <table>
-      <thead><tr><th>Situation</th><th>Effect</th></tr></thead>
-      <tbody>
-        <tr><td>Default codec tier</td><td>bytes vary across zlib builds (diagnostic when a date is pinned)</td></tr>
-        <tr><td><code>defaultDate: 'now'</code></td><td>bytes vary per run (diagnostic)</td></tr>
-        <tr><td><code>addStream</code> vs <code>add</code> of identical content</td><td>different layout (data descriptor)</td></tr>
-        <tr><td>Injected codec</td><td>caller-defined bytes; never used under <code>deterministic: true</code></td></tr>
-      </tbody>
-    </table>
-
-    <p>The full normative text lives in the <a href="determinism.md">Markdown source</a> of this guide, enforced byte-for-byte by the golden test suites.</p>
+const build = () =&gt; {
+    const zip = createZip({ compression: { deterministic: true } });
+    zip.add(&#39;data.json&#39;, payload); // identical inputs...
+    return zip.toBytes();
+};
+// ...identical bytes, on any runtime:
+sha256(build()) === sha256(build());
+</code></pre>
+<!-- guide:render:end -->
   </article>
   <script src="../app.js" defer></script>
 </body>

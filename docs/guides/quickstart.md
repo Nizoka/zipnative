@@ -45,7 +45,7 @@ for (const file of files) {
 ```
 
 The engine never touches a filesystem; join `file.path` under your own
-root (see the [security guide](security.md)).
+root (see the [security guide](security.html)).
 
 ## Create — reproducibly
 
@@ -62,7 +62,7 @@ for await (const chunk of zip.stream()) { /* send */ }
 ```
 
 Identical inputs give identical SHA-256 on every runtime — the
-[determinism contract](determinism.md).
+[determinism contract](determinism.html).
 
 ## Modify without recompressing
 

@@ -232,6 +232,51 @@ for (const page of htmlPages) {
     }
 }
 
+// ── Rule: guide-render-sync (rebuilds each shell in memory) ──────────
+{
+    const { applyGuideRender, listGuideShells } = await import('./build-guides.ts');
+    for (const htmlName of listGuideShells(ROOT)) {
+        const relPath = `docs/guides/${htmlName}`;
+        const committed = read(relPath);
+        if (!committed.includes('<!-- guide:render:start -->')) {
+            report(relPath, 1, 'guide-render-sync', 'article is not pre-rendered — run `npm run docs:guides`');
+            continue;
+        }
+        if (committed !== lf(applyGuideRender(ROOT, htmlName))) {
+            report(relPath, 1, 'guide-render-sync',
+                'stale — the committed render differs from its Markdown source; run `npm run docs:guides`');
+        }
+    }
+}
+
+// ── Rule: anchor-parity (fragments resolve to real ids) ──────────────
+{
+    const idsOf = (path: string): Set<string> => {
+        const ids = new Set<string>();
+        for (const m of read(path).matchAll(/\bid="([^"]+)"/g)) ids.add(m[1]);
+        return ids;
+    };
+    for (const page of htmlPages) {
+        const html = read(page);
+        for (const m of html.matchAll(/href="([^"#]*)#([^"]+)"/g)) {
+            const [, target, fragment] = m;
+            if (/^https?:/.test(target)) continue;
+            let resolvedTarget = page;
+            if (target !== '') {
+                const abs = resolve(dirname(resolve(ROOT, page)), target.replace(/\.md$/, '.html'));
+                if (!existsSync(abs)) continue; // internal-links reports the missing file
+                resolvedTarget = rel(abs);
+            }
+            if (!idsOf(resolvedTarget).has(fragment)) {
+                if (!allowed(html, m.index ?? 0, 'anchor-parity')) {
+                    report(page, lineOf(html, m.index ?? 0), 'anchor-parity',
+                        `fragment #${fragment} not found in ${resolvedTarget}`);
+                }
+            }
+        }
+    }
+}
+
 // ── Rule: sitemap-parity ─────────────────────────────────────────────
 if (site !== null && verifiedOn !== null) {
     const sitemap = read('docs/sitemap.xml');

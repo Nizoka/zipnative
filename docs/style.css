@@ -104,6 +104,10 @@ code {
   overflow-x: auto; font-size: 0.88rem; line-height: 1.55;
 }
 
+/* ── Diagrams ── */
+.diagram-wrap { overflow-x: auto; margin: 1.2rem 0; }
+.diagram { width: 100%; min-width: 640px; max-width: 60rem; display: block; }
+
 /* ── Footer ── */
 .footer { text-align: center; padding: 2.2rem 1.4rem 3rem; border-top: 1px solid var(--c-border); }
 .footer p { margin: 0.4rem 0; color: var(--c-text-muted); font-size: 0.93rem; }
@@ -115,6 +119,8 @@ code {
 .guide-content h1 { font-size: 1.8rem; }
 .guide-content h2 { margin-top: 2rem; border-bottom: 1px solid var(--c-border); padding-bottom: 0.3rem; }
 .guide-content blockquote { border-left: 3px solid var(--c-accent); margin: 0; padding: 0.1rem 1.1rem; color: var(--c-text-muted); }
+.heading-anchor { margin-left: 0.45rem; opacity: 0; font-size: 0.85em; text-decoration: none; }
+h2:hover .heading-anchor, h3:hover .heading-anchor, h4:hover .heading-anchor { opacity: 0.7; }
 .guide-content table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
 .guide-content th, .guide-content td { border: 1px solid var(--c-border); padding: 0.45rem 0.7rem; text-align: left; }
 .guide-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }

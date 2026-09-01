@@ -44,6 +44,27 @@ sibling [pdfnative](https://github.com/Nizoka/pdfnative). The short version:
    binaries must have foreign provenance, be < 20 KB, and be protected by
    `.gitattributes`.
 
+## Docs local preview
+
+The documentation site (`docs/`) is static HTML/CSS/JS with **no build
+step for viewing** — every guide is pre-rendered into its shell by
+`npm run docs:guides` (verify-docs's `guide-render-sync` keeps the
+committed render in sync with its Markdown source). Opening
+`docs/index.html` as a `file://` URL works for every current page; an
+HTTP origin is still the faithful preview (correct root-relative paths,
+and required the day interactive pages arrive):
+
+```bash
+npm run docs:serve                                # http://localhost:5000
+# equivalents, pick any:
+npx http-server docs/ -p 5000
+python -m http.server 5000 --directory docs/
+```
+
+Entry points: `/` (landing), `/guides/` (guide hub). After editing a
+guide's `.md`, run `npm run docs:guides && npm run docs:llms` and commit
+the regenerated files — CI rejects stale renders.
+
 ## Honesty rules
 
 - The README comparison table keeps fflate's "fastest raw deflate" cell.
