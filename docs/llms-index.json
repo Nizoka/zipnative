@@ -24,8 +24,8 @@
     {
       "url": "assets/api.json",
       "description": "The mechanically extracted export surface — the API ground truth.",
-      "bytes": 19904,
-      "approxTokens": 4976
+      "bytes": 19939,
+      "approxTokens": 4985
     },
     {
       "url": "assets/ecosystem.json",

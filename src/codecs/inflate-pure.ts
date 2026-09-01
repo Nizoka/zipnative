@@ -87,10 +87,15 @@ function decodeSymbol(br: BitReader, table: HuffmanTable): number {
 export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
     const br: BitReader = { buf: data, pos: 0, bitBuf: 0, bitCnt: 0 };
 
-    // When the caller knows the exact output size (the CD-declared size),
-    // allocate once; a growing buffer only serves unbounded callers.
+    // Grow toward maxOutput by doubling — never allocate the (attacker-
+    // controlled) declared size upfront. A CD claiming a 1 GiB entry with a
+    // tiny payload must not force a 1 GiB allocation before a single byte is
+    // produced (CWE-789); maxOutput stays the hard ceiling, enforced in
+    // ensureCapacity. A huge/non-finite maxOutput therefore costs nothing
+    // until the stream actually produces that much (and then trips the bound).
     const bounded = Number.isFinite(maxOutput);
-    let out = new Uint8Array(bounded ? maxOutput : Math.min(data.length * 4, 1 << 20));
+    const initial = Math.max(64, Math.min(bounded ? maxOutput : Number.MAX_SAFE_INTEGER, data.length * 4, 1 << 20));
+    let out = new Uint8Array(initial);
     let outPos = 0;
 
     const ensureCapacity = (needed: number): void => {
@@ -148,7 +153,7 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
                 for (let i = 0; i < hclen; i++) {
                     clLengths[CL_ORDER[i]] = readBits(br, 3);
                 }
-                const clTable = buildHuffmanTable(clLengths, 19);
+                const clTable = buildHuffmanTable(clLengths, 19, true);
 
                 const totalCodes = hlit + hdist;
                 const codeLengths = new Uint8Array(totalCodes);
@@ -212,5 +217,11 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
         }
     }
 
-    return outPos === out.length ? out : out.subarray(0, outPos);
+    if (outPos === out.length) return out;
+    // Copy out (not subarray) when the backing buffer is much larger than
+    // the result, so an over-allocated buffer is not retained for the
+    // lifetime of the returned view; subarray is fine for a snug fit.
+    return out.length - outPos > 65536 && out.length > outPos * 2
+        ? out.slice(0, outPos)
+        : out.subarray(0, outPos);
 }

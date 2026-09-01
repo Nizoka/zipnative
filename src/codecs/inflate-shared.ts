@@ -10,20 +10,54 @@
  * @module codecs/inflate-shared
  */
 
+import { ZipFormatError } from '../types/zip-errors.js';
+
 export interface HuffmanTable {
     readonly counts: Uint16Array;  // count of codes per bit length
     readonly symbols: Uint16Array; // symbols sorted by code
 }
 
-/** Build a canonical Huffman decode table from code lengths (RFC 1951 §3.2.2). */
-export function buildHuffmanTable(lengths: Uint8Array, maxSymbol: number): HuffmanTable {
+/**
+ * Build a canonical Huffman decode table from code lengths (RFC 1951
+ * §3.2.2), validating the Kraft inequality exactly as zlib's `inflate_table`
+ * does: an over-subscribed set is always rejected; an incomplete set is
+ * rejected too, except an empty table (no codes) and — for the literal/
+ * length and distance alphabets only — a lone one-bit code. Without this a
+ * corrupt stream would decode to silent garbage instead of throwing.
+ *
+ * @param isCodeLengthTable - true for the code-length (CL) alphabet, where
+ *   even a single-code incomplete set is invalid (zlib's CODES type).
+ */
+export function buildHuffmanTable(lengths: Uint8Array, maxSymbol: number, isCodeLengthTable = false): HuffmanTable {
     const MAX_BITS = 15;
     const counts = new Uint16Array(MAX_BITS + 1);
     const symbols = new Uint16Array(maxSymbol);
 
+    let totalCodes = 0;
+    let maxLen = 0;
     for (let i = 0; i < maxSymbol; i++) {
-        if (lengths[i] > 0) counts[lengths[i]]++;
+        const len = lengths[i];
+        if (len > 0) { counts[len]++; totalCodes++; if (len > maxLen) maxLen = len; }
     }
+
+    // Kraft check (zlib inftrees.c): left starts at 1 and is halved-then-
+    // debited per length; negative means over-subscribed, positive means
+    // incomplete. An empty alphabet (totalCodes === 0) is legal (e.g. a
+    // block with no back-references has an empty distance table).
+    if (totalCodes > 0) {
+        let left = 1;
+        for (let len = 1; len <= MAX_BITS; len++) {
+            left <<= 1;
+            left -= counts[len];
+            if (left < 0) {
+                throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: over-subscribed Huffman table in deflate stream');
+            }
+        }
+        if (left > 0 && (isCodeLengthTable || maxLen !== 1)) {
+            throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: incomplete Huffman table in deflate stream');
+        }
+    }
+
     const offsets = new Uint16Array(MAX_BITS + 1);
     for (let i = 1; i < MAX_BITS; i++) {
         offsets[i + 1] = offsets[i] + counts[i];

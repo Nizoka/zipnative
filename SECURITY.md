@@ -23,7 +23,7 @@ headers), and mixes 16/32/64-bit size fields. zipnative defends against:
 
 | Threat | Defence | CWE |
 |---|---|---|
-| Zip-slip path traversal (`../`, absolute paths, drive letters, backslashes, NUL, NTFS ADS) | `rejectTraversal: true` by default; `sanitizeEntryPath()` exported for external sinks | CWE-22 |
+| Zip-slip path traversal (`../`, absolute paths, drive letters, backslashes, NUL, NTFS ADS, Windows reserved device names — `CON`/`NUL`/`COM1`…) | `rejectTraversal: true` by default; `sanitizeEntryPath()` exported for external sinks | CWE-22 / CWE-67 |
 | Decompression bombs (high ratio, nesting, entry floods) | per-entry and total output caps, compression-ratio bound, entry-count cap — all enforced *during* inflation, not after | CWE-400 / CWE-409 |
 | Symlink entries redirecting extraction | `rejectSymlinks: true` by default | CWE-59 |
 | Overlapping entries (one payload claimed by many entries) | always-on overlap detection over central-directory ranges | CWE-405 |

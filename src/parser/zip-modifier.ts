@@ -53,6 +53,7 @@ import {
 import {
     EXTRA_ZIP64,
     FLAG_DATA_DESCRIPTOR,
+    FLAG_UTF8,
     SENTINEL_U16,
     SENTINEL_U32,
 } from '../core/zip-constants.js';
@@ -210,6 +211,10 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
     const specForWrite = (name: string, edit: { data: Uint8Array; options?: AddEntryOptions }): EntrySpec => {
         const isDirectory = name.endsWith('/');
         const compression = edit.options?.compression;
+        const level = compression?.level ?? defaultCompression?.level ?? 6;
+        if (!Number.isInteger(level) || level < 0 || level > 9) {
+            throw new ZipError('ZIP_INVALID_OPTION', `zipnative: compression.level must be an integer 0-9 (got ${String(level)})`);
+        }
         const dos = edit.options?.date !== undefined ? dateToDosDateTime(edit.options.date) : defaultDos;
         return {
             nameBytes: te.encode(name),
@@ -217,7 +222,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             data: isDirectory ? new Uint8Array(0) : edit.data,
             source: null,
             method: isDirectory ? 'store' : (compression?.method ?? defaultCompression?.method ?? 'deflate'),
-            level: compression?.level ?? defaultCompression?.level ?? 6,
+            level,
             deterministic: compression?.deterministic ?? defaultCompression?.deterministic ?? false,
             dosDate: dos.dosDate,
             dosTime: dos.dosTime,
@@ -252,11 +257,24 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         return reader.bytes.subarray(lfh.dataStart, dataEnd);
     };
 
-    /** A copied source entry as a PlannedEntry (no recompression, bit 3 cleared). */
-    const planForCopy = (source: ZipEntry, nameBytes: Uint8Array): PlannedEntry => ({
+    /**
+     * A copied source entry as a PlannedEntry (no recompression, bit 3
+     * cleared). `nameIsUtf8` is true when `nameBytes` is a fresh UTF-8
+     * re-encoding (rename): the UTF-8 flag (bit 11) must then track the
+     * bytes actually written — set it for non-ASCII, clear it for ASCII —
+     * so a CP437 source renamed to a non-ASCII name is not mislabeled.
+     * For a verbatim survivor (`nameIsUtf8` false, original `rawName`),
+     * the source's own flag is preserved untouched.
+     */
+    const planForCopy = (source: ZipEntry, nameBytes: Uint8Array, nameIsUtf8: boolean): PlannedEntry => {
+        let flags = source.flags & ~FLAG_DATA_DESCRIPTOR;
+        if (nameIsUtf8) {
+            flags = nameBytes.some((b) => b >= 0x80) ? (flags | FLAG_UTF8) : (flags & ~FLAG_UTF8);
+        }
+        return {
         nameBytes,
         method: source.compressionMethod,
-        flags: source.flags & ~FLAG_DATA_DESCRIPTOR,
+        flags,
         dosDate: source.dosDate,
         dosTime: source.dosTime,
         externalAttributes: source.externalAttributes,
@@ -273,7 +291,8 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         versionMadeBy: source.versionMadeBy,
         internalAttributes: source.internalAttributes,
         versionNeededMin: source.versionNeeded,
-    });
+        };
+    };
 
     /** Appended-zone plans for save(): pending writes + raw copies, canonical order. */
     const buildAppendedPlans = (): PlannedEntry[] => {
@@ -283,7 +302,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             if (edit.kind === 'write') {
                 writeSpecs.push(specForWrite(name, edit));
             } else if (edit.kind === 'rawCopy') {
-                copyPlans.push(planForCopy(edit.source, te.encode(name)));
+                copyPlans.push(planForCopy(edit.source, te.encode(name), true));
             }
         }
         const writePlans = planArchive(writeSpecs, new Uint8Array(0), limits, emit).plans;
@@ -409,17 +428,29 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             for (let i = 0; i < appended.length; i++) {
                 const plan = appended[i];
                 storedOffsets[i] = abs - base;
+                // Raw-copied payloads can be ≥4 GiB (a slice of an existing
+                // archive, not a freshly-compressed ≤2 GiB buffer), so the
+                // LFH needs the Zip64 size form — mirror archiveSegments'
+                // sentinel-exactly-the-overflowed-field policy so our own
+                // reader parses the extra in lock-step.
+                const lfhZ64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : undefined;
+                const lfhZ64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : undefined;
+                const lfhUsesZip64 = lfhZ64Unc !== undefined || lfhZ64Comp !== undefined;
+                const lfhExtraParts: Uint8Array[] = [];
+                if (lfhUsesZip64) lfhExtraParts.push(buildZip64Extra(lfhZ64Unc, lfhZ64Comp, undefined));
+                if (plan.extraFields.length > 0) lfhExtraParts.push(serializeExtraFields(plan.extraFields));
                 emitSeg(writeLocalFileHeader({
-                    versionNeeded: Math.max(20, plan.versionNeededMin ?? 0),
+                    versionNeeded: Math.max(lfhUsesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
                     flags: plan.flags,
                     compressionMethod: plan.method,
                     dosTime: plan.dosTime,
                     dosDate: plan.dosDate,
                     crc32: plan.crc32,
-                    compressedSize: plan.compressedSize,
-                    uncompressedSize: plan.uncompressedSize,
+                    compressedSize: lfhZ64Comp !== undefined ? SENTINEL_U32 : plan.compressedSize,
+                    uncompressedSize: lfhZ64Unc !== undefined ? SENTINEL_U32 : plan.uncompressedSize,
                     name: plan.nameBytes,
-                    extra: serializeExtraFields(plan.extraFields),
+                    extra: lfhExtraParts.length === 0 ? new Uint8Array(0)
+                        : lfhExtraParts.length === 1 ? lfhExtraParts[0] : concatBytes(lfhExtraParts),
                 }));
                 if (plan.payload !== null && plan.payload.length > 0) {
                     emitSeg(plan.payload);
@@ -444,10 +475,15 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                     continue;
                 }
                 const { plan, storedOffset } = item;
+                // Sentinel exactly the overflowed classic fields (size AND
+                // offset), matching archiveSegments and our reader's
+                // lock-step Zip64 parse.
+                const z64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : undefined;
+                const z64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : undefined;
                 const z64Off = storedOffset > SENTINEL_U32 - 1 ? storedOffset : undefined;
-                const usesZip64 = z64Off !== undefined;
+                const usesZip64 = z64Unc !== undefined || z64Comp !== undefined || z64Off !== undefined;
                 const extraParts: Uint8Array[] = [];
-                if (usesZip64) extraParts.push(buildZip64Extra(undefined, undefined, z64Off));
+                if (usesZip64) extraParts.push(buildZip64Extra(z64Unc, z64Comp, z64Off));
                 if (plan.extraFields.length > 0) extraParts.push(serializeExtraFields(plan.extraFields));
                 const extra = extraParts.length === 0 ? new Uint8Array(0)
                     : extraParts.length === 1 ? extraParts[0]
@@ -460,11 +496,11 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                     dosTime: plan.dosTime,
                     dosDate: plan.dosDate,
                     crc32: plan.crc32,
-                    compressedSize: plan.compressedSize,
-                    uncompressedSize: plan.uncompressedSize,
+                    compressedSize: z64Comp !== undefined ? SENTINEL_U32 : plan.compressedSize,
+                    uncompressedSize: z64Unc !== undefined ? SENTINEL_U32 : plan.uncompressedSize,
                     internalAttributes: plan.internalAttributes ?? 0,
                     externalAttributes: plan.externalAttributes,
-                    localHeaderOffset: usesZip64 ? SENTINEL_U32 : storedOffset,
+                    localHeaderOffset: z64Off !== undefined ? SENTINEL_U32 : storedOffset,
                     name: plan.nameBytes,
                     extra,
                     comment: plan.comment,
@@ -514,11 +550,11 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 if (edit.kind === 'write') {
                     writeSpecs.push(specForWrite(name, edit));
                 } else if (edit.kind === 'rawCopy') {
-                    plans.push(planForCopy(edit.source, te.encode(name)));
+                    plans.push(planForCopy(edit.source, te.encode(name), true));
                 }
             }
             for (const record of survivingSources()) {
-                plans.push(planForCopy(record.entry, record.entry.rawName));
+                plans.push(planForCopy(record.entry, record.entry.rawName, false));
             }
             plans.push(...planArchive(writeSpecs, new Uint8Array(0), limits, emit).plans);
             plans.sort((a, b) => compareNames(a.nameBytes, b.nameBytes));

@@ -509,7 +509,7 @@
       "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export function sanitizeEntryPath(name: string): string | null",
-      "summary": "Return the safe relative form of an entry name, or `null` when the name cannot be made safe (traversal, absolute, drive/UNC, NUL, NTFS ADS)."
+      "summary": "Return the safe relative form of an entry name, or `null` when the name cannot be made safe (traversal, absolute, drive/UNC, NUL, NTFS ADS, or a Windows reserved device name)."
     },
     {
       "name": "setDeflateImpl",

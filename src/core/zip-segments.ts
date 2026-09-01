@@ -107,6 +107,18 @@ export type ZipSegment =
 function checkSpec(spec: EntrySpec, limits: ZipLimits): void {
     enforceLimit(limits, 'maxNameBytes', spec.nameBytes.length, 'entry name length');
     enforceLimit(limits, 'maxCommentBytes', spec.comment.length, 'entry comment length');
+    // Extra fields are only bounded on the read side; enforce the same
+    // limit on write, and a hard 65535 structural cap — the serialized
+    // block's length is a u16, so anything larger would wrap and silently
+    // emit a corrupt archive (its own reader would then reject it).
+    let extraBytes = 0;
+    for (const f of spec.extraFields) extraBytes += 4 + f.data.length;
+    enforceLimit(limits, 'maxExtraFieldBytes', extraBytes, 'entry extra-field length');
+    if (extraBytes > 0xFFFF) {
+        throw new ZipError('ZIP_INVALID_OPTION',
+            `zipnative: entry '${new TextDecoder().decode(spec.nameBytes)}' extra fields serialize to ${extraBytes} bytes, `
+            + 'over the 65535 the ZIP header can express — split or drop extra fields');
+    }
 }
 
 /** Build the plan for one stream-sourced spec (data-descriptor layout). */

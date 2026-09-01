@@ -56,8 +56,18 @@ export interface ExtractedStreamEntry {
 }
 
 /**
+ * Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9),
+ * matched on the pre-dot base name, case-insensitively. On Win32
+ * `CreateFile('aux.txt')` opens the AUX device regardless of directory —
+ * so an external FS sink joining such a name under a root escapes it
+ * (CWE-67). `CONX`/`COM10` are NOT reserved and pass.
+ */
+const RESERVED_WIN_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+
+/**
  * Return the safe relative form of an entry name, or `null` when the name
- * cannot be made safe (traversal, absolute, drive/UNC, NUL, NTFS ADS).
+ * cannot be made safe (traversal, absolute, drive/UNC, NUL, NTFS ADS, or a
+ * Windows reserved device name).
  *
  * The single traversal gate for zipnative and for external filesystem
  * sinks: join the result under your extraction root — never the raw name.
@@ -76,6 +86,7 @@ export function sanitizeEntryPath(name: string): string | null {
         if (segment === '' || segment === '.') continue;     // collapse
         if (segment === '..') return null;                   // traversal
         if (segment.includes(':')) return null;              // NTFS ADS (file.txt:stream)
+        if (RESERVED_WIN_DEVICE.test(segment)) return null;  // CON, NUL, COM1… (CWE-67)
         segments.push(segment);
     }
     if (segments.length === 0) return null;

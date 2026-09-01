@@ -309,12 +309,27 @@ export function matchDataDescriptor(head: Uint8Array, measured: MeasuredEntry): 
         csize === measured.compressedSize && usize === measured.uncompressedSize;
 
     const hasSignature = u32(0) === SIG_DATA_DESCRIPTOR;
+    // A 32-bit and 64-bit form of the same descriptor can BOTH match — only
+    // when the uncompressed size is 0 and the compressed size is < 4 GiB, so
+    // the u64 high dwords read as 0. Disambiguate by which length the next
+    // record aligns to (the true descriptor is followed by a PK signature).
+    const startsRecord = (pos: number): boolean => {
+        const sig = u32(pos);
+        return sig === SIG_LOCAL_FILE_HEADER || sig === SIG_CENTRAL_FILE_HEADER;
+    };
 
-    // Acceptance passes, fixed order (frozen behavior).
-    if (hasSignature && matches(u32(4), u32(8), u32(12))) return { ok: true, byteLength: 16 };
-    if (hasSignature && matches(u32(4), u64(8), u64(16))) return { ok: true, byteLength: 24 };
-    if (matches(u32(0), u32(4), u32(8))) return { ok: true, byteLength: 12 };
-    if (matches(u32(0), u64(4), u64(12))) return { ok: true, byteLength: 20 };
+    // Acceptance passes. Ambiguous short/long pairs prefer the short form
+    // only when the following bytes begin a record; otherwise the long form.
+    const m16 = hasSignature && matches(u32(4), u32(8), u32(12));
+    const m24 = hasSignature && matches(u32(4), u64(8), u64(16));
+    if (m16 && m24) return { ok: true, byteLength: startsRecord(16) ? 16 : 24 };
+    if (m16) return { ok: true, byteLength: 16 };
+    if (m24) return { ok: true, byteLength: 24 };
+    const s12 = matches(u32(0), u32(4), u32(8));
+    const s20 = matches(u32(0), u64(4), u64(12));
+    if (s12 && s20) return { ok: true, byteLength: startsRecord(12) ? 12 : 20 };
+    if (s12) return { ok: true, byteLength: 12 };
+    if (s20) return { ok: true, byteLength: 20 };
 
     // Diagnostic pass: sizes are the strong discriminators — a form whose
     // both sizes match but whose CRC differs pins the precise failure.

@@ -132,27 +132,44 @@ async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Arr
         const cs = new CompressionStream('deflate-raw');
         const writer = cs.writable.getWriter();
         const reader = cs.readable.getReader();
+        // Own the source iterator explicitly so the finally can release it if
+        // the consumer abandons this generator mid-entry (break out of
+        // zip.stream()) — otherwise writeAll would keep pumping and the
+        // caller's upstream reader / file handle would never be closed.
+        const it = source[Symbol.asyncIterator]();
         const writeAll = (async (): Promise<void> => {
-            for await (const chunk of source) {
-                crc = crc32(chunk, crc);
-                uncompressed += chunk.length;
+            for (;;) {
+                const { done, value } = await it.next();
+                if (done) break;
+                crc = crc32(value, crc);
+                uncompressed += value.length;
                 // Copy: engines may detach transferred chunks.
-                await writer.write(chunk.slice());
+                await writer.write(value.slice());
             }
             await writer.close();
         })();
         writeAll.catch(() => { /* surfaced by the read loop / final await */ });
 
-        for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            compressed += value.length;
-            plan.uncompressedSize = uncompressed;
-            plan.compressedSize = compressed;
-            assertStreamSizesInRange(plan, entryName);
-            yield value;
+        try {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                compressed += value.length;
+                plan.uncompressedSize = uncompressed;
+                plan.compressedSize = compressed;
+                assertStreamSizesInRange(plan, entryName);
+                yield value;
+            }
+            await writeAll;
+        } finally {
+            // Idempotent on the normal path (already drained/closed); on early
+            // abandonment it frees the CompressionStream and the source.
+            void reader.cancel().catch(() => { /* already released */ });
+            void writer.abort().catch(() => { /* already closed */ });
+            if (it.return !== undefined) {
+                try { await it.return(); } catch { /* iterator has no cleanup */ }
+            }
         }
-        await writeAll;
     } else {
         // Fallback: buffer the source, one-shot compress with the sync
         // facade (deterministic pinning included). Documented caveat:

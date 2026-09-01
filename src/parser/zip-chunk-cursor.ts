@@ -79,6 +79,10 @@ export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCurso
         },
 
         async readExact(n: number): Promise<Uint8Array> {
+            // A zero-length read (e.g. a local header with an empty name and
+            // no extra field) must not touch the deque — pending[0] may be
+            // undefined at a chunk boundary, which would leak a raw TypeError.
+            if (n === 0) return new Uint8Array(0);
             await fill(n);
             if (buffered < n) {
                 throw new ZipFormatError('ZIP_STREAM_TRUNCATED',

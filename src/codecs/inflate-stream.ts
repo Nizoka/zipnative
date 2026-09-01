@@ -199,7 +199,7 @@ function* inflateChunked(st: InflateState): Generator<Yielded, void, Uint8Array>
                 for (let i = 0; i < hclen; i++) {
                     clLengths[CL_ORDER[i]] = yield* readBitsG(st, 3);
                 }
-                const clTable = buildHuffmanTable(clLengths, 19);
+                const clTable = buildHuffmanTable(clLengths, 19, true);
 
                 const totalCodes = hlit + hdist;
                 const codeLengths = new Uint8Array(totalCodes);

@@ -73,12 +73,21 @@ export function validateEntryName(name: string, isDirectory: boolean): string {
         throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME',
             `zipnative: entry name '${name}' is absolute — archive paths must be relative`);
     }
+    let meaningfulSegments = 0;
     for (const segment of name.split('/')) {
         if (segment === '..') {
             throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME',
                 `zipnative: entry name '${name}' contains a '..' segment — zipnative never writes `
                 + 'traversal-capable archives');
         }
+        if (segment !== '' && segment !== '.') meaningfulSegments++;
+    }
+    // A name of only '.'/'/' segments (e.g. '.', './', '/.') collapses to
+    // nothing in sanitizeEntryPath and would be rejected by our own default
+    // extractor — refuse to emit what we would refuse to read.
+    if (meaningfulSegments === 0) {
+        throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME',
+            `zipnative: entry name '${name}' has no real path segments — it resolves to nothing on extraction`);
     }
     if (isDirectory && !name.endsWith('/')) return `${name}/`;
     return name;

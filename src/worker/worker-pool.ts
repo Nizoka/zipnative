@@ -45,11 +45,12 @@ export interface DeflatePool {
 }
 
 interface PendingJob {
-    readonly request: WorkerJobRequest;
+    readonly id: number;
     readonly original: Uint8Array;
     readonly level: number;
     readonly deterministic: boolean;
     resolve(result: { compressed: Uint8Array; crc: number }): void;
+    reject(err: unknown): void;
     timer?: ReturnType<typeof setTimeout>;
 }
 
@@ -80,7 +81,14 @@ export async function createDeflatePool(options: DeflatePoolOptions): Promise<De
 
     const settleOnMainThread = (job: PendingJob): void => {
         if (job.timer !== undefined) clearTimeout(job.timer);
-        job.resolve(mainThreadJob(job.original, job.level, job.deterministic));
+        // The main-thread fallback itself can throw (OOM on a huge buffer).
+        // Reject the job rather than letting an uncaught exception in a
+        // timer/message callback crash the process and hang toBytes().
+        try {
+            job.resolve(mainThreadJob(job.original, job.level, job.deterministic));
+        } catch (err) {
+            job.reject(err);
+        }
     };
 
     /** Retire a slot; its in-flight and re-queued work moves to the main thread. */
@@ -100,8 +108,14 @@ export async function createDeflatePool(options: DeflatePoolOptions): Promise<De
     const dispatch = (slot: Slot, job: PendingJob): void => {
         slot.current = job;
         job.timer = setTimeout(() => retire(slot), options.jobTimeout);
+        // Copy before transfer — never detach the caller's buffer. Done at
+        // dispatch, not submission, so queued jobs hold only a view of the
+        // caller's data instead of duplicating the whole input upfront.
+        const request: WorkerJobRequest = {
+            id: job.id, data: job.original.slice(), level: job.level, deterministic: job.deterministic,
+        };
         try {
-            slot.handle.post(job.request, [job.request.data.buffer as ArrayBuffer]);
+            slot.handle.post(request, [request.data.buffer as ArrayBuffer]);
         } catch {
             retire(slot);
         }
@@ -117,7 +131,7 @@ export async function createDeflatePool(options: DeflatePoolOptions): Promise<De
         slot.handle.onMessage((message: WorkerResponse) => {
             if (message.type === 'ready') return;
             const job = slot.current;
-            if (job === null || message.id !== job.request.id) return;
+            if (job === null || message.id !== job.id) return;
             slot.current = null;
             if (job.timer !== undefined) clearTimeout(job.timer);
             if (message.type === 'result') {
@@ -140,15 +154,14 @@ export async function createDeflatePool(options: DeflatePoolOptions): Promise<De
             if (closed || !live) {
                 return Promise.resolve(mainThreadJob(data, level, deterministic));
             }
-            return new Promise((resolve) => {
-                // Copy before transfer — never detach the caller's buffer.
-                const payload = data.slice();
+            return new Promise((resolve, reject) => {
                 const job: PendingJob = {
-                    request: { id: nextId++, data: payload, level, deterministic },
+                    id: nextId++,
                     original: data,
                     level,
                     deterministic,
                     resolve,
+                    reject,
                 };
                 const idle = slots.find((s) => !s.dead && s.current === null);
                 if (idle !== undefined) {

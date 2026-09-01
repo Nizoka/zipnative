@@ -134,9 +134,15 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
     const defaultMethod = defaultCompression?.method ?? 'deflate';
     const defaultLevel = defaultCompression?.level ?? 6;
     const defaultDeterministic = defaultCompression?.deterministic === true;
-    if (defaultLevel !== undefined && (!Number.isInteger(defaultLevel) || defaultLevel < 0 || defaultLevel > 9)) {
-        throw new ZipError('ZIP_INVALID_OPTION', `zipnative: compression.level must be an integer 0-9 (got ${String(defaultLevel)})`);
-    }
+    // Validate every compression level — archive default AND per-entry — so
+    // the node:zlib tier can never surface a raw RangeError (the pure tier
+    // already throws a typed ZipError; this keeps the two tiers in step).
+    const validateLevel = (level: number): void => {
+        if (!Number.isInteger(level) || level < 0 || level > 9) {
+            throw new ZipError('ZIP_INVALID_OPTION', `zipnative: compression.level must be an integer 0-9 (got ${String(level)})`);
+        }
+    };
+    validateLevel(defaultLevel);
 
     // Resolve the default timestamp ONCE so every entry of one archive
     // shares it (and so 'now' costs a single diagnostic).
@@ -176,6 +182,7 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
         names.add(finalName);
 
         const compression = entryOptions?.compression;
+        if (compression?.level !== undefined) validateLevel(compression.level);
         const dos = entryOptions?.date !== undefined ? dateToDosDateTime(entryOptions.date) : defaultDos;
         specs.push({
             nameBytes: te.encode(finalName),
