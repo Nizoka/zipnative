@@ -56,6 +56,38 @@ if (!changelog.includes('## [Unreleased]') && !changelog.includes(`## [${pkg.ver
         `CHANGELOG.md has neither an [Unreleased] section nor a [${pkg.version}] section`);
 }
 
+// ── Rule: sample-count canary (asymmetric by design) ─────────────────
+// On-disk count ABOVE the declared count fails (stale manifest — bump
+// derived.sampleZips); BELOW only warns (normal local state after a
+// partial run); zero is ignored (test-output/ is git-ignored).
+{
+    const declared = (ecosystem as { derived?: { sampleZips?: number } }).derived?.sampleZips;
+    if (typeof declared === 'number') {
+        const { existsSync, readdirSync, statSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const countZips = (dir: string): number => {
+            let count = 0;
+            for (const name of readdirSync(dir)) {
+                const path = join(dir, name);
+                if (statSync(path).isDirectory()) count += countZips(path);
+                else if (name.endsWith('.zip')) count++;
+            }
+            return count;
+        };
+        if (existsSync('test-output')) {
+            const onDisk = countZips('test-output');
+            if (onDisk > declared) {
+                report('docs/assets/ecosystem.json', 1, 'sample-count',
+                    `test-output/ holds ${onDisk} archives but derived.sampleZips declares ${declared} — `
+                    + 'a generator grew; bump the manifest');
+            } else if (onDisk > 0 && onDisk < declared) {
+                console.error(`verify-docs: note — test-output/ holds ${onDisk}/${declared} declared samples `
+                    + '(normal after a partial run; npm run test:generate refreshes)');
+            }
+        }
+    }
+}
+
 // ── Rule: npm-drift (online only) ────────────────────────────────────
 if (online) {
     try {

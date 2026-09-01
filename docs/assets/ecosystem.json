@@ -2,7 +2,7 @@
   "$comment": "Single source of truth for every version, count and inventory quoted anywhere in the tree. scripts/verify-docs.ts enforces consistency.",
   "packages": {
     "zipnative": {
-      "version": "0.2.0",
+      "version": "0.4.0",
       "repo": "https://github.com/Nizoka/zipnative",
       "status": "active"
     },
@@ -23,6 +23,9 @@
   },
   "engine": {
     "node": ">=22"
+  },
+  "derived": {
+    "sampleZips": 22
   },
   "milestones": {
     "read": "0.1.0",

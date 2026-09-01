@@ -21,6 +21,7 @@ npm run test:coverage     # with v8 coverage thresholds
 npm run build             # tsup → dist (esm+cjs+dts)
 npm run check:package     # build + attw + publint
 npm run test:interop      # foreign-tool conformance matrix
+npm run test:generate     # sample corpus → test-output/ (git-ignored)
 npm run bench             # vitest bench (bench/)
 ```
 

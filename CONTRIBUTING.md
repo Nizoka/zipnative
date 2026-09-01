@@ -29,6 +29,13 @@ sibling [pdfnative](https://github.com/Nizoka/pdfnative). The short version:
    ```bash
    npm run typecheck:all && npm run lint && npm run test:coverage && npm run build
    ```
+   If your change affects emitted bytes or adds a feature area, also:
+   ```bash
+   npm run test:interop    # foreign-tool conformance, both directions
+   npm run test:generate   # refresh test-output/ samples for inspection
+   ```
+   New sample categories follow the 3-step recipe in `scripts/README.md`
+   (and bump `derived.sampleZips` in `docs/assets/ecosystem.json`).
 4. Tests mirror `src/` under `tests/`. New parser behavior needs an adversarial
    variant in `tests/fuzzing/` built with the raw byte-level builder
    (`tests/helpers/raw-zip-builder.ts`) — never only fixtures produced by our
