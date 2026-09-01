@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-09-01
+
+**Docs finish + a full multi-agent code review.** Patch release: 13 verified correctness/security/resource fixes (no archive-byte change for valid inputs; the deterministic encoder contract is untouched) plus the documentation the 0.8 site was still missing.
+
+### Fixed
+
+Thirteen findings from a three-agent review (two reviewers + an adversarial verifier), each with a regression test in [tests/integration/review-fixes.test.ts](tests/integration/review-fixes.test.ts):
+
+- **`renameEntry` mojibake** — renaming a CP437 source entry to a non-ASCII name now sets the UTF-8 flag to match the re-encoded bytes; the entry no longer round-trips corrupt or becomes unfindable after `save()`/`saveCompact()`.
+- **`save()` Zip64 sizes** — the append path applied Zip64 only to the local-header offset; raw-copied (renamed) entries ≥ 4 GiB now sentinel their sizes and carry the Zip64 size extra in both LFH and CFH instead of silently truncating to a corrupt archive.
+- **Over-subscribed / incomplete Huffman tables** — `buildHuffmanTable` now runs zlib's Kraft check (single-code and empty-table tolerance preserved), so corrupt deflate streams throw `ZIP_DEFLATE_CORRUPT` through `createInflator`/`inflateRawJS` instead of decoding to silent garbage.
+- **Zip64 descriptor mis-parse** — a zero-length entry's 24-byte Zip64 data descriptor is no longer aliased to the 16-byte form; `matchDataDescriptor` disambiguates by which length the next PK record aligns to.
+- **`sanitizeEntryPath` device names** — the external-sink gate now rejects Windows reserved device names (`CON`, `NUL`, `COM1`…`LPT9`, CWE-67).
+- **`validateEntryName`** rejects names that collapse to nothing (`.`, `./`) which its own extractor would refuse.
+- **`readExact(0)`** returns an empty buffer instead of leaking a raw `TypeError` from the forward reader on an empty-name entry at a chunk boundary.
+- **Oversized extra fields** — the write path enforces `maxExtraFieldBytes` and a hard 65535 structural cap; a `> 64 KiB` extra field threw a u16-wrapped corrupt archive.
+- **Per-entry `compression.level`** is validated on both the builder and the modifier and on both tiers — no more raw `RangeError` from `node:zlib`.
+- **Bounded inflate allocation** — the pure inflater grows toward `maxOutput` by doubling and copies the result out, so a hostile central directory can no longer force a 1 GiB upfront allocation from a tiny payload (CWE-789).
+- **Worker pool** — a throwing main-thread fallback now rejects the job (new `PendingJob.reject`) instead of crashing the process and hanging `toBytes()`; abandoning `stream()` mid-entry releases the source iterator and stream locks; job payloads are sliced at dispatch, not submission (no ~2× upfront duplication).
+
+### Added
+
+- **Use-cases guide** ([docs/guides/use-cases.md](docs/guides/use-cases.md)) — four production architectures with diagrams (the manifest peek, untrusted-upload intake, the reproducibility gate, streaming intake at the edge), each built from shipped APIs, in the pdfnative use-case visual language.
+- **Interactive playgrounds** ([docs/playgrounds/](docs/playgrounds/)) — archive toolkit, inspector, and secure-extraction demo running a committed copy of the engine's own zero-dependency bundle in the browser (no CDN, no npm); `npm run docs:playground` + a `playground-bundle` verify-docs rule keep the bundle in sync.
+
+### Changed
+
+- The architecture diagram now draws the forbidden reverse edge its legend describes (a struck red `core → parser` arrow); guide pages and the guides hub carry the full site footer.
+
 ## [0.8.0] - 2026-09-01
 
 **Error-code stability + the pdfnative docs charter** (API-freeze band, wave 1). No archive-byte changes; the API is additive.

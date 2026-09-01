@@ -82,12 +82,32 @@ function crc32(data, seed = 0) {
 }
 
 // src/codecs/inflate-shared.ts
-function buildHuffmanTable(lengths, maxSymbol) {
+function buildHuffmanTable(lengths, maxSymbol, isCodeLengthTable = false) {
   const MAX_BITS = 15;
   const counts = new Uint16Array(MAX_BITS + 1);
   const symbols = new Uint16Array(maxSymbol);
+  let totalCodes = 0;
+  let maxLen = 0;
   for (let i = 0; i < maxSymbol; i++) {
-    if (lengths[i] > 0) counts[lengths[i]]++;
+    const len = lengths[i];
+    if (len > 0) {
+      counts[len]++;
+      totalCodes++;
+      if (len > maxLen) maxLen = len;
+    }
+  }
+  if (totalCodes > 0) {
+    let left = 1;
+    for (let len = 1; len <= MAX_BITS; len++) {
+      left <<= 1;
+      left -= counts[len];
+      if (left < 0) {
+        throw new ZipFormatError("ZIP_DEFLATE_CORRUPT", "zipnative: over-subscribed Huffman table in deflate stream");
+      }
+    }
+    if (left > 0 && (isCodeLengthTable || maxLen !== 1)) {
+      throw new ZipFormatError("ZIP_DEFLATE_CORRUPT", "zipnative: incomplete Huffman table in deflate stream");
+    }
   }
   const offsets = new Uint16Array(MAX_BITS + 1);
   for (let i = 1; i < MAX_BITS; i++) {
@@ -165,7 +185,8 @@ function decodeSymbol(br, table) {
 function inflateRawJS(data, maxOutput) {
   const br = { buf: data, pos: 0, bitBuf: 0, bitCnt: 0 };
   const bounded = Number.isFinite(maxOutput);
-  let out = new Uint8Array(bounded ? maxOutput : Math.min(data.length * 4, 1 << 20));
+  const initial = Math.max(64, Math.min(bounded ? maxOutput : Number.MAX_SAFE_INTEGER, data.length * 4, 1 << 20));
+  let out = new Uint8Array(initial);
   let outPos = 0;
   const ensureCapacity = (needed) => {
     if (outPos + needed > maxOutput) {
@@ -218,7 +239,7 @@ function inflateRawJS(data, maxOutput) {
         for (let i = 0; i < hclen; i++) {
           clLengths[CL_ORDER[i]] = readBits(br, 3);
         }
-        const clTable = buildHuffmanTable(clLengths, 19);
+        const clTable = buildHuffmanTable(clLengths, 19, true);
         const totalCodes = hlit + hdist;
         const codeLengths = new Uint8Array(totalCodes);
         let ci = 0;
@@ -276,7 +297,8 @@ function inflateRawJS(data, maxOutput) {
       throw new ZipFormatError("ZIP_DEFLATE_CORRUPT", `zipnative: unsupported deflate block type ${btype} (corrupt stream)`);
     }
   }
-  return outPos === out.length ? out : out.subarray(0, outPos);
+  if (outPos === out.length) return out;
+  return out.length - outPos > 65536 && out.length > outPos * 2 ? out.slice(0, outPos) : out.subarray(0, outPos);
 }
 
 // src/codecs/deflate-pure.ts
@@ -1138,6 +1160,7 @@ function validateEntryName(name, isDirectory) {
       `zipnative: entry name '${name}' is absolute \u2014 archive paths must be relative`
     );
   }
+  let meaningfulSegments = 0;
   for (const segment of name.split("/")) {
     if (segment === "..") {
       throw new ZipFormatError(
@@ -1145,6 +1168,13 @@ function validateEntryName(name, isDirectory) {
         `zipnative: entry name '${name}' contains a '..' segment \u2014 zipnative never writes traversal-capable archives`
       );
     }
+    if (segment !== "" && segment !== ".") meaningfulSegments++;
+  }
+  if (meaningfulSegments === 0) {
+    throw new ZipFormatError(
+      "ZIP_INVALID_ENTRY_NAME",
+      `zipnative: entry name '${name}' has no real path segments \u2014 it resolves to nothing on extraction`
+    );
   }
   if (isDirectory && !name.endsWith("/")) return `${name}/`;
   return name;
@@ -1350,10 +1380,20 @@ function matchDataDescriptor(head, measured) {
   const matches = (crc, csize, usize) => crc === measured.crc32 && csize === measured.compressedSize && usize === measured.uncompressedSize;
   const sized = (csize, usize) => csize === measured.compressedSize && usize === measured.uncompressedSize;
   const hasSignature = u32(0) === SIG_DATA_DESCRIPTOR;
-  if (hasSignature && matches(u32(4), u32(8), u32(12))) return { ok: true, byteLength: 16 };
-  if (hasSignature && matches(u32(4), u64(8), u64(16))) return { ok: true, byteLength: 24 };
-  if (matches(u32(0), u32(4), u32(8))) return { ok: true, byteLength: 12 };
-  if (matches(u32(0), u64(4), u64(12))) return { ok: true, byteLength: 20 };
+  const startsRecord = (pos) => {
+    const sig = u32(pos);
+    return sig === SIG_LOCAL_FILE_HEADER || sig === SIG_CENTRAL_FILE_HEADER;
+  };
+  const m16 = hasSignature && matches(u32(4), u32(8), u32(12));
+  const m24 = hasSignature && matches(u32(4), u64(8), u64(16));
+  if (m16 && m24) return { ok: true, byteLength: startsRecord(16) ? 16 : 24 };
+  if (m16) return { ok: true, byteLength: 16 };
+  if (m24) return { ok: true, byteLength: 24 };
+  const s12 = matches(u32(0), u32(4), u32(8));
+  const s20 = matches(u32(0), u64(4), u64(12));
+  if (s12 && s20) return { ok: true, byteLength: startsRecord(12) ? 12 : 20 };
+  if (s12) return { ok: true, byteLength: 12 };
+  if (s20) return { ok: true, byteLength: 20 };
   const crcCandidates = [
     [u32(4), hasSignature && sized(u32(8), u32(12))],
     [u32(4), hasSignature && sized(u64(8), u64(16))],
@@ -2208,7 +2248,7 @@ function* inflateChunked(st) {
         for (let i = 0; i < hclen; i++) {
           clLengths[CL_ORDER[i]] = yield* readBitsG(st, 3);
         }
-        const clTable = buildHuffmanTable(clLengths, 19);
+        const clTable = buildHuffmanTable(clLengths, 19, true);
         const totalCodes = hlit + hdist;
         const codeLengths = new Uint8Array(totalCodes);
         let ci = 0;
@@ -2397,6 +2437,7 @@ function createChunkCursor(source) {
       return bytesRead;
     },
     async readExact(n) {
+      if (n === 0) return new Uint8Array(0);
       await fill(n);
       if (buffered < n) {
         throw new ZipFormatError(
@@ -2809,6 +2850,7 @@ async function* pumpInflate(cursor, compressedSize, account) {
 }
 
 // src/parser/zip-extract.ts
+var RESERVED_WIN_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 function sanitizeEntryPath(name) {
   if (name.length === 0) return null;
   if (name.includes("\0")) return null;
@@ -2821,6 +2863,7 @@ function sanitizeEntryPath(name) {
     if (segment === "" || segment === ".") continue;
     if (segment === "..") return null;
     if (segment.includes(":")) return null;
+    if (RESERVED_WIN_DEVICE.test(segment)) return null;
     segments.push(segment);
   }
   if (segments.length === 0) return null;
@@ -2901,6 +2944,15 @@ async function* extractZipStream(bytes, options) {
 function checkSpec(spec, limits) {
   enforceLimit(limits, "maxNameBytes", spec.nameBytes.length, "entry name length");
   enforceLimit(limits, "maxCommentBytes", spec.comment.length, "entry comment length");
+  let extraBytes = 0;
+  for (const f of spec.extraFields) extraBytes += 4 + f.data.length;
+  enforceLimit(limits, "maxExtraFieldBytes", extraBytes, "entry extra-field length");
+  if (extraBytes > 65535) {
+    throw new ZipError(
+      "ZIP_INVALID_OPTION",
+      `zipnative: entry '${new TextDecoder().decode(spec.nameBytes)}' extra fields serialize to ${extraBytes} bytes, over the 65535 the ZIP header can express \u2014 split or drop extra fields`
+    );
+  }
 }
 function buildStreamPlan(spec) {
   return {
@@ -3177,26 +3229,42 @@ async function* compressStreamEntry(plan) {
     const cs = new CompressionStream("deflate-raw");
     const writer = cs.writable.getWriter();
     const reader = cs.readable.getReader();
+    const it = source[Symbol.asyncIterator]();
     const writeAll = (async () => {
-      for await (const chunk of source) {
-        crc = crc32(chunk, crc);
-        uncompressed += chunk.length;
-        await writer.write(chunk.slice());
+      for (; ; ) {
+        const { done, value } = await it.next();
+        if (done) break;
+        crc = crc32(value, crc);
+        uncompressed += value.length;
+        await writer.write(value.slice());
       }
       await writer.close();
     })();
     writeAll.catch(() => {
     });
-    for (; ; ) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      compressed += value.length;
-      plan.uncompressedSize = uncompressed;
-      plan.compressedSize = compressed;
-      assertStreamSizesInRange(plan, entryName);
-      yield value;
+    try {
+      for (; ; ) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        compressed += value.length;
+        plan.uncompressedSize = uncompressed;
+        plan.compressedSize = compressed;
+        assertStreamSizesInRange(plan, entryName);
+        yield value;
+      }
+      await writeAll;
+    } finally {
+      void reader.cancel().catch(() => {
+      });
+      void writer.abort().catch(() => {
+      });
+      if (it.return !== void 0) {
+        try {
+          await it.return();
+        } catch {
+        }
+      }
     }
-    await writeAll;
   } else {
     const pieces = [];
     for await (const chunk of source) {
@@ -3237,9 +3305,12 @@ function createSpecCollector(options) {
   const defaultMethod = defaultCompression?.method ?? "deflate";
   const defaultLevel = defaultCompression?.level ?? 6;
   const defaultDeterministic = defaultCompression?.deterministic === true;
-  if (defaultLevel !== void 0 && (!Number.isInteger(defaultLevel) || defaultLevel < 0 || defaultLevel > 9)) {
-    throw new ZipError("ZIP_INVALID_OPTION", `zipnative: compression.level must be an integer 0-9 (got ${String(defaultLevel)})`);
-  }
+  const validateLevel = (level) => {
+    if (!Number.isInteger(level) || level < 0 || level > 9) {
+      throw new ZipError("ZIP_INVALID_OPTION", `zipnative: compression.level must be an integer 0-9 (got ${String(level)})`);
+    }
+  };
+  validateLevel(defaultLevel);
   let defaultDos;
   let datePinned;
   if (options?.defaultDate === "now") {
@@ -3267,6 +3338,7 @@ function createSpecCollector(options) {
     }
     names.add(finalName);
     const compression = entryOptions?.compression;
+    if (compression?.level !== void 0) validateLevel(compression.level);
     const dos = entryOptions?.date !== void 0 ? dateToDosDateTime(entryOptions.date) : defaultDos;
     specs.push({
       nameBytes: te.encode(finalName),
@@ -3387,6 +3459,10 @@ function createZipModifier(reader, options) {
   const specForWrite = (name, edit) => {
     const isDirectory = name.endsWith("/");
     const compression = edit.options?.compression;
+    const level = compression?.level ?? defaultCompression?.level ?? 6;
+    if (!Number.isInteger(level) || level < 0 || level > 9) {
+      throw new ZipError("ZIP_INVALID_OPTION", `zipnative: compression.level must be an integer 0-9 (got ${String(level)})`);
+    }
     const dos = edit.options?.date !== void 0 ? dateToDosDateTime(edit.options.date) : defaultDos;
     return {
       nameBytes: te2.encode(name),
@@ -3394,7 +3470,7 @@ function createZipModifier(reader, options) {
       data: isDirectory ? new Uint8Array(0) : edit.data,
       source: null,
       method: isDirectory ? "store" : compression?.method ?? defaultCompression?.method ?? "deflate",
-      level: compression?.level ?? defaultCompression?.level ?? 6,
+      level,
       deterministic: compression?.deterministic ?? defaultCompression?.deterministic ?? false,
       dosDate: dos.dosDate,
       dosTime: dos.dosTime,
@@ -3422,27 +3498,33 @@ function createZipModifier(reader, options) {
     }
     return reader.bytes.subarray(lfh.dataStart, dataEnd);
   };
-  const planForCopy = (source, nameBytes) => ({
-    nameBytes,
-    method: source.compressionMethod,
-    flags: source.flags & ~FLAG_DATA_DESCRIPTOR,
-    dosDate: source.dosDate,
-    dosTime: source.dosTime,
-    externalAttributes: source.externalAttributes,
-    comment: source.comment,
-    // Zip64 extras are recomputed from the new offsets; the rest travel.
-    extraFields: source.extraFields.filter((f) => f.id !== EXTRA_ZIP64),
-    payload: rawCompressedSlice(source),
-    source: null,
-    level: 6,
-    deterministic: false,
-    crc32: source.crc32,
-    compressedSize: source.compressedSize,
-    uncompressedSize: source.uncompressedSize,
-    versionMadeBy: source.versionMadeBy,
-    internalAttributes: source.internalAttributes,
-    versionNeededMin: source.versionNeeded
-  });
+  const planForCopy = (source, nameBytes, nameIsUtf8) => {
+    let flags = source.flags & ~FLAG_DATA_DESCRIPTOR;
+    if (nameIsUtf8) {
+      flags = nameBytes.some((b) => b >= 128) ? flags | FLAG_UTF8 : flags & ~FLAG_UTF8;
+    }
+    return {
+      nameBytes,
+      method: source.compressionMethod,
+      flags,
+      dosDate: source.dosDate,
+      dosTime: source.dosTime,
+      externalAttributes: source.externalAttributes,
+      comment: source.comment,
+      // Zip64 extras are recomputed from the new offsets; the rest travel.
+      extraFields: source.extraFields.filter((f) => f.id !== EXTRA_ZIP64),
+      payload: rawCompressedSlice(source),
+      source: null,
+      level: 6,
+      deterministic: false,
+      crc32: source.crc32,
+      compressedSize: source.compressedSize,
+      uncompressedSize: source.uncompressedSize,
+      versionMadeBy: source.versionMadeBy,
+      internalAttributes: source.internalAttributes,
+      versionNeededMin: source.versionNeeded
+    };
+  };
   const buildAppendedPlans = () => {
     const writeSpecs = [];
     const copyPlans = [];
@@ -3450,7 +3532,7 @@ function createZipModifier(reader, options) {
       if (edit.kind === "write") {
         writeSpecs.push(specForWrite(name, edit));
       } else if (edit.kind === "rawCopy") {
-        copyPlans.push(planForCopy(edit.source, te2.encode(name)));
+        copyPlans.push(planForCopy(edit.source, te2.encode(name), true));
       }
     }
     const writePlans = planArchive(writeSpecs, new Uint8Array(0), limits).plans;
@@ -3563,17 +3645,23 @@ function createZipModifier(reader, options) {
       for (let i = 0; i < appended.length; i++) {
         const plan = appended[i];
         storedOffsets[i] = abs - base;
+        const lfhZ64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : void 0;
+        const lfhZ64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : void 0;
+        const lfhUsesZip64 = lfhZ64Unc !== void 0 || lfhZ64Comp !== void 0;
+        const lfhExtraParts = [];
+        if (lfhUsesZip64) lfhExtraParts.push(buildZip64Extra(lfhZ64Unc, lfhZ64Comp, void 0));
+        if (plan.extraFields.length > 0) lfhExtraParts.push(serializeExtraFields(plan.extraFields));
         emitSeg(writeLocalFileHeader({
-          versionNeeded: Math.max(20, plan.versionNeededMin ?? 0),
+          versionNeeded: Math.max(lfhUsesZip64 ? 45 : 20, plan.versionNeededMin ?? 0),
           flags: plan.flags,
           compressionMethod: plan.method,
           dosTime: plan.dosTime,
           dosDate: plan.dosDate,
           crc32: plan.crc32,
-          compressedSize: plan.compressedSize,
-          uncompressedSize: plan.uncompressedSize,
+          compressedSize: lfhZ64Comp !== void 0 ? SENTINEL_U32 : plan.compressedSize,
+          uncompressedSize: lfhZ64Unc !== void 0 ? SENTINEL_U32 : plan.uncompressedSize,
           name: plan.nameBytes,
-          extra: serializeExtraFields(plan.extraFields)
+          extra: lfhExtraParts.length === 0 ? new Uint8Array(0) : lfhExtraParts.length === 1 ? lfhExtraParts[0] : concatBytes(lfhExtraParts)
         }));
         if (plan.payload !== null && plan.payload.length > 0) {
           emitSeg(plan.payload);
@@ -3592,10 +3680,12 @@ function createZipModifier(reader, options) {
           continue;
         }
         const { plan, storedOffset } = item;
+        const z64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : void 0;
+        const z64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : void 0;
         const z64Off = storedOffset > SENTINEL_U32 - 1 ? storedOffset : void 0;
-        const usesZip64 = z64Off !== void 0;
+        const usesZip64 = z64Unc !== void 0 || z64Comp !== void 0 || z64Off !== void 0;
         const extraParts = [];
-        if (usesZip64) extraParts.push(buildZip64Extra(void 0, void 0, z64Off));
+        if (usesZip64) extraParts.push(buildZip64Extra(z64Unc, z64Comp, z64Off));
         if (plan.extraFields.length > 0) extraParts.push(serializeExtraFields(plan.extraFields));
         const extra = extraParts.length === 0 ? new Uint8Array(0) : extraParts.length === 1 ? extraParts[0] : concatBytes(extraParts);
         emitSeg(writeCentralFileHeader({
@@ -3606,11 +3696,11 @@ function createZipModifier(reader, options) {
           dosTime: plan.dosTime,
           dosDate: plan.dosDate,
           crc32: plan.crc32,
-          compressedSize: plan.compressedSize,
-          uncompressedSize: plan.uncompressedSize,
+          compressedSize: z64Comp !== void 0 ? SENTINEL_U32 : plan.compressedSize,
+          uncompressedSize: z64Unc !== void 0 ? SENTINEL_U32 : plan.uncompressedSize,
           internalAttributes: plan.internalAttributes ?? 0,
           externalAttributes: plan.externalAttributes,
-          localHeaderOffset: usesZip64 ? SENTINEL_U32 : storedOffset,
+          localHeaderOffset: z64Off !== void 0 ? SENTINEL_U32 : storedOffset,
           name: plan.nameBytes,
           extra,
           comment: plan.comment
@@ -3651,11 +3741,11 @@ function createZipModifier(reader, options) {
         if (edit.kind === "write") {
           writeSpecs.push(specForWrite(name, edit));
         } else if (edit.kind === "rawCopy") {
-          plans.push(planForCopy(edit.source, te2.encode(name)));
+          plans.push(planForCopy(edit.source, te2.encode(name), true));
         }
       }
       for (const record of survivingSources()) {
-        plans.push(planForCopy(record.entry, record.entry.rawName));
+        plans.push(planForCopy(record.entry, record.entry.rawName, false));
       }
       plans.push(...planArchive(writeSpecs, new Uint8Array(0), limits).plans);
       plans.sort((a, b) => compareNames(a.nameBytes, b.nameBytes));
@@ -3679,6 +3769,6 @@ function concatBytes(parts) {
 }
 
 // src/index.ts
-var VERSION = "0.8.0";
+var VERSION = "0.8.1";
 
 export { DEFAULT_ZIP_LIMITS, FLAG_DATA_DESCRIPTOR, FLAG_ENCRYPTED, FLAG_STRONG_ENCRYPTION, FLAG_UTF8, METHOD_DEFLATE, METHOD_STORE, VERSION, ZipDataError, ZipError, ZipFormatError, ZipLimitError, ZipSecurityError, ZipUnsupportedError, activeDeflateTier, crc32, createInflator, createZip, createZipModifier, extractZip, extractZipStream, getCodec, initNodeZipCodecs, iterateZipEntries, openZip, registerCodec, sanitizeEntryPath, setDeflateImpl, setInflateImpl };

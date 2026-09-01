@@ -69,6 +69,10 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 
 ## 0.8.x — Error-code stability + docs charter ✅ *(shipped 2026-09-01, current)*
 
+- 0.8.1: a three-agent code review (13 verified fixes, all regression-
+  tested), interactive browser playgrounds on a committed engine bundle,
+  and a four-case use-cases guide with diagrams
+
 - **Stable machine-readable error codes**: every thrown error carries
   `err.code` from a closed 39-code union, frozen from 0.8.0
   (removal/renaming is semver-major); registry `docs/data/errors.json`
