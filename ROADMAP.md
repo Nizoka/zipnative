@@ -27,13 +27,14 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   jar on Linux; 7z, Expand-Archive, bsdtar, jar on Windows)
 - Benchmarks vs fflate/jszip/adm-zip + committed `bench/RESULTS.md`
 
-## 0.4.x — M3: Incremental modification
+## 0.4.x — M3: Incremental modification ✅ *(shipped 2026-09-01, current)*
 
 - `createZipModifier()` — append-only `save()` (original bytes verbatim, no
-  recompression, no-op returns the identical buffer) and `saveCompact()`
-  (true deletion, canonical layout, still no recompression)
-- Real-world round-trip gate: modify one entry of a DOCX/EPUB → foreign tools
-  must still open it
+  recompression, no-op returns the identical buffer, SFX prefixes supported)
+  and `saveCompact()` (true deletion, canonical layout, still no recompression)
+- Round-trip gate: modified archives (dead bytes included) validated and
+  byte-compared by foreign extractors in the interop matrix
+- Contributor sample corpus (`npm run test:generate` → `test-output/`)
 
 ## 0.5.x — M4: Workers + parallelism + forward streaming
 

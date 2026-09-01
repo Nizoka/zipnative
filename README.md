@@ -4,7 +4,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** The read path (v0.1) and the deterministic writer (v0.2) are implemented and hardened; incremental modification and worker parallelism follow the [roadmap](ROADMAP.md). APIs may change before 1.0.
+> **Status: pre-1.0.** The read path (v0.1), the deterministic writer (v0.2) and incremental modification (v0.4) are implemented and hardened; worker parallelism follows the [roadmap](ROADMAP.md). APIs may change before 1.0.
 
 ## Why zipnative?
 
@@ -14,7 +14,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 - **Random access.** Read one entry from a 4 GB archive without extracting — or even scanning — the rest. The central directory is parsed lazily; entry payloads are zero-copy subarrays.
 - **Streaming.** Iterate entries and decompress through async iterables with bounded memory. Designed for serverless and Cloudflare Workers, not just long-lived servers.
 - **Deterministic.** Reproducible-build mode with a [written determinism contract](docs/determinism.md): same inputs, same SHA-256 on every runtime via the pinned pure-TS deflate encoder. Canonical entry ordering, pinned timestamps, no environment leakage.
-- **Incremental modification** *(v0.4)*. Replace, remove or add entries and save without recompressing the untouched 99% of the archive — the append-only overlay model proven in pdfnative's PDF incremental updates.
+- **Incremental modification.** Replace, remove, add or rename entries and `save()` without recompressing the untouched 99% of the archive — the append-only overlay model proven in pdfnative's PDF incremental updates. `saveCompact()` is the true-deletion path (removed content is otherwise still recoverable — [documented loudly](SECURITY.md)).
 - **Agent-pilotable.** Typed errors with the remedy in the message, a structured diagnostics channel, executable recipes, `llms.txt`, and a human-in-the-loop AI governance policy.
 
 ### Comparison (honest version)
@@ -26,7 +26,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 | Streaming read + write | ✅ | partial (low-level) | ❌ (memory-bound) | read *or* write per lib | ❌ |
 | Safe-extract defaults (slip/bomb/ambiguity) | ✅ | DIY | DIY | DIY | historical CVEs |
 | Deterministic output (documented contract) | ✅ | DIY | ❌ | ❌ | ❌ |
-| Modify in place, no recompression | ✅ (v0.4) | ❌ | rewrite-all | ❌ | partial |
+| Modify in place, no recompression | ✅ | ❌ | rewrite-all | ❌ | partial |
 | Browser + Node + Deno + Bun + Workers | ✅ | ✅ | ✅ | Node-only | Node-only |
 | Raw deflate throughput | good (platform zlib) | **best** | slow | good | poor |
 
@@ -90,6 +90,23 @@ for await (const chunk of zip.stream({ chunkSize: 64 * 1024 })) {
 zip.addStream('video.bin', chunkSource);
 ```
 
+Modifying an existing archive (v0.4):
+
+```ts
+import { createZipModifier, openZip } from 'zipnative';
+
+const modifier = createZipModifier(openZip(bytes));
+modifier.replaceEntry('word/document.xml', newDocumentXml);
+modifier.addEntry('docProps/custom.xml', customProps);
+modifier.removeEntry('word/obsolete.xml');
+
+// Append-only: untouched entries are never recompressed; the original
+// bytes are preserved verbatim (removed content stays recoverable!).
+const updated = modifier.save();
+// True deletion + compact canonical layout, still no recompression:
+const compacted = modifier.saveCompact();
+```
+
 Everything public is exported from the single entry point; if it is not in `zipnative`'s root import, it is private.
 
 ## Security model
@@ -105,7 +122,8 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 
 ## Known limitations
 
-- Incremental modification (`createZipModifier`) and worker parallelism land per the [roadmap](ROADMAP.md) (v0.4 / v0.5).
+- Worker parallelism and the forward CD-less streaming reader land per the [roadmap](ROADMAP.md) (v0.5).
+- `save()` keeps every original byte: removed/replaced content remains recoverable in the output (use `saveCompact()` for true deletion); `saveCompact()` drops SFX prefixes; archives with duplicate entry names cannot be modified incrementally.
 - `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; Zip64 streaming is scheduled post-M4. Buffered entries, entry counts and archive offsets are fully Zip64.
 - Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.
 - Number fields above `Number.MAX_SAFE_INTEGER` (≈ 9 PB) are rejected; the public API uses `number`, not `bigint`.

@@ -34,6 +34,21 @@
   (`order: 'insertion'` preserves call order — EPUB/JAR mimetype case),
   and Zip64 records appear exactly when a field overflows.
 
+## Incremental modification API (v0.4)
+
+- `createZipModifier(openZip(bytes))` → `ZipModifier` with
+  `addEntry`/`replaceEntry`/`removeEntry`/`renameEntry`/`setComment` and
+  two save paths: `save()` (append-only — untouched entries never
+  recompressed, original bytes verbatim, no-op returns the same
+  reference) and `saveCompact()` (canonical rewrite, still no
+  recompression, removed content truly deleted).
+- IMPORTANT for agents: `removeEntry` + `save()` does NOT erase content —
+  removed/replaced payloads remain recoverable in the output (data
+  remanence). Use `saveCompact()` when deletion matters.
+- Renames never overwrite implicitly; duplicate-name archives are refused
+  with a typed error; encrypted entries can be kept/renamed/copied but
+  never read.
+
 ## Core reading API (v0.1)
 
 - `openZip(bytes, options?)` → `ZipReader` with `entries()`, `getEntry(name)`,

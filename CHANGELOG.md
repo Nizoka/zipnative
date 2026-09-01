@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-01
+
+Milestone **M3 — incremental modification**.
+
+### Added
+
+- `createZipModifier()` ([src/parser/zip-modifier.ts](src/parser/zip-modifier.ts)) — `addEntry`/`replaceEntry`/`removeEntry`/`renameEntry`/`setComment` over an edit overlay (source bytes never mutated) with two save paths:
+  - `save()` — **append-only**: original archive copied verbatim (SFX prefixes included, offsets stay valid by construction), appended entries, a new central directory in which untouched records are the source's raw CFH bytes verbatim, new EOCD with Zip64 promotion. No-op returns `reader.bytes` by reference. Untouched entries are never recompressed. **Data remanence documented loudly**: removed/replaced content remains recoverable — a `ZIP_DEAD_BYTES_RATIO` diagnostic fires past 50% dead bytes.
+  - `saveCompact()` — canonical rewrite through the same segment generator as `createZip`, still without recompression (payloads raw-copied with their CRC/sizes/metadata), removed content truly gone. Zero-edit compact of a deterministic `createZip` archive reproduces it byte-identically (golden-tested).
+  - Renames are raw copies into the appended zone — zipnative never emits an archive its own strict reader would flag. Encrypted entries are copyable (never decompressed, never readable). Duplicate-name source archives are refused with a typed error.
+- **Contributor sample generation** (`npm run test:generate`, the pdfnative model): 8 generators → 22 archives in git-ignored `test-output/`, grouped by feature area, each self-validated through the eager reader as written; includes the `incremental-original/-updated/-compacted` triple demonstrating append-only remanence vs true deletion. Sample-count canary in `verify:docs` (surplus fails, shortfall warns). Recipe: `update-entry-in-place`.
+- Interop gate: `modified-incremental` and `modified-compacted` write cases — foreign extractors validate and byte-compare archives carrying dead bytes from incremental saves.
+
+### Changed
+
+- `validateEntryName`/`compareNames` moved to [src/core/zip-encoding.ts](src/core/zip-encoding.ts) (shared by builder and modifier); `PlannedEntry` gained optional source-fidelity fields (`versionMadeBy`, `internalAttributes`, `versionNeededMin`) that `planArchive` never sets — `createZip` output bytes are unchanged (determinism goldens prove it).
+
 ## [0.2.0] - 2026-09-01
 
 Milestone **M2 — deterministic write + streaming**.
