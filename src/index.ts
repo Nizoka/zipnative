@@ -15,7 +15,15 @@ export {
     type ZipReader,
 } from './parser/zip-reader.js';
 
-// ── 2. Extraction: secure by default, in memory ──────────────────────
+// ── 2. Forward streaming: CD-less iteration over pipes ───────────────
+export {
+    iterateZipEntries,
+    type IterateZipOptions,
+    type StreamedZipEntry,
+    type StreamedZipHeader,
+} from './parser/zip-iterate.js';
+
+// ── 3. Extraction: secure by default, in memory ──────────────────────
 export {
     extractZip,
     extractZipStream,
@@ -25,7 +33,7 @@ export {
     type ExtractOptions,
 } from './parser/zip-extract.js';
 
-// ── 3. Writing: deterministic archives, buffered and streaming ───────
+// ── 3b. Writing: deterministic archives, buffered and streaming ───────
 export {
     createZip,
     type AddEntryOptions,
@@ -85,4 +93,4 @@ export { crc32 } from './codecs/crc32.js';
 
 // ── 9. Package metadata ──────────────────────────────────────────────
 /** Library version — kept in sync with package.json by verify:docs. */
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';

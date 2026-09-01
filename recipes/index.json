@@ -42,6 +42,13 @@
       "surface": ["createZipModifier", "replaceEntry", "save"],
       "since": "0.4.0",
       "expects": ["prefix-intact=true", "config={\"version\":2}"]
+    },
+    {
+      "file": "iterate-stream.ts",
+      "task": "Read a ZIP off an unseekable stream — forward CD-less iteration",
+      "surface": ["iterateZipEntries"],
+      "since": "0.5.0",
+      "expects": ["entries=data/log.txt,manifest.json", "manifest={\"name\":\"streamed\"}"]
     }
   ]
 }
