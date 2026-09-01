@@ -23,12 +23,14 @@ import {
     type ZipDiagnosticEmitter,
     type ZipDiagnosticHandler,
 } from '../types/zip-types.js';
+import { ZipError } from '../types/zip-errors.js';
 
 /**
  * Create the per-operation diagnostic emitter.
  *
- * - `strict: true` → the first diagnostic throws an `Error` with the
- *   diagnostic message (before any output is produced).
+ * - `strict: true` → the first diagnostic throws a `ZipError` with code
+ *   `ZIP_STRICT_DIAGNOSTIC` and the diagnostic message (before any output
+ *   is produced).
  * - `handler` → receives every diagnostic (no deduplication — the caller
  *   owns delivery).
  * - default → `console.warn`, once per code per operation.
@@ -40,7 +42,7 @@ export function createDiagnosticEmitter(
     const warned = new Set<ZipDiagnosticCode>();
     return (diagnostic: ZipDiagnostic): void => {
         if (strict) {
-            throw new Error(`zipnative: ${diagnostic.message}`);
+            throw new ZipError('ZIP_STRICT_DIAGNOSTIC', `zipnative: [${diagnostic.code}] ${diagnostic.message}`);
         }
         if (handler) {
             handler(diagnostic);

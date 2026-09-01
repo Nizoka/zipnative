@@ -103,7 +103,7 @@ function wrapNodeInflate(
         // same typed error the pure tier throws.
         const code = (err as { code?: string }).code;
         if (code === 'ERR_BUFFER_TOO_LARGE') {
-            throw new ZipDataError(
+            throw new ZipDataError('ZIP_INFLATE_OUTPUT_OVERFLOW',
                 `zipnative: deflate output exceeds the declared/permitted size of ${maxOutput} bytes `
                 + '(the archive metadata lies about this entry, or raise the relevant limit if intentional)');
         }
@@ -161,7 +161,7 @@ export async function* inflateRawStream(
             produced += value.length;
             if (produced > maxOutput) {
                 await reader.cancel();
-                throw new ZipDataError(
+                throw new ZipDataError('ZIP_INFLATE_OUTPUT_OVERFLOW',
                     `zipnative: deflate output exceeds the declared/permitted size of ${maxOutput} bytes `
                     + '(the archive metadata lies about this entry, or raise the relevant limit if intentional)');
             }

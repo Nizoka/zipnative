@@ -90,7 +90,7 @@ export interface ZipReader {
 function wrapDecompressError(err: unknown, entryName: string): Error {
     if (err instanceof ZipError) return err;
     const detail = err instanceof Error ? err.message : String(err);
-    return new ZipDataError(
+    return new ZipDataError('ZIP_DECOMPRESSION_FAILED',
         `zipnative: entry '${entryName}' failed to decompress (${detail}) — the data is corrupt or hostile`,
         entryName);
 }
@@ -150,7 +150,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
             sorted.sort((a, b) => a - b);
             for (let i = 1; i < sorted.length; i++) {
                 if (sorted[i] === sorted[i - 1]) {
-                    throw new ZipSecurityError(
+                    throw new ZipSecurityError('ZIP_ENTRY_OVERLAP',
                         'zipnative: two entries share one local-header offset — overlapping-entry archives are '
                         + 'rejected (decompression-bomb/smuggling shape)');
                 }
@@ -163,11 +163,11 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     /** Enforce that [entry start, dataEnd) crosses no other entry or the CD. */
     const checkEntryExtent = (entry: ZipEntry, dataEnd: number): void => {
         if (dataEnd > bytes.length) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_RECORD_TRUNCATED',
                 `zipnative: entry '${entry.name}' data extends past the end of the archive (truncated or corrupt)`);
         }
         if (entry.localHeaderOffset >= layout.cdOffset) {
-            throw new ZipSecurityError(
+            throw new ZipSecurityError('ZIP_ENTRY_OVERLAP',
                 `zipnative: entry '${entry.name}' claims to start inside the central directory — `
                 + 'overlapping-entry archives are rejected',
                 entry.name);
@@ -183,7 +183,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         }
         const nextBoundary = lo < sorted.length ? sorted[lo] : bytes.length;
         if (dataEnd > nextBoundary) {
-            throw new ZipSecurityError(
+            throw new ZipSecurityError('ZIP_ENTRY_OVERLAP',
                 `zipnative: entry '${entry.name}' extends into another entry or the central directory — `
                 + 'overlapping-entry archives are rejected (decompression-bomb/smuggling shape)',
                 entry.name);
@@ -194,7 +194,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         if (typeof entryOrName !== 'string') return entryOrName;
         const entry = ensureIndex().get(entryOrName);
         if (entry === undefined) {
-            throw new ZipError(
+            throw new ZipError('ZIP_ENTRY_NOT_FOUND',
                 `zipnative: no entry named '${entryOrName}' in this archive (names are case-sensitive; `
                 + 'iterate reader.entries() to list them)');
         }
@@ -205,7 +205,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     const prepareRead = (entry: ZipEntry): Uint8Array => {
         if (entry.isEncrypted) {
             const feature = (entry.flags & FLAG_STRONG_ENCRYPTION) !== 0 ? 'strong-encryption' : 'zipcrypto';
-            throw new ZipUnsupportedError(
+            throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
                 `zipnative: entry '${entry.name}' is encrypted (${feature}) — encryption is not supported `
                 + '(see README: What zipnative will NOT do); check entry.isEncrypted to route around such entries',
                 feature);
@@ -226,7 +226,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         }
         checkEntryExtent(entry, dataEnd);
         if (lfh.compressionMethod !== entry.compressionMethod) {
-            throw new ZipSecurityError(
+            throw new ZipSecurityError('ZIP_CD_LFH_MISMATCH',
                 `zipnative: entry '${entry.name}' local header declares method ${lfh.compressionMethod} but the `
                 + `central directory says ${entry.compressionMethod} — parser-differential archives are rejected`,
                 entry.name);
@@ -239,7 +239,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
                 // tolerate the sentinel form, reject a contradicting value.
                 const sizesSentinel = lfh.compressedSize === 0xFFFFFFFF && lfh.uncompressedSize === 0xFFFFFFFF;
                 if (!(sizesSentinel && lfh.crc32 === entry.crc32)) {
-                    throw new ZipDataError(
+                    throw new ZipDataError('ZIP_SIZE_MISMATCH',
                         `zipnative: entry '${entry.name}' local header sizes/CRC contradict the central directory `
                         + '(corrupt or hostile archive)',
                         entry.name, entry.crc32, lfh.crc32);
@@ -255,7 +255,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     const codecFor = (entry: ZipEntry): ZipCodec => {
         const codec = getCodec(entry.compressionMethod);
         if (codec === null) {
-            throw new ZipUnsupportedError(
+            throw new ZipUnsupportedError('ZIP_UNSUPPORTED_METHOD',
                 `zipnative: entry '${entry.name}' uses compression method ${entry.compressionMethod}, which has no `
                 + 'registered codec — registerCodec() one, or re-save the archive with store/deflate',
                 `method:${entry.compressionMethod}`);
@@ -265,7 +265,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
 
     const checkOutput = (entry: ZipEntry, out: Uint8Array, verifyCrc: boolean): void => {
         if (out.length !== entry.uncompressedSize) {
-            throw new ZipDataError(
+            throw new ZipDataError('ZIP_SIZE_MISMATCH',
                 `zipnative: entry '${entry.name}' decompressed to ${out.length} bytes but the central directory `
                 + `declares ${entry.uncompressedSize} (corrupt or hostile archive)`,
                 entry.name);
@@ -273,7 +273,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         if (verifyCrc) {
             const actual = crc32(out);
             if (actual !== entry.crc32) {
-                throw new ZipDataError(
+                throw new ZipDataError('ZIP_CRC_MISMATCH',
                     `zipnative: entry '${entry.name}' CRC-32 mismatch — the data is corrupt `
                     + '(pass { verifyCrc: false } only if you accept corrupt output)',
                     entry.name, entry.crc32, actual);
@@ -301,7 +301,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
             const compressed = prepareRead(entry);
             const codec = codecFor(entry);
             if (codec.decompressSync === undefined) {
-                throw new ZipUnsupportedError(
+                throw new ZipUnsupportedError('ZIP_UNSUPPORTED_CODEC_MODE',
                     `zipnative: the codec for method ${entry.compressionMethod} is stream-only — use readEntryStream()`,
                     `method:${entry.compressionMethod}`);
             }
@@ -325,7 +325,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
             const compressed = prepareRead(entry);
             const codec = codecFor(entry);
             if (codec.decompressStream === undefined) {
-                throw new ZipUnsupportedError(
+                throw new ZipUnsupportedError('ZIP_UNSUPPORTED_CODEC_MODE',
                     `zipnative: the codec for method ${entry.compressionMethod} has no streaming decompressor — `
                     + 'use readEntry()',
                     `method:${entry.compressionMethod}`);
@@ -343,13 +343,13 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
                 throw wrapDecompressError(err, entry.name);
             }
             if (produced !== entry.uncompressedSize) {
-                throw new ZipDataError(
+                throw new ZipDataError('ZIP_SIZE_MISMATCH',
                     `zipnative: entry '${entry.name}' streamed ${produced} bytes but the central directory `
                     + `declares ${entry.uncompressedSize} (corrupt or hostile archive)`,
                     entry.name);
             }
             if (verifyCrc && crc !== entry.crc32) {
-                throw new ZipDataError(
+                throw new ZipDataError('ZIP_CRC_MISMATCH',
                     `zipnative: entry '${entry.name}' CRC-32 mismatch — the data is corrupt`,
                     entry.name, entry.crc32, crc);
             }

@@ -135,7 +135,7 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
     const defaultLevel = defaultCompression?.level ?? 6;
     const defaultDeterministic = defaultCompression?.deterministic === true;
     if (defaultLevel !== undefined && (!Number.isInteger(defaultLevel) || defaultLevel < 0 || defaultLevel > 9)) {
-        throw new ZipError(`zipnative: compression.level must be an integer 0-9 (got ${String(defaultLevel)})`);
+        throw new ZipError('ZIP_INVALID_OPTION', `zipnative: compression.level must be an integer 0-9 (got ${String(defaultLevel)})`);
     }
 
     // Resolve the default timestamp ONCE so every entry of one archive
@@ -170,7 +170,7 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
     ): void => {
         const finalName = validateEntryName(name, isDirectory);
         if (names.has(finalName)) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_DUPLICATE_ENTRY_NAME',
                 `zipnative: duplicate entry name '${finalName}' — every archive path must be unique`);
         }
         names.add(finalName);
@@ -251,7 +251,7 @@ export function createZip(options?: CreateZipOptions): ZipWriter {
 
         toBytes(): Uint8Array {
             if (collector.hasStreamEntries()) {
-                throw new ZipError(
+                throw new ZipError('ZIP_API_MISUSE',
                     'zipnative: toBytes() is incompatible with addStream() entries (their sizes are only '
                     + 'known after the source is consumed). Use stream(), or buffer the content via add().');
             }

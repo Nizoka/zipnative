@@ -81,7 +81,7 @@ export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCurso
         async readExact(n: number): Promise<Uint8Array> {
             await fill(n);
             if (buffered < n) {
-                throw new ZipFormatError(
+                throw new ZipFormatError('ZIP_STREAM_TRUNCATED',
                     `zipnative: stream truncated at byte ${bytesRead + buffered} — expected ${n} more bytes`);
             }
             const first = pending[0];
@@ -102,7 +102,7 @@ export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCurso
             await fill(4);
             if (buffered === 0) return null;
             if (buffered < 4) {
-                throw new ZipFormatError(
+                throw new ZipFormatError('ZIP_STREAM_TRUNCATED',
                     `zipnative: stream truncated at byte ${bytesRead + buffered} — a ${buffered}-byte tail `
                     + 'is too short for any ZIP record');
             }
@@ -153,7 +153,7 @@ export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCurso
                 if (buffered === 0) {
                     await fill(1);
                     if (buffered === 0) {
-                        throw new ZipFormatError(
+                        throw new ZipFormatError('ZIP_STREAM_TRUNCATED',
                             `zipnative: stream truncated at byte ${bytesRead} — ${remaining} payload bytes missing`);
                     }
                 }

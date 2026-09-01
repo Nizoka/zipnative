@@ -59,7 +59,7 @@ export function locateEocd(
     emit: ZipDiagnosticEmitter,
 ): ArchiveLayout {
     if (bytes.length < EOCD_SIZE) {
-        throw new ZipFormatError('zipnative: input too small to be a ZIP archive (< 22 bytes)');
+        throw new ZipFormatError('ZIP_EOCD_NOT_FOUND', 'zipnative: input too small to be a ZIP archive (< 22 bytes)');
     }
     const dv = viewOf(bytes);
     const scanFloor = Math.max(0, bytes.length - MAX_EOCD_SCAN);
@@ -82,7 +82,7 @@ export function locateEocd(
         }
     }
     if (eocdPos === -1) {
-        throw new ZipFormatError(sawOtherSignature
+        throw new ZipFormatError('ZIP_EOCD_NOT_FOUND', sawOtherSignature
             ? 'zipnative: an end-of-central-directory signature exists but no candidate is self-consistent '
             + '(trailing garbage after the archive, or a hostile ambiguous file) — refusing to guess; '
             + 'remove the trailing bytes if this archive is trusted'
@@ -116,12 +116,12 @@ export function locateEocd(
         const locatorPos = eocdPos - ZIP64_EOCD_LOCATOR_SIZE;
         const locator = parseZip64Locator(bytes, locatorPos);
         if (locator === null) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_ZIP64_LOCATOR_MISSING',
                 'zipnative: a zip64 sentinel is set but the zip64 end-of-central-directory locator is missing '
                 + '(truncated or corrupt archive)');
         }
         if (locator.totalDisks > 1) {
-            throw new ZipUnsupportedError(
+            throw new ZipUnsupportedError('ZIP_UNSUPPORTED_MULTI_DISK',
                 'zipnative: multi-disk (spanned) archives are not supported', 'multi-disk');
         }
         // The locator offset is relative to the original layout; with
@@ -134,7 +134,7 @@ export function locateEocd(
             z64Pos = locatorPos - ZIP64_EOCD_MIN_SIZE;
         }
         if (z64Pos === -1) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_ZIP64_EOCD_MISPLACED',
                 'zipnative: the zip64 end-of-central-directory record is not where the locator points '
                 + '(corrupt archive, or an unsupported prepended-data layout)');
         }
@@ -143,7 +143,7 @@ export function locateEocd(
         // Anti-spoofing cross-check: zip64 may only REPLACE sentinel fields.
         const crossCheck = (classic: number, sentinel: number, z64Value: number, field: string): number => {
             if (classic !== sentinel && classic !== z64Value) {
-                throw new ZipSecurityError(
+                throw new ZipSecurityError('ZIP_ZIP64_CONTRADICTION',
                     `zipnative: zip64 ${field} (${z64Value}) contradicts the non-sentinel classic value `
                     + `(${classic}) — parser-differential archives are rejected`);
             }
@@ -160,11 +160,11 @@ export function locateEocd(
     }
 
     if (diskNumber !== 0 || cdStartDisk !== 0) {
-        throw new ZipUnsupportedError(
+        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_MULTI_DISK',
             'zipnative: multi-disk (spanned) archives are not supported', 'multi-disk');
     }
     if (entriesOnDisk !== totalEntries) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_EOCD_INCONSISTENT',
             'zipnative: entries-on-this-disk differs from total entries on a single-disk archive '
             + '(corrupt or hostile end-of-central-directory record)');
     }
@@ -175,7 +175,7 @@ export function locateEocd(
     // ── Prepended-data shift ─────────────────────────────────────────
     const base = cdEnd - (cdOffset + cdSize);
     if (base < 0) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_EOCD_INCONSISTENT',
             'zipnative: the central directory overlaps the end-of-central-directory record '
             + '(corrupt or hostile archive)');
     }

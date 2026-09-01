@@ -111,7 +111,7 @@ function planExtraction(
 
         if (isSymlinkEntry(entry)) {
             if (rejectSymlinks) {
-                throw new ZipSecurityError(
+                throw new ZipSecurityError('ZIP_SYMLINK_REJECTED',
                     `zipnative: entry '${entry.name}' is a symlink — rejected by default (CWE-59); `
                     + 'pass rejectSymlinks: false to receive its target as data',
                     entry.name);
@@ -123,7 +123,7 @@ function planExtraction(
         const path = sanitizeEntryPath(entry.name);
         if (path === null) {
             if (rejectTraversal) {
-                throw new ZipSecurityError(
+                throw new ZipSecurityError('ZIP_PATH_TRAVERSAL',
                     `zipnative: entry name '${entry.name}' escapes the extraction root (zip-slip, CWE-22) — `
                     + 'this archive is hostile or corrupt; pass rejectTraversal: false to skip such entries instead',
                     entry.name);
@@ -137,7 +137,7 @@ function planExtraction(
         const existing = byPath.get(path);
         if (existing !== undefined) {
             if (onDuplicate === 'error') {
-                throw new ZipSecurityError(
+                throw new ZipSecurityError('ZIP_EXTRACT_DUPLICATE_PATH',
                     `zipnative: duplicate entry path '${path}' — a shadowing hazard (CWE-694); `
                     + "pass onDuplicate: 'first' or 'last' to resolve deliberately",
                     entry.name);

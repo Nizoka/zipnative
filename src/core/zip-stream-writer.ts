@@ -39,7 +39,7 @@ const MAX_CHUNK = 16_777_216;
 function resolveChunkSize(value: number | undefined): number {
     if (value === undefined) return DEFAULT_CHUNK;
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-        throw new ZipError(`zipnative: chunkSize must be a positive number (got ${String(value)})`);
+        throw new ZipError('ZIP_INVALID_OPTION', `zipnative: chunkSize must be a positive number (got ${String(value)})`);
     }
     return Math.max(MIN_CHUNK, Math.min(MAX_CHUNK, Math.floor(value)));
 }

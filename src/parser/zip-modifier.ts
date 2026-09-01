@@ -168,7 +168,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 rawCfh: reader.bytes.subarray(pos, pos + cfh.recordLength),
             };
             if (sourceIndex.has(record.entry.name)) {
-                throw new ZipFormatError(
+                throw new ZipFormatError('ZIP_DUPLICATE_ENTRY_NAME',
                     `zipnative: the archive contains duplicate entry name '${record.entry.name}' — `
                     + 'incremental modification of duplicate-name archives is not supported; '
                     + 'extract and rebuild with createZip() instead');
@@ -239,14 +239,14 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         if (!entry.isEncrypted) return reader.readEntryRaw(entry);
         const lfh = parseLocalFileHeader(reader.bytes, entry.localHeaderOffset);
         if (lfh.compressionMethod !== entry.compressionMethod) {
-            throw new ZipSecurityError(
+            throw new ZipSecurityError('ZIP_CD_LFH_MISMATCH',
                 `zipnative: entry '${entry.name}' local header declares method ${lfh.compressionMethod} but the `
                 + `central directory says ${entry.compressionMethod} — parser-differential archives are rejected`,
                 entry.name);
         }
         const dataEnd = lfh.dataStart + entry.compressedSize;
         if (dataEnd > reader.bytes.length || dataEnd > layout.cdOffset) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_RECORD_TRUNCATED',
                 `zipnative: entry '${entry.name}' data extends past its region (truncated or corrupt archive)`);
         }
         return reader.bytes.subarray(lfh.dataStart, dataEnd);
@@ -317,12 +317,12 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             const bytes = typeof data === 'string' ? te.encode(data) : data;
             const finalName = validateNewName(name, false);
             if (finalName.endsWith('/') && bytes.length > 0) {
-                throw new ZipError(
+                throw new ZipError('ZIP_INVALID_OPTION',
                     `zipnative: entry name '${finalName}' ends with '/' (a directory) but carries data — `
                     + 'drop the trailing slash for a file, or pass empty data for a directory');
             }
             if (existsNow(finalName)) {
-                throw new ZipError(
+                throw new ZipError('ZIP_ENTRY_EXISTS',
                     `zipnative: entry '${finalName}' already exists — use replaceEntry() to overwrite it`);
             }
             edits.set(finalName, { kind: 'write', data: bytes, options: entryOptions });
@@ -332,7 +332,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             const bytes = typeof data === 'string' ? te.encode(data) : data;
             const finalName = validateNewName(name, false);
             if (!existsNow(finalName)) {
-                throw new ZipError(
+                throw new ZipError('ZIP_ENTRY_NOT_FOUND',
                     `zipnative: no entry named '${finalName}' (it may have been removed) — `
                     + 'use addEntry() to create it');
             }
@@ -341,7 +341,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
 
         removeEntry(name: string): void {
             if (!existsNow(name)) {
-                throw new ZipError(
+                throw new ZipError('ZIP_ENTRY_NOT_FOUND',
                     `zipnative: no entry named '${name}' to remove (names are case-sensitive)`);
             }
             if (sourceIndex.has(name)) {
@@ -354,7 +354,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
 
         renameEntry(from: string, to: string): void {
             if (!existsNow(from)) {
-                throw new ZipError(
+                throw new ZipError('ZIP_ENTRY_NOT_FOUND',
                     `zipnative: no entry named '${from}' to rename (it may have been removed)`);
             }
             const pending = edits.get(from);
@@ -363,7 +363,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 : (sourceIndex.get(from)?.entry.isDirectory ?? from.endsWith('/'));
             const finalTo = validateNewName(to, fromIsDirectory);
             if (existsNow(finalTo)) {
-                throw new ZipError(
+                throw new ZipError('ZIP_ENTRY_EXISTS',
                     `zipnative: an entry named '${finalTo}' already exists — removeEntry() it first `
                     + '(renames never overwrite implicitly)');
             }

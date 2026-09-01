@@ -35,7 +35,7 @@ export function viewOf(bytes: Uint8Array): DataView {
 /** Convert a u64 field to a safe JS number, or throw with the field name. */
 export function toSafeNumber(value: bigint, field: string): number {
     if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_VALUE_UNREPRESENTABLE',
             `zipnative: ${field} is ${value}, beyond Number.MAX_SAFE_INTEGER — archives this large are not supported`);
     }
     return Number(value);
@@ -58,11 +58,11 @@ export interface EocdRecord {
 /** Parse the classic EOCD record at `pos`. Caller has verified the signature. */
 export function parseEocd(bytes: Uint8Array, pos: number): EocdRecord {
     if (pos + EOCD_SIZE > bytes.length) {
-        throw new ZipFormatError('zipnative: end-of-central-directory record truncated');
+        throw new ZipFormatError('ZIP_RECORD_TRUNCATED', 'zipnative: end-of-central-directory record truncated');
     }
     const dv = viewOf(bytes);
     if (dv.getUint32(pos, true) !== SIG_EOCD) {
-        throw new ZipFormatError('zipnative: end-of-central-directory signature missing at expected offset');
+        throw new ZipFormatError('ZIP_SIGNATURE_MISMATCH', 'zipnative: end-of-central-directory signature missing at expected offset');
     }
     const commentLength = dv.getUint16(pos + 20, true);
     return {
@@ -117,7 +117,7 @@ export function hasZip64EocdSignature(bytes: Uint8Array, pos: number): boolean {
 /** Parse the Zip64 EOCD record at `pos`. Caller has verified the signature. */
 export function parseZip64Eocd(bytes: Uint8Array, pos: number): Zip64EocdRecord {
     if (pos + ZIP64_EOCD_MIN_SIZE > bytes.length) {
-        throw new ZipFormatError('zipnative: zip64 end-of-central-directory record truncated');
+        throw new ZipFormatError('ZIP_RECORD_TRUNCATED', 'zipnative: zip64 end-of-central-directory record truncated');
     }
     const dv = viewOf(bytes);
     return {
@@ -160,18 +160,18 @@ export interface CentralFileHeader {
 /** Parse one central-directory file header at `pos`. */
 export function parseCentralFileHeader(bytes: Uint8Array, pos: number): CentralFileHeader {
     if (pos + CENTRAL_FILE_HEADER_SIZE > bytes.length) {
-        throw new ZipFormatError('zipnative: central-directory file header truncated');
+        throw new ZipFormatError('ZIP_RECORD_TRUNCATED', 'zipnative: central-directory file header truncated');
     }
     const dv = viewOf(bytes);
     if (dv.getUint32(pos, true) !== SIG_CENTRAL_FILE_HEADER) {
-        throw new ZipFormatError('zipnative: central-directory file header signature missing (corrupt central directory)');
+        throw new ZipFormatError('ZIP_SIGNATURE_MISMATCH', 'zipnative: central-directory file header signature missing (corrupt central directory)');
     }
     const nameLength = dv.getUint16(pos + 28, true);
     const extraLength = dv.getUint16(pos + 30, true);
     const commentLength = dv.getUint16(pos + 32, true);
     const recordLength = CENTRAL_FILE_HEADER_SIZE + nameLength + extraLength + commentLength;
     if (pos + recordLength > bytes.length) {
-        throw new ZipFormatError('zipnative: central-directory file header variable fields truncated');
+        throw new ZipFormatError('ZIP_RECORD_TRUNCATED', 'zipnative: central-directory file header variable fields truncated');
     }
     const nameStart = pos + CENTRAL_FILE_HEADER_SIZE;
     return {
@@ -417,11 +417,11 @@ export function writeZip64Locator(zip64EocdOffset: number): Uint8Array {
 /** Parse the local file header at `pos`. */
 export function parseLocalFileHeader(bytes: Uint8Array, pos: number): LocalFileHeader {
     if (pos + LOCAL_FILE_HEADER_SIZE > bytes.length) {
-        throw new ZipFormatError('zipnative: local file header truncated');
+        throw new ZipFormatError('ZIP_RECORD_TRUNCATED', 'zipnative: local file header truncated');
     }
     const dv = viewOf(bytes);
     if (dv.getUint32(pos, true) !== SIG_LOCAL_FILE_HEADER) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_SIGNATURE_MISMATCH',
             'zipnative: no local file header at the offset the central directory declares '
             + '(corrupt or hostile archive)');
     }
@@ -430,7 +430,7 @@ export function parseLocalFileHeader(bytes: Uint8Array, pos: number): LocalFileH
     const nameStart = pos + LOCAL_FILE_HEADER_SIZE;
     const dataStart = nameStart + nameLength + extraLength;
     if (dataStart > bytes.length) {
-        throw new ZipFormatError('zipnative: local file header variable fields truncated');
+        throw new ZipFormatError('ZIP_RECORD_TRUNCATED', 'zipnative: local file header variable fields truncated');
     }
     return {
         versionNeeded: dv.getUint16(pos + 4, true),

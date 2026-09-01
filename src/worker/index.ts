@@ -143,7 +143,7 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
 
         async toBytes(): Promise<Uint8Array> {
             if (collector.hasStreamEntries()) {
-                throw new ZipError(
+                throw new ZipError('ZIP_API_MISUSE',
                     'zipnative: toBytes() is incompatible with addStream() entries (their sizes are only '
                     + 'known after the source is consumed). Use stream(), or buffer the content via add().');
             }

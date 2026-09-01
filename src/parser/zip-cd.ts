@@ -53,13 +53,13 @@ export function parseCentralDirectory(
 
     for (let i = 0; i < layout.totalEntries; i++) {
         if (pos >= cdEnd) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_CD_INCONSISTENT',
                 `zipnative: central directory ended after ${i} of ${layout.totalEntries} declared entries `
                 + '(corrupt or hostile archive)');
         }
         const cfh = parseCentralFileHeader(bytes, pos);
         if (pos + cfh.recordLength > cdEnd) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_CD_INCONSISTENT',
                 'zipnative: a central-directory record extends past the declared central-directory size '
                 + '(corrupt or hostile archive)');
         }
@@ -73,7 +73,7 @@ export function parseCentralDirectory(
     }
 
     if (pos !== cdEnd) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_CD_INCONSISTENT',
             'zipnative: the central directory contains bytes beyond its declared entries '
             + '(corrupt or hostile archive)');
     }
@@ -122,7 +122,7 @@ function makeEntry(
         emit(zip64ExtraIgnoredDiagnostic(name));
     }
     if (z64.diskNumberStart !== 0) {
-        throw new ZipUnsupportedError(
+        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_MULTI_DISK',
             `zipnative: entry '${name}' starts on disk ${z64.diskNumberStart} — multi-disk archives are not supported`,
             'multi-disk');
     }

@@ -2,7 +2,7 @@
   "$comment": "Machine-generated export surface of the zipnative package — the ground truth for agents (dist/*.d.ts is gitignored). Fields that cannot be extracted mechanically are null, never guessed. Regenerate with `npm run docs:api`; verify-docs api-json-sync enforces freshness.",
   "package": "zipnative",
   "source": "src/index.ts",
-  "exportCount": 49,
+  "exportCount": 57,
   "exports": [
     {
       "name": "AddEntryOptions",
@@ -124,6 +124,13 @@
       "summary": "Library version — kept in sync with package.json by verify:docs."
     },
     {
+      "name": "ZipBaseErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipBaseErrorCode =",
+      "summary": "Codes carried by the base ZipError (usage and invariant faults)."
+    },
+    {
       "name": "ZipCodec",
       "kind": "type",
       "module": "src/codecs/codec-registry.ts",
@@ -150,6 +157,13 @@
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipDataError extends ZipError",
       "summary": "Content integrity failure: CRC or size mismatch against declared metadata."
+    },
+    {
+      "name": "ZipDataErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipDataErrorCode =",
+      "summary": "Codes carried by ZipDataError."
     },
     {
       "name": "ZipDiagnostic",
@@ -187,6 +201,13 @@
       "summary": "Base class for every error thrown by zipnative."
     },
     {
+      "name": "ZipErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipErrorCode =",
+      "summary": "Every stable error code zipnative can throw."
+    },
+    {
       "name": "ZipExtraField",
       "kind": "type",
       "module": "src/types/zip-types.ts",
@@ -201,11 +222,25 @@
       "summary": "The archive (or one of its records) is structurally invalid."
     },
     {
+      "name": "ZipFormatErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipFormatErrorCode =",
+      "summary": "Codes carried by ZipFormatError."
+    },
+    {
       "name": "ZipLimitError",
       "kind": "value",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipLimitError extends ZipError",
       "summary": "A configured security bound from ZipLimits was exceeded."
+    },
+    {
+      "name": "ZipLimitErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipLimitErrorCode =",
+      "summary": "Codes carried by ZipLimitError."
     },
     {
       "name": "ZipLimits",
@@ -243,11 +278,32 @@
       "summary": "The archive has an active-attack shape: path traversal, overlapping entries, central-directory/local-header divergence, Zip64 spoofing."
     },
     {
+      "name": "ZipSecurityErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipSecurityErrorCode =",
+      "summary": "Codes carried by ZipSecurityError."
+    },
+    {
       "name": "ZipUnsupportedError",
       "kind": "value",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipUnsupportedError extends ZipError",
-      "summary": "The archive uses a feature zipnative deliberately does not support (encryption, unknown compression method, multi-disk)."
+      "summary": "The archive uses a feature zipnative deliberately does not support (encryption, unknown compression method, multi-disk, Zip64 streaming, CD-less descriptors in unsupported shapes)."
+    },
+    {
+      "name": "ZipUnsupportedErrorCode",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipUnsupportedErrorCode =",
+      "summary": "Codes carried by ZipUnsupportedError."
+    },
+    {
+      "name": "ZipUnsupportedFeature",
+      "kind": "type",
+      "module": "src/types/zip-errors.ts",
+      "signature": "export type ZipUnsupportedFeature =",
+      "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compression method."
     },
     {
       "name": "ZipWriter",

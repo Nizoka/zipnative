@@ -210,7 +210,7 @@ export function planArchive(
         if (needsDeflate(spec, data)) {
             const codec = getCodec(METHOD_DEFLATE);
             if (codec?.compressSync === undefined) {
-                throw new ZipError('zipnative: the deflate codec has no compressor registered (internal invariant)');
+                throw new ZipError('ZIP_INTERNAL', 'zipnative: the deflate codec has no compressor registered (internal invariant)');
             }
             compressed = codec.compressSync(data, { level: spec.level, deterministic: spec.deterministic });
         }
@@ -285,7 +285,7 @@ export function assembleArchive(ctx: ZipCtx): Uint8Array {
     for (let res = generator.next(); !res.done; res = generator.next()) {
         const segment = res.value;
         if (segment.kind !== 'bytes') {
-            throw new ZipError('zipnative: unexpected stream segment in the buffered writer (internal invariant)');
+            throw new ZipError('ZIP_INTERNAL', 'zipnative: unexpected stream segment in the buffered writer (internal invariant)');
         }
         segments.push(segment.bytes);
         total += segment.bytes.length;
@@ -406,7 +406,7 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
 /** Guard against >4 GiB stream entries (Zip64 streaming is out of scope pre-1.0). */
 export function assertStreamSizesInRange(plan: PlannedEntry, entryName: string): void {
     if (plan.uncompressedSize > SENTINEL_U32 - 1 || plan.compressedSize > SENTINEL_U32 - 1) {
-        throw new ZipUnsupportedError(
+        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ZIP64_STREAMING',
             `zipnative: stream entry '${entryName}' exceeds 4 GiB — Zip64 streaming is not supported yet; `
             + 'buffer the content via add() or split it (see README Known Limitations)',
             'zip64-streaming');

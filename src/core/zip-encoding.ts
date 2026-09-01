@@ -60,22 +60,22 @@ export function compareNames(a: Uint8Array, b: Uint8Array): number {
  */
 export function validateEntryName(name: string, isDirectory: boolean): string {
     if (name.length === 0) {
-        throw new ZipFormatError('zipnative: entry name must not be empty');
+        throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME', 'zipnative: entry name must not be empty');
     }
     if (name.includes('\0')) {
-        throw new ZipFormatError('zipnative: entry name must not contain NUL bytes');
+        throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME', 'zipnative: entry name must not contain NUL bytes');
     }
     if (name.includes('\\')) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME',
             `zipnative: entry name '${name}' contains a backslash — ZIP paths use forward slashes ('/')`);
     }
     if (name.startsWith('/') || /^[A-Za-z]:/.test(name)) {
-        throw new ZipFormatError(
+        throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME',
             `zipnative: entry name '${name}' is absolute — archive paths must be relative`);
     }
     for (const segment of name.split('/')) {
         if (segment === '..') {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_INVALID_ENTRY_NAME',
                 `zipnative: entry name '${name}' contains a '..' segment — zipnative never writes `
                 + 'traversal-capable archives');
         }

@@ -120,7 +120,7 @@ export async function* iterateZipEntries(
 
     for (;;) {
         if (previous !== null && !previous.done) {
-            throw new ZipError(`zipnative: ${DRAIN_REMEDY}`);
+            throw new ZipError('ZIP_API_MISUSE', `zipnative: ${DRAIN_REMEDY}`);
         }
 
         const sig = await cursor.peek4();
@@ -134,7 +134,7 @@ export async function* iterateZipEntries(
             return;
         }
         if (sigU32 !== SIG_LOCAL_FILE_HEADER) {
-            throw new ZipFormatError(
+            throw new ZipFormatError('ZIP_SIGNATURE_MISMATCH',
                 `zipnative: expected a local file header at byte ${cursor.bytesRead} — `
                 + 'not a ZIP stream, or corrupt');
         }
@@ -190,7 +190,7 @@ export async function* iterateZipEntries(
         // are undelimitable AND unreadable, and registered custom codecs
         // cannot report a consumed-byte position.
         if (usesDescriptor && (isEncrypted || lfh.compressionMethod !== METHOD_DEFLATE)) {
-            throw new ZipUnsupportedError(
+            throw new ZipUnsupportedError('ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR',
                 `zipnative: entry '${name}' combines a data descriptor (flag bit 3) with `
                 + `${isEncrypted ? 'encryption' : `method ${lfh.compressionMethod}`} — its payload cannot be `
                 + 'delimited without the central directory; use openZip() on the complete archive instead',
@@ -238,7 +238,7 @@ export async function* iterateZipEntries(
 
         const guardConsume = (): void => {
             if (state.consumed) {
-                throw new ZipError(`zipnative: data()/skip() for entry '${name}' was already used — it is single-shot`);
+                throw new ZipError('ZIP_API_MISUSE', `zipnative: data()/skip() for entry '${name}' was already used — it is single-shot`);
             }
             state.consumed = true;
         };
@@ -249,14 +249,14 @@ export async function* iterateZipEntries(
             data: (): AsyncGenerator<Uint8Array, void, undefined> => {
                 if (isEncrypted) {
                     const feature = (lfh.flags & FLAG_STRONG_ENCRYPTION) !== 0 ? 'strong-encryption' : 'zipcrypto';
-                    throw new ZipUnsupportedError(
+                    throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
                         `zipnative: entry '${name}' is encrypted (${feature}) — encryption is not supported; `
                         + 'skip() it to continue',
                         feature);
                 }
                 const codec = getCodec(lfh.compressionMethod);
                 if (codec === null) {
-                    throw new ZipUnsupportedError(
+                    throw new ZipUnsupportedError('ZIP_UNSUPPORTED_METHOD',
                         `zipnative: entry '${name}' uses compression method ${lfh.compressionMethod}, which has no `
                         + 'registered codec — skip() it, or registerCodec() one',
                         `method:${lfh.compressionMethod}`);
@@ -290,7 +290,7 @@ export async function* iterateZipEntries(
             while (!inflator.finished) {
                 const chunk = await cursor.nextChunk();
                 if (chunk === null) {
-                    throw new ZipFormatError(
+                    throw new ZipFormatError('ZIP_STREAM_TRUNCATED',
                         `zipnative: stream truncated inside entry '${name}' — the deflate stream never completed`);
                 }
                 fed += chunk.length;
@@ -298,7 +298,7 @@ export async function* iterateZipEntries(
                 try {
                     pieces = inflator.push(chunk);
                 } catch (err) {
-                    throw err instanceof ZipError ? err : new ZipDataError(
+                    throw err instanceof ZipError ? err : new ZipDataError('ZIP_DECOMPRESSION_FAILED',
                         `zipnative: entry '${name}' failed to decompress (${err instanceof Error ? err.message : String(err)})`,
                         name);
                 }
@@ -333,10 +333,10 @@ export async function* iterateZipEntries(
             const match = matchDataDescriptor(head, measured);
             if (!match.ok) {
                 throw match.crcMismatch !== null
-                    ? new ZipDataError(
+                    ? new ZipDataError('ZIP_CRC_MISMATCH',
                         `zipnative: entry '${name}' data-descriptor CRC-32 mismatch — the data is corrupt`,
                         name, match.crcMismatch.expected, match.crcMismatch.actual)
-                    : new ZipDataError(
+                    : new ZipDataError('ZIP_DESCRIPTOR_MISMATCH',
                         `zipnative: entry '${name}' has no data descriptor matching the decompressed payload `
                         + '(corrupt or hostile stream)',
                         name);
@@ -354,7 +354,7 @@ export async function* iterateZipEntries(
                 produced += chunk.length;
                 totalProduced += chunk.length;
                 if (produced > outputCap) {
-                    throw new ZipDataError(
+                    throw new ZipDataError('ZIP_SIZE_MISMATCH',
                         `zipnative: entry '${name}' produced more than its declared ${uncompressedSize} bytes `
                         + '(the local header lies — corrupt or hostile stream)',
                         name);
@@ -373,13 +373,13 @@ export async function* iterateZipEntries(
             }
 
             if (produced !== uncompressedSize) {
-                throw new ZipDataError(
+                throw new ZipDataError('ZIP_SIZE_MISMATCH',
                     `zipnative: entry '${name}' produced ${produced} bytes but its header declares `
                     + `${uncompressedSize} (corrupt or hostile stream)`,
                     name);
             }
             if (crc !== lfh.crc32) {
-                throw new ZipDataError(
+                throw new ZipDataError('ZIP_CRC_MISMATCH',
                     `zipnative: entry '${name}' CRC-32 mismatch — the data is corrupt`,
                     name, lfh.crc32, crc);
             }
@@ -401,7 +401,7 @@ export async function* iterateZipEntries(
 function wrapInflateError(err: unknown): Error {
     if (err instanceof ZipError) return err;
     const detail = err instanceof Error ? err.message : String(err);
-    return new ZipDataError(
+    return new ZipDataError('ZIP_DECOMPRESSION_FAILED',
         `zipnative: streamed entry failed to decompress (${detail}) — the data is corrupt or hostile`);
 }
 

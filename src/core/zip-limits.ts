@@ -46,12 +46,12 @@ export function resolveLimits(overrides?: Partial<ZipLimits>): ZipLimits {
     for (const [key, value] of Object.entries(overrides)) {
         if (value === undefined) continue;
         if (!(key in merged)) {
-            throw new ZipLimitError(
+            throw new ZipLimitError('ZIP_LIMIT_INVALID',
                 `zipnative: unknown limit '${key}' (valid keys: ${Object.keys(merged).join(', ')})`,
                 key, NaN, NaN);
         }
         if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {
-            throw new ZipLimitError(
+            throw new ZipLimitError('ZIP_LIMIT_INVALID',
                 `zipnative: limit '${key}' must be a positive number or Infinity, got ${String(value)}`,
                 key, NaN, NaN);
         }
@@ -69,7 +69,7 @@ export function enforceLimit(
 ): void {
     const configured = limits[limit];
     if (observed > configured) {
-        throw new ZipLimitError(
+        throw new ZipLimitError('ZIP_LIMIT_EXCEEDED',
             `zipnative: ${context} (${observed}) exceeds limits.${limit} (${configured}) — `
             + `raise limits.${limit} explicitly if this archive is trusted`,
             limit, configured, observed);

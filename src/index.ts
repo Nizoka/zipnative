@@ -70,6 +70,14 @@ export {
     ZipLimitError,
     ZipSecurityError,
     ZipUnsupportedError,
+    type ZipBaseErrorCode,
+    type ZipDataErrorCode,
+    type ZipErrorCode,
+    type ZipFormatErrorCode,
+    type ZipLimitErrorCode,
+    type ZipSecurityErrorCode,
+    type ZipUnsupportedErrorCode,
+    type ZipUnsupportedFeature,
 } from './types/zip-errors.js';
 
 // ── 7. Security limits ───────────────────────────────────────────────

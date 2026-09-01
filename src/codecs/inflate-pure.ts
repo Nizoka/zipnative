@@ -37,7 +37,7 @@ interface BitReader {
 function readBits(br: BitReader, n: number): number {
     while (br.bitCnt < n) {
         if (br.pos >= br.buf.length) {
-            throw new ZipFormatError('zipnative: deflate stream truncated (unexpected end of data)');
+            throw new ZipFormatError('ZIP_DEFLATE_TRUNCATED', 'zipnative: deflate stream truncated (unexpected end of data)');
         }
         br.bitBuf |= br.buf[br.pos++] << br.bitCnt;
         br.bitCnt += 8;
@@ -55,7 +55,7 @@ function decodeSymbol(br: BitReader, table: HuffmanTable): number {
     for (let len = 1; len <= 15; len++) {
         if (br.bitCnt < 1) {
             if (br.pos >= br.buf.length) {
-                throw new ZipFormatError('zipnative: deflate stream truncated (unexpected end of data)');
+                throw new ZipFormatError('ZIP_DEFLATE_TRUNCATED', 'zipnative: deflate stream truncated (unexpected end of data)');
             }
             br.bitBuf |= br.buf[br.pos++] << br.bitCnt;
             br.bitCnt += 8;
@@ -72,7 +72,7 @@ function decodeSymbol(br: BitReader, table: HuffmanTable): number {
         index += count;
         first = (first + count) << 1;
     }
-    throw new ZipFormatError('zipnative: invalid Huffman code in deflate stream');
+    throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: invalid Huffman code in deflate stream');
 }
 
 // ── Decoder ──────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
 
     const ensureCapacity = (needed: number): void => {
         if (outPos + needed > maxOutput) {
-            throw new ZipDataError(
+            throw new ZipDataError('ZIP_INFLATE_OUTPUT_OVERFLOW',
                 `zipnative: deflate output exceeds the declared/permitted size of ${maxOutput} bytes `
                 + '(the archive metadata lies about this entry, or raise the relevant limit if intentional)');
         }
@@ -116,16 +116,16 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
             br.bitBuf = 0;
             br.bitCnt = 0;
             if (br.pos + 4 > br.buf.length) {
-                throw new ZipFormatError('zipnative: deflate stored-block header truncated');
+                throw new ZipFormatError('ZIP_DEFLATE_TRUNCATED', 'zipnative: deflate stored-block header truncated');
             }
             const len = br.buf[br.pos] | (br.buf[br.pos + 1] << 8);
             const nlen = br.buf[br.pos + 2] | (br.buf[br.pos + 3] << 8);
             br.pos += 4;
             if ((len ^ 0xFFFF) !== nlen) {
-                throw new ZipFormatError('zipnative: deflate stored-block LEN/NLEN mismatch (corrupt stream)');
+                throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: deflate stored-block LEN/NLEN mismatch (corrupt stream)');
             }
             if (br.pos + len > br.buf.length) {
-                throw new ZipFormatError('zipnative: deflate stored-block data truncated');
+                throw new ZipFormatError('ZIP_DEFLATE_TRUNCATED', 'zipnative: deflate stored-block data truncated');
             }
             ensureCapacity(len);
             out.set(br.buf.subarray(br.pos, br.pos + len), outPos);
@@ -159,7 +159,7 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
                         codeLengths[ci++] = sym;
                     } else if (sym === 16) {
                         if (ci === 0) {
-                            throw new ZipFormatError('zipnative: deflate dynamic header repeats with no previous code length');
+                            throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: deflate dynamic header repeats with no previous code length');
                         }
                         const repeat = readBits(br, 2) + 3;
                         const prev = codeLengths[ci - 1];
@@ -187,17 +187,17 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
                 } else {
                     const lenIdx = sym - 257;
                     if (lenIdx >= LEN_BASE.length) {
-                        throw new ZipFormatError('zipnative: invalid length symbol in deflate stream');
+                        throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: invalid length symbol in deflate stream');
                     }
                     const length = LEN_BASE[lenIdx] + readBits(br, LEN_EXTRA[lenIdx]);
 
                     const distSym = decodeSymbol(br, distTable);
                     if (distSym >= DIST_BASE.length) {
-                        throw new ZipFormatError('zipnative: invalid distance symbol in deflate stream');
+                        throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: invalid distance symbol in deflate stream');
                     }
                     const distance = DIST_BASE[distSym] + readBits(br, DIST_EXTRA[distSym]);
                     if (distance > outPos) {
-                        throw new ZipFormatError('zipnative: deflate back-reference before start of output (corrupt stream)');
+                        throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: deflate back-reference before start of output (corrupt stream)');
                     }
 
                     ensureCapacity(length);
@@ -208,7 +208,7 @@ export function inflateRawJS(data: Uint8Array, maxOutput: number): Uint8Array {
                 }
             }
         } else {
-            throw new ZipFormatError(`zipnative: unsupported deflate block type ${btype} (corrupt stream)`);
+            throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', `zipnative: unsupported deflate block type ${btype} (corrupt stream)`);
         }
     }
 

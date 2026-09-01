@@ -128,7 +128,7 @@ function* decodeSymbolG(st: InflateState, table: HuffmanTable): Generator<Yielde
         index += count;
         first = (first + count) << 1;
     }
-    throw new ZipFormatError('zipnative: invalid Huffman code in deflate stream');
+    throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: invalid Huffman code in deflate stream');
 }
 
 /** Slide the window: flush, then keep the newest 32 KiB of history. */
@@ -143,7 +143,7 @@ function* slide(st: InflateState): Generator<Yielded, void, Uint8Array> {
 
 function boundOutput(st: InflateState, needed: number): void {
     if (st.totalOut + needed > st.maxOutput) {
-        throw new ZipDataError(
+        throw new ZipDataError('ZIP_INFLATE_OUTPUT_OVERFLOW',
             `zipnative: deflate output exceeds the declared/permitted size of ${st.maxOutput} bytes `
             + '(the archive metadata lies about this entry, or raise the relevant limit if intentional)');
     }
@@ -164,7 +164,7 @@ function* inflateChunked(st: InflateState): Generator<Yielded, void, Uint8Array>
             const len = yield* readBitsG(st, 16);
             const nlen = yield* readBitsG(st, 16);
             if ((len ^ 0xFFFF) !== nlen) {
-                throw new ZipFormatError('zipnative: deflate stored-block LEN/NLEN mismatch (corrupt stream)');
+                throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: deflate stored-block LEN/NLEN mismatch (corrupt stream)');
             }
             boundOutput(st, len);
             let remaining = len;
@@ -210,7 +210,7 @@ function* inflateChunked(st: InflateState): Generator<Yielded, void, Uint8Array>
                         codeLengths[ci++] = sym;
                     } else if (sym === 16) {
                         if (ci === 0) {
-                            throw new ZipFormatError('zipnative: deflate dynamic header repeats with no previous code length');
+                            throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: deflate dynamic header repeats with no previous code length');
                         }
                         const repeat = (yield* readBitsG(st, 2)) + 3;
                         const prev = codeLengths[ci - 1];
@@ -242,17 +242,17 @@ function* inflateChunked(st: InflateState): Generator<Yielded, void, Uint8Array>
                 } else {
                     const lenIdx = sym - 257;
                     if (lenIdx >= LEN_BASE.length) {
-                        throw new ZipFormatError('zipnative: invalid length symbol in deflate stream');
+                        throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: invalid length symbol in deflate stream');
                     }
                     const length = LEN_BASE[lenIdx] + (yield* readBitsG(st, LEN_EXTRA[lenIdx]));
 
                     const distSym = yield* decodeSymbolG(st, distTable);
                     if (distSym >= DIST_BASE.length) {
-                        throw new ZipFormatError('zipnative: invalid distance symbol in deflate stream');
+                        throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: invalid distance symbol in deflate stream');
                     }
                     const distance = DIST_BASE[distSym] + (yield* readBitsG(st, DIST_EXTRA[distSym]));
                     if (distance > st.totalOut) {
-                        throw new ZipFormatError('zipnative: deflate back-reference before start of output (corrupt stream)');
+                        throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', 'zipnative: deflate back-reference before start of output (corrupt stream)');
                     }
 
                     boundOutput(st, length);
@@ -269,7 +269,7 @@ function* inflateChunked(st: InflateState): Generator<Yielded, void, Uint8Array>
                 }
             }
         } else {
-            throw new ZipFormatError(`zipnative: unsupported deflate block type ${btype} (corrupt stream)`);
+            throw new ZipFormatError('ZIP_DEFLATE_CORRUPT', `zipnative: unsupported deflate block type ${btype} (corrupt stream)`);
         }
     }
 
@@ -344,7 +344,7 @@ export function createInflator(maxOutput: number): Inflator {
 
         push(chunk: Uint8Array): Uint8Array[] {
             if (finished) {
-                throw new ZipError(
+                throw new ZipError('ZIP_API_MISUSE',
                     'zipnative: push() after the deflate stream finished — check inflator.finished and use leftover');
             }
             if (!started) {
@@ -363,7 +363,7 @@ export function createInflator(maxOutput: number): Inflator {
 
         end(): void {
             if (!finished) {
-                throw new ZipFormatError(
+                throw new ZipFormatError('ZIP_DEFLATE_TRUNCATED',
                     'zipnative: deflate stream truncated — the final block never completed');
             }
         },

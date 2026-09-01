@@ -501,10 +501,10 @@ function deflateStored(data: Uint8Array): Uint8Array {
  */
 export function deflateRawJS(data: Uint8Array, level: number): Uint8Array {
     if (!Number.isInteger(level) || level < 0 || level > 9) {
-        throw new ZipError(`zipnative: deflate level must be an integer 0-9 (got ${String(level)})`);
+        throw new ZipError('ZIP_INVALID_OPTION', `zipnative: deflate level must be an integer 0-9 (got ${String(level)})`);
     }
     if (data.length > 0x7ffffffe) {
-        throw new ZipError('zipnative: deflate input exceeds 2 GiB — split the input');
+        throw new ZipError('ZIP_INPUT_TOO_LARGE', 'zipnative: deflate input exceeds 2 GiB — split the input');
     }
     if (level === 0) return deflateStored(data);
 
