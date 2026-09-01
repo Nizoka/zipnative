@@ -8,7 +8,7 @@
   <meta name="keywords" content="zip, typescript, zero-dependency, streaming, deterministic, reproducible builds, zip-slip, zip64, unzip, archive">
   <meta name="author" content="Nizoka">
   <meta name="robots" content="index, follow, max-image-preview:large">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
@@ -28,6 +28,7 @@
   <link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt — machine-readable documentation index">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -45,16 +46,23 @@
         "@id": "https://zipnative.dev/#org",
         "name": "Nizoka",
         "url": "https://zipnative.dev/",
+        "logo": "https://zipnative.dev/assets/logo.svg",
         "sameAs": ["https://github.com/Nizoka/zipnative"]
       },
       {
-        "@type": "SoftwareSourceCode",
+        "@type": ["SoftwareSourceCode", "SoftwareApplication"],
         "@id": "https://zipnative.dev/#library",
         "name": "zipnative",
         "inLanguage": "en",
         "programmingLanguage": "TypeScript",
+        "runtimePlatform": "Node.js >= 22, browsers, Deno, Bun, Workers",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Cross-platform",
         "codeRepository": "https://github.com/Nizoka/zipnative",
         "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@id": "https://zipnative.dev/#org" },
         "softwareVersion": "0.7.0",
         "description": "Zero-dependency native ZIP engine: random-access reads, secure-by-default extraction, deterministic archives, incremental modification, worker parallelism."
       }
@@ -66,213 +74,317 @@
   <a class="skip-link" href="#main-content">Skip to content</a>
 
   <nav class="nav" aria-label="Main">
-    <a class="nav-brand" href="./">zip<span>native</span></a>
-    <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">☰</button>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#security">Security</a>
-      <a href="#determinism">Determinism</a>
-      <a href="#architecture">Architecture</a>
-      <a href="#examples">Examples</a>
-      <a href="guides/index.html">Guides</a>
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
-      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    <div class="nav-inner">
+      <a class="nav-brand" href="./"><img src="assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#examples">Examples</a></li>
+        <li><a href="#comparison">Compare</a></li>
+        <li><a href="#benchmarks">Benchmarks</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#determinism">Determinism</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="guides/index.html">Guides</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
     </div>
   </nav>
 
-  <section class="hero" id="main-content">
-    <h1>The ZIP engine for modern apps<br>— and the agents that operate them</h1>
+  <section class="hero" id="main-content" tabindex="-1">
+    <h1>The Safe, Deterministic<br><span class="gradient">ZIP Engine</span></h1>
     <p class="hero-sub">
       100&nbsp;% TypeScript. Zero runtime dependencies. One API across Node&nbsp;≥&nbsp;22,
-      browsers, Deno, Bun and Workers. Safe by default, deterministic by contract,
-      streaming by design.
+      browsers, Deno, Bun and Workers — for modern apps and the agents that operate them.
     </p>
-    <div class="hero-install">
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="guides/quickstart.html">Get Started →</a>
+      <a class="btn btn-secondary" href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </div>
+    <div class="hero-badges">
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero runtime dependencies" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript strict mode" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/coverage-91%25-brightgreen" alt="91 percent statement coverage" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/node-%E2%89%A522-blue" alt="Node 22 or newer" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative/blob/main/LICENSE" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license" loading="lazy"></a>
+    </div>
+    <div class="install-cmd">
       <code id="install-cmd">npm install zipnative</code>
-      <button class="copy-btn" data-copy="npm install zipnative" aria-label="Copy install command">Copy</button>
+      <button class="copy-btn" data-copy="npm install zipnative" aria-label="Copy install command">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
     </div>
     <p class="hero-note">Pre-1.0 — all five engine milestones shipped; API-freeze phase in progress.</p>
   </section>
 
+  <div class="metrics">
+    <div class="metric"><div class="metric-value">335+</div><div class="metric-label">Tests</div></div>
+    <div class="metric"><div class="metric-value">91%+</div><div class="metric-label">Coverage</div></div>
+    <div class="metric"><div class="metric-value">0</div><div class="metric-label">Dependencies</div></div>
+    <div class="metric"><div class="metric-value">6</div><div class="metric-label">Foreign interop tools</div></div>
+    <div class="metric"><div class="metric-value">39</div><div class="metric-label">Frozen error codes</div></div>
+    <div class="metric"><div class="metric-value" id="stars-count">—</div><div class="metric-label">GitHub Stars</div></div>
+  </div>
+
   <section class="section" id="features">
-    <h2>What only zipnative does</h2>
-    <div class="feature-grid">
-      <article class="card">
-        <h3>Random access</h3>
-        <p>Read one entry of a 4&nbsp;GB archive with three range reads — the central directory is parsed lazily, payloads are zero-copy views. No “extract everything first”.</p>
-      </article>
-      <article class="card">
-        <h3>Safe by default</h3>
-        <p>Zip-slip, symlinks, duplicate names, decompression bombs, overlapping entries, Zip64 spoofing and EOCD ambiguity are all rejected unless you explicitly opt out. Every parser loop runs under a named, CWE-tagged bound.</p>
-      </article>
-      <article class="card">
-        <h3>Deterministic</h3>
-        <p>Reproducible-build mode with a written contract: identical inputs, identical SHA-256, on every runtime — via a pure-TS deflate encoder whose constants are frozen public API.</p>
-      </article>
-      <article class="card">
-        <h3>Incremental modification</h3>
-        <p>Replace, add, remove or rename entries and save without recompressing the untouched 99&nbsp;% — the append-only model proven in pdfnative's PDF incremental updates.</p>
-      </article>
-      <article class="card">
-        <h3>True streaming</h3>
-        <p>Create archives in fixed-size chunks with bounded memory, and read unseekable streams forward — data-descriptor entries included, thanks to a resumable pure-TS inflater.</p>
-      </article>
-      <article class="card">
-        <h3>Worker parallelism</h3>
-        <p><code>zipnative/worker</code> fans per-entry compression across a real pool (worker_threads and Web Workers) — byte-identical output, graceful degradation, never an infra failure.</p>
-      </article>
-    </div>
-  </section>
-
-  <section class="section" id="security">
-    <h2>Security model</h2>
-    <p>
-      Every archive is treated as untrusted input. The default code path is the safe
-      one: extraction refuses traversal (<code>../</code>, absolute paths, drive
-      letters, NTFS streams), symlink entries and bombs; the reader refuses
-      overlapping entries, parser-differential headers and ambiguous
-      end-of-central-directory records. Bounds are named, documented and
-      caller-configurable — raising one is always an explicit decision.
-    </p>
-    <p><a href="guides/security.html">Read the full threat model →</a></p>
-  </section>
-
-  <section class="section" id="determinism">
-    <h2>Determinism as a contract</h2>
-    <p>
-      <code>compression: { deterministic: true }</code> pins the pure-TS encoder:
-      <code>SHA256(A) === SHA256(B)</code> for identical inputs on any runtime —
-      the mode for content addressing, caching, signatures and reproducible
-      builds. The contract is written down and golden-tested; changing the
-      emitted bytes is a semver-major event.
-    </p>
-    <p><a href="guides/determinism.html">Read the determinism contract →</a></p>
-  </section>
-
-  <section class="section" id="architecture">
-    <h2>Architecture</h2>
-    <p>
-      Five strict layers, one direction of imports, and — by policy — zero
-      reverse edges: cross-layer needs (diagnostics in codecs, compression
-      in the segment generator) are met by parameter injection, never by
-      imports.
-    </p>
-    <div class="diagram-wrap">
-      <svg viewBox="0 0 880 190" role="img" class="diagram">
-        <title>zipnative layer architecture</title>
-        <desc>Five layers — types, codecs, core, parser, worker — where each layer imports only from the layers to its left. No reverse edges.</desc>
-        <g style="font-family: ui-monospace, Consolas, monospace; font-size: 15px;">
-          <rect x="10"  y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="80"  y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">types/</text>
-          <text x="80"  y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">errors · limits</text>
-          <rect x="190" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="260" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">codecs/</text>
-          <text x="260" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">deflate · crc32</text>
-          <rect x="370" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="440" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">core/</text>
-          <text x="440" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">segments · builder</text>
-          <rect x="550" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="620" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">parser/</text>
-          <text x="620" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">reader · modifier</text>
-          <rect x="730" y="30" width="140" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="800" y="57" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">worker/</text>
-          <text x="800" y="79" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 11px;">parallel pool</text>
-          <g style="stroke: var(--c-accent); stroke-width: 2; fill: none;">
-            <path d="M190 62 h-30 m8 -6 l-8 6 l8 6"/>
-            <path d="M370 62 h-30 m8 -6 l-8 6 l8 6"/>
-            <path d="M550 62 h-30 m8 -6 l-8 6 l8 6"/>
-            <path d="M730 62 h-30 m8 -6 l-8 6 l8 6"/>
-          </g>
-          <text x="440" y="135" text-anchor="middle" style="fill: var(--c-text-muted); font-size: 13px;">arrows = “imports from” — reverse edges are forbidden by policy (AGENTS.md)</text>
-          <text x="440" y="160" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 13px;">cross-layer needs travel by parameter injection: emitters, codecs, compressors</text>
-        </g>
-      </svg>
-    </div>
-    <p>
-      The write path is one algorithm with two consumers: planning validates
-      and compresses everything up front, then a single segment generator is
-      drained either into a buffer or into fixed-size chunks — so the two
-      outputs are <em>byte-identical by construction</em>, not by parallel
-      maintenance.
-    </p>
-    <div class="diagram-wrap">
-      <svg viewBox="0 0 880 210" role="img" class="diagram">
-        <title>The shared segment generator</title>
-        <desc>planArchive feeds archiveSegments, whose output is consumed by both toBytes and stream, producing byte-identical archives.</desc>
-        <g style="font-family: ui-monospace, Consolas, monospace; font-size: 15px;">
-          <rect x="20"  y="72" width="200" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="120" y="99"  text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">planArchive()</text>
-          <text x="120" y="121" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">validate · compress · order</text>
-          <rect x="290" y="72" width="230" height="64" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-accent); stroke-width: 2;"/>
-          <text x="405" y="99"  text-anchor="middle" style="fill: var(--c-accent); font-weight: 700;">archiveSegments()</text>
-          <text x="405" y="121" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">one generator, exact offsets</text>
-          <rect x="620" y="16"  width="180" height="56" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="710" y="40"  text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">toBytes()</text>
-          <text x="710" y="60"  text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">sync, buffered</text>
-          <rect x="620" y="136" width="180" height="56" rx="10" style="fill: var(--c-bg-card); stroke: var(--c-border);"/>
-          <text x="710" y="160" text-anchor="middle" style="fill: var(--c-text); font-weight: 600;">stream()</text>
-          <text x="710" y="180" text-anchor="middle" style="fill: var(--c-text-dim); font-size: 12px;">chunked, bounded memory</text>
-          <g style="stroke: var(--c-accent); stroke-width: 2; fill: none;">
-            <path d="M220 104 h70 m-8 -6 l8 6 l-8 6"/>
-            <path d="M520 96 C570 80, 580 56, 620 46 m-10 -2 l10 2 l-7 8"/>
-            <path d="M520 112 C570 128, 580 152, 620 162 m-7 -9 l7 9 l-10 2"/>
-          </g>
-          <text x="710" y="112" text-anchor="middle" style="fill: var(--c-text-muted); font-size: 13px;">byte-identical</text>
-        </g>
-      </svg>
-    </div>
-  </section>
-
-  <section class="section" id="examples">
-    <h2>Ninety seconds of API</h2>
-    <div class="tabs" data-tabs>
-      <div class="tab-buttons" role="tablist">
-        <button role="tab" aria-selected="true" data-tab="read">Read</button>
-        <button role="tab" aria-selected="false" data-tab="write">Write</button>
-        <button role="tab" aria-selected="false" data-tab="modify">Modify</button>
+    <div class="container">
+      <h2 class="section-title">What only zipnative does</h2>
+      <p class="section-subtitle">Not a faster deflate — a safer, reproducible, streaming archive engine built for scenarios the incumbents cannot do.</p>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <div class="feature-icon fi-zero"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div>
+          <h3>Random access</h3>
+          <p>Read one entry of a 4&nbsp;GB archive with three range reads — the central directory is parsed lazily, payloads are zero-copy views. No “extract everything first”.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-security"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>Safe by default</h3>
+          <p>Zip-slip, symlinks, duplicate names, decompression bombs, overlapping entries, Zip64 spoofing and EOCD ambiguity are all rejected unless you explicitly opt out. Every parser loop runs under a named, CWE-tagged bound.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-iso"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
+          <h3>Deterministic</h3>
+          <p>Reproducible-build mode with a written contract: identical inputs, identical SHA-256, on every runtime — via a pure-TS deflate encoder whose constants are frozen public API.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-content"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></div>
+          <h3>Incremental modification</h3>
+          <p>Replace, add, remove or rename entries and save without recompressing the untouched 99&nbsp;% — the append-only model proven in pdfnative's PDF incremental updates.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-production"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M2 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M2 20c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/></svg></div>
+          <h3>True streaming</h3>
+          <p>Create archives in fixed-size chunks with bounded memory, and read unseekable streams forward — data-descriptor entries included, thanks to a resumable pure-TS inflater.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-mcp"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 6.8 16.5 11M7.5 17.2 16.5 13"/></svg></div>
+          <h3>Worker parallelism</h3>
+          <p><code>zipnative/worker</code> fans per-entry compression across a real pool (worker_threads and Web Workers) — byte-identical output, graceful degradation, never an infra failure.</p>
+        </article>
       </div>
-      <pre class="tab-panel" data-panel="read"><code>import { openZip, extractZip } from 'zipnative';
+    </div>
+  </section>
+
+  <section class="section section-alt" id="examples">
+    <div class="container">
+      <h2 class="section-title">Ninety seconds of API</h2>
+      <p class="section-subtitle">Sync-first, no classes, every error carries a stable machine-readable code.</p>
+      <div class="code-tabs">
+        <div class="tab-bar" role="tablist" aria-label="Code examples">
+          <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-read" id="tab-btn-read" data-tab="read">Read</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-write" id="tab-btn-write" data-tab="write">Write</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-modify" id="tab-btn-modify" data-tab="modify">Modify</button>
+        </div>
+        <div class="tab-panel active" id="tab-read" role="tabpanel" aria-labelledby="tab-btn-read">
+<pre><code class="language-typescript">import { openZip, extractZip } from 'zipnative';
 
 const zip = openZip(bytes);              // lazy — nothing decompressed
 const manifest = zip.readEntry('manifest.json'); // one entry, CRC-verified
 
 const files = extractZip(bytes);         // traversal/bombs rejected by default</code></pre>
-      <pre class="tab-panel" data-panel="write" hidden><code>import { createZip } from 'zipnative';
+        </div>
+        <div class="tab-panel" id="tab-write" role="tabpanel" aria-labelledby="tab-btn-write">
+<pre><code class="language-typescript">import { createZip } from 'zipnative';
 
 const zip = createZip({ compression: { deterministic: true } });
 zip.add('data.json', payload);
 const bytes = zip.toBytes();             // same inputs → same SHA-256, anywhere</code></pre>
-      <pre class="tab-panel" data-panel="modify" hidden><code>import { createZipModifier, openZip } from 'zipnative';
+        </div>
+        <div class="tab-panel" id="tab-modify" role="tabpanel" aria-labelledby="tab-btn-modify">
+<pre><code class="language-typescript">import { createZipModifier, openZip } from 'zipnative';
 
 const mod = createZipModifier(openZip(bytes));
 mod.replaceEntry('word/document.xml', updated);
 const saved = mod.save();                // untouched entries never recompressed</code></pre>
+        </div>
+      </div>
+      <p style="text-align:center; margin-top: 24px;"><a href="guides/quickstart.html">Full quickstart →</a></p>
     </div>
-    <p><a href="guides/quickstart.html">Full quickstart →</a></p>
   </section>
 
-  <section class="section" id="agents">
-    <h2>Built for AI agents</h2>
-    <p>
-      Typed errors with the remedy in the message, a structured diagnostics
-      channel, executable recipes, and machine-readable ground truth:
-      <a href="assets/api.json">api.json</a> (the mechanically extracted export
-      surface), <a href="llms.txt">llms.txt</a> and
-      <a href="llms-full.txt">llms-full.txt</a>. Developed under a
-      human-in-the-loop AI governance policy.
-    </p>
+  <section class="section" id="comparison">
+    <div class="container">
+      <h2 class="section-title">The honest comparison</h2>
+      <p class="section-subtitle">fflate keeps the raw-deflate crown and we do not chase it — zipnative wins on scenarios, not drag races.</p>
+      <div class="table-wrap">
+        <table class="cmp-table">
+          <caption style="caption-side: bottom; font-size: 12px; color: var(--c-text-muted); padding-top: 12px;">Compared 2026-09-01 against fflate 0.8.x, jszip 3.10.x, yauzl/yazl, adm-zip 0.6.x.</caption>
+          <thead>
+            <tr><th></th><th>zipnative</th><th>fflate</th><th>jszip</th><th>yauzl/yazl</th><th>adm-zip</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Zero runtime dependencies</td><td><span class="cmp-check">✓</span></td><td><span class="cmp-check">✓</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td></tr>
+            <tr><td>Random access (1 entry, no full parse)</td><td><span class="cmp-check">✓</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td><td>yauzl <span class="cmp-check">✓</span></td><td><span class="cmp-cross">✗</span></td></tr>
+            <tr><td>Streaming read + write</td><td><span class="cmp-check">✓</span></td><td>partial</td><td><span class="cmp-cross">✗</span></td><td>one per lib</td><td><span class="cmp-cross">✗</span></td></tr>
+            <tr><td>Safe-extract defaults (slip/bomb/ambiguity)</td><td><span class="cmp-check">✓</span></td><td>DIY</td><td>DIY</td><td>DIY</td><td>historical CVEs</td></tr>
+            <tr><td>Deterministic output (written contract)</td><td><span class="cmp-check">✓</span></td><td>DIY</td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td></tr>
+            <tr><td>Modify in place, no recompression</td><td><span class="cmp-check">✓</span></td><td><span class="cmp-cross">✗</span></td><td>rewrite-all</td><td><span class="cmp-cross">✗</span></td><td>partial</td></tr>
+            <tr><td>Stable machine-readable error codes</td><td><span class="cmp-check">✓</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td><td><span class="cmp-cross">✗</span></td></tr>
+            <tr><td>Browser + Node + Deno + Bun + Workers</td><td><span class="cmp-check">✓</span></td><td><span class="cmp-check">✓</span></td><td><span class="cmp-check">✓</span></td><td>Node-only</td><td>Node-only</td></tr>
+            <tr><td>Raw deflate throughput</td><td>good (platform zlib)</td><td><strong>best</strong></td><td>slow</td><td>good</td><td>poor</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="benchmarks">
+    <div class="container">
+      <h2 class="section-title">Benchmarks</h2>
+      <p class="section-subtitle">Measured scenarios, security checks always on — including the one we lose.</p>
+      <div class="bench-grid">
+        <div class="bench-group-title">Create 1000 small entries (deflate) — fflate's home turf</div>
+        <div class="bench-row"><div class="bench-label">fflate</div><div class="bench-bar-bg"><div class="bench-bar" style="width:100%"></div></div><div class="bench-value">15.2 op/s</div></div>
+        <div class="bench-row"><div class="bench-label">adm-zip</div><div class="bench-bar-bg"><div class="bench-bar" style="width:94%"></div></div><div class="bench-value">14.3 op/s</div></div>
+        <div class="bench-row"><div class="bench-label">zipnative</div><div class="bench-bar-bg"><div class="bench-bar" style="width:47%"></div></div><div class="bench-value">7.2 op/s</div></div>
+        <div class="bench-row"><div class="bench-label">jszip</div><div class="bench-bar-bg"><div class="bench-bar" style="width:36%"></div></div><div class="bench-value">5.4 op/s</div></div>
+
+        <div class="bench-group-title">Inventory a 10 000-entry archive (no decompression)</div>
+        <div class="bench-row"><div class="bench-label">zipnative</div><div class="bench-bar-bg"><div class="bench-bar" style="width:100%"></div></div><div class="bench-value">fastest</div></div>
+        <div class="bench-row"><div class="bench-label">fflate</div><div class="bench-bar-bg"><div class="bench-bar" style="width:80%"></div></div><div class="bench-value">1.25×</div></div>
+        <div class="bench-row"><div class="bench-label">jszip</div><div class="bench-bar-bg"><div class="bench-bar" style="width:29%"></div></div><div class="bench-value">3.39×</div></div>
+        <div class="bench-row"><div class="bench-label">adm-zip</div><div class="bench-bar-bg"><div class="bench-bar" style="width:7%"></div></div><div class="bench-value">14.8×</div></div>
+
+        <div class="bench-group-title">Random access: read 1 entry out of 10 000</div>
+        <div class="bench-row"><div class="bench-label">zipnative</div><div class="bench-bar-bg"><div class="bench-bar" style="width:100%"></div></div><div class="bench-value">fastest</div></div>
+        <div class="bench-row"><div class="bench-label">fflate</div><div class="bench-bar-bg"><div class="bench-bar" style="width:96%"></div></div><div class="bench-value">1.04×</div></div>
+        <div class="bench-row"><div class="bench-label">jszip</div><div class="bench-bar-bg"><div class="bench-bar" style="width:30%"></div></div><div class="bench-value">3.37×</div></div>
+        <div class="bench-row"><div class="bench-label">adm-zip</div><div class="bench-bar-bg"><div class="bench-bar" style="width:8%"></div></div><div class="bench-value">11.8×</div></div>
+      </div>
+      <p class="bench-note">
+        Windows 11, Node v22.17, tiny-entry corpus — the <em>worst</em> case for the random-access rows
+        (with megabyte entries the gap becomes orders of magnitude). zipnative numbers include the always-on
+        security checks. Full methodology:
+        <a href="https://github.com/Nizoka/zipnative/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">bench/RESULTS.md</a>.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" id="security">
+    <div class="container">
+      <h2 class="section-title">Security model</h2>
+      <p class="section-subtitle">Every archive is untrusted input; the default code path is the safe one.</p>
+      <div class="origin">
+        <p>
+          Extraction refuses traversal (<code>../</code>, absolute paths, drive letters,
+          NTFS streams), symlink entries and bombs; the reader refuses overlapping
+          entries, parser-differential headers and ambiguous end-of-central-directory
+          records. Bounds are named, CWE-tagged, documented and caller-configurable —
+          raising one is always an explicit decision. Every refusal throws a stable
+          machine-readable error code.
+        </p>
+        <p><a class="btn btn-secondary" href="guides/security.html">Read the full threat model</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="determinism">
+    <div class="container">
+      <h2 class="section-title">Determinism as a contract</h2>
+      <p class="section-subtitle">Identical inputs, identical SHA-256 — on any runtime.</p>
+      <div class="origin">
+        <p>
+          <code>compression: { deterministic: true }</code> pins the pure-TS encoder:
+          the mode for content addressing, caching, signatures and reproducible builds.
+          The contract is written down and golden-tested; changing the emitted bytes
+          is a semver-major event.
+        </p>
+        <p><a class="btn btn-secondary" href="guides/determinism.html">Read the determinism contract</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="architecture">
+    <div class="container">
+      <h2 class="section-title">Architecture</h2>
+      <p class="section-subtitle">Five strict layers, one direction of imports, zero reverse edges — and one write path with two byte-identical consumers.</p>
+      <div class="arch-diagram">
+        <a href="https://github.com/Nizoka/zipnative/tree/main/src" rel="noopener" target="_blank">
+          <img src="assets/architecture.svg" width="960" height="600" loading="lazy"
+               alt="zipnative module architecture. Top band: five strict layers left to right — types (errors, limits), codecs (deflate, inflate, crc32), core (segments, builder, stream writer), parser (reader, modifier, extract, forward iterate) and worker (parallel deflate pool). Arrows point from each layer to the one it imports; reverse edges are forbidden by policy and cross-layer needs travel by parameter injection. Bottom band: the write path — planArchive validates, compresses and orders entries, feeding archiveSegments, the one segment generator with exact offsets; both toBytes (sync, buffered) and stream (chunked, bounded memory) drain that same generator, so their output is byte-identical by construction.">
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="agents">
+    <div class="container">
+      <h2 class="section-title">Built for AI agents</h2>
+      <p class="section-subtitle">Machine-readable ground truth at every level — never guessed, always verified.</p>
+      <div class="origin">
+        <p>
+          Stable error codes (<a href="data/errors.json">errors.json</a>), a structured
+          diagnostics channel, executable recipes, and the mechanically extracted export
+          surface in <a href="assets/api.json">api.json</a> — plus
+          <a href="llms.txt">llms.txt</a> and <a href="llms-full.txt">llms-full.txt</a>
+          for context ingestion. Developed under a human-in-the-loop AI governance policy.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="origin">
+    <div class="container">
+      <h2 class="section-title">Origin</h2>
+      <div class="origin">
+        <p>
+          zipnative is the sibling of <a href="https://pdfnative.dev" rel="noopener" target="_blank">pdfnative</a>:
+          the same doctrine — zero dependencies, closure factories, strict layers,
+          sync-first, security by default — applied to the ZIP format. The incremental-update
+          model, the AI governance policy and this documentation pipeline were extracted
+          from pdfnative and hardened here.
+        </p>
+      </div>
+    </div>
   </section>
 
   <footer class="footer">
-    <p>
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a> ·
-      <a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a> ·
-      <a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a> ·
-      <a href="llms.txt">llms.txt</a>
-    </p>
-    <p class="footer-fine">MIT © 2026 Nizoka — sibling of <a href="https://pdfnative.dev" rel="noopener" target="_blank">pdfnative</a>. Zero runtime dependencies, verified on 2026-09-01.</p>
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CONTRIBUTING.md" rel="noopener" target="_blank">Contributing</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="guides/index.html">All guides</a></li>
+            <li><a href="guides/quickstart.html">Quickstart</a></li>
+            <li><a href="guides/security.html">Security model</a></li>
+            <li><a href="guides/determinism.html">Determinism contract</a></li>
+            <li><a href="guides/errors.html">Errors and error codes</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="llms.txt">llms.txt</a></li>
+            <li><a href="llms-full.txt">llms-full.txt</a></li>
+            <li><a href="assets/api.json">api.json</a></li>
+            <li><a href="data/errors.json">errors.json</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">Benchmarks</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies, verified on 2026-09-01</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
