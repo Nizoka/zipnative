@@ -32,6 +32,16 @@ export interface RawEntrySpec {
     readonly lfhNameOverride?: Uint8Array;
     /** Corrupt the stored compressed payload after compression. */
     readonly corruptDataAt?: number;
+    /**
+     * Append a data descriptor after the payload; sets flag bit 3 and
+     * zeroes the LFH crc/size fields. The CD keeps the REAL values
+     * (spec-correct), so openZip() remains the differential oracle.
+     */
+    readonly dataDescriptor?: 'signed' | 'signless' | 'signed64' | 'signless64';
+    // ── Attack overrides (descriptor fields) ─────────────────────────
+    readonly descriptorCrcOverride?: number;
+    readonly descriptorCompressedSizeOverride?: number;
+    readonly descriptorUncompressedSizeOverride?: number;
 }
 
 export interface RawZipOptions {
@@ -80,7 +90,8 @@ export function buildRawZip(entries: readonly RawEntrySpec[], options: RawZipOpt
             stored[spec.corruptDataAt] ^= 0xff;
         }
         const crc = spec.crcOverride ?? zlibCrc32(data);
-        const flags = spec.flags ?? 0;
+        const descriptorForm = spec.dataDescriptor;
+        const flags = (spec.flags ?? 0) | (descriptorForm !== undefined ? 0x0008 : 0);
         const dosTime = spec.dosTime ?? 0;
         const dosDate = spec.dosDate ?? 0x0021;
         const extraLocal = spec.extraLocal ?? new Uint8Array(0);
@@ -96,9 +107,9 @@ export function buildRawZip(entries: readonly RawEntrySpec[], options: RawZipOpt
         u16(lv, 8, spec.lfhMethodOverride ?? method);
         u16(lv, 10, dosTime);
         u16(lv, 12, dosDate);
-        u32(lv, 14, spec.lfhCrcOverride ?? crc);
-        u32(lv, 18, stored.length);
-        u32(lv, 22, data.length);
+        u32(lv, 14, descriptorForm !== undefined ? 0 : (spec.lfhCrcOverride ?? crc));
+        u32(lv, 18, descriptorForm !== undefined ? 0 : stored.length);
+        u32(lv, 22, descriptorForm !== undefined ? 0 : data.length);
         u16(lv, 26, lfhName.length);
         u16(lv, 28, extraLocal.length);
         lfh.set(lfhName, 30);
@@ -130,6 +141,31 @@ export function buildRawZip(entries: readonly RawEntrySpec[], options: RawZipOpt
 
         parts.push(lfh, stored);
         offset += lfh.length + stored.length;
+
+        if (descriptorForm !== undefined) {
+            const dCrc = spec.descriptorCrcOverride ?? crc;
+            const dCsize = spec.descriptorCompressedSizeOverride ?? stored.length;
+            const dUsize = spec.descriptorUncompressedSizeOverride ?? data.length;
+            const signed = descriptorForm.startsWith('signed');
+            const wide = descriptorForm.endsWith('64');
+            const descriptor = new Uint8Array((signed ? 4 : 0) + 4 + (wide ? 16 : 8));
+            const dvd = new DataView(descriptor.buffer);
+            let pos = 0;
+            if (signed) {
+                u32(dvd, 0, 0x08074b50);
+                pos = 4;
+            }
+            u32(dvd, pos, dCrc);
+            if (wide) {
+                dvd.setBigUint64(pos + 4, BigInt(dCsize), true);
+                dvd.setBigUint64(pos + 12, BigInt(dUsize), true);
+            } else {
+                u32(dvd, pos + 4, dCsize);
+                u32(dvd, pos + 8, dUsize);
+            }
+            parts.push(descriptor);
+            offset += descriptor.length;
+        }
     }
 
     const cdOffset = offset;

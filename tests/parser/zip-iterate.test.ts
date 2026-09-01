@@ -120,22 +120,90 @@ describe('iterateZipEntries: forward CD-less reading', () => {
         }
     });
 
-    it('data-descriptor entries (bit 3) are refused with the openZip remedy', async () => {
+    it('HEADLINE: zipnative addStream output is forward-readable since 0.6', async () => {
+        const content = te.encode('descriptor-delimited payload '.repeat(3000));
         const zip = createZip();
+        zip.add('before.txt', 'plain sibling');
         zip.addStream('streamed.bin', (async function* () {
-            yield te.encode('descriptor payload');
+            for (let i = 0; i < content.length; i += 977) {
+                yield content.subarray(i, Math.min(i + 977, content.length));
+            }
         })());
         const bytes = await collect(zip.stream());
+        for (const chunkSize of [1, 64, 1024, bytes.length]) {
+            const seen = new Map<string, Uint8Array>();
+            for await (const entry of iterateZipEntries(streamOf(bytes, chunkSize))) {
+                seen.set(entry.header.name, await collect(entry.data()));
+            }
+            expect(seen.get('streamed.bin'), `chunk ${chunkSize}`).toEqual(content);
+            expect(td.decode(seen.get('before.txt') as Uint8Array)).toBe('plain sibling');
+        }
+    });
+
+    it('skip() on a bit-3 entry decompress-discards and the next entry is intact', async () => {
+        const zip = createZip({ order: 'insertion' });
+        zip.addStream('skipped.bin', (async function* () {
+            yield te.encode('skip this descriptor payload '.repeat(500));
+        })());
+        zip.add('after.txt', 'reached after the skip');
+        const bytes = await collect(zip.stream());
+        const names: string[] = [];
+        for await (const entry of iterateZipEntries(streamOf(bytes, 313))) {
+            names.push(entry.header.name);
+            if (entry.header.name === 'skipped.bin') await entry.skip();
+            else expect(td.decode(await collect(entry.data()))).toBe('reached after the skip');
+        }
+        expect(names).toEqual(['skipped.bin', 'after.txt']);
+    });
+
+    it('all four descriptor forms are identified by validation', async () => {
+        for (const form of ['signed', 'signless', 'signed64', 'signless64'] as const) {
+            const bytes = buildRawZip([
+                { name: 'a.bin', data: te.encode(`payload for ${form} `.repeat(200)), method: 8, dataDescriptor: form },
+                { name: 'b.txt', data: te.encode('plain follower') },
+            ]);
+            // Differential guard: the CD carries real values, openZip agrees.
+            const oracle = openZip(bytes);
+            const seen = new Map<string, Uint8Array>();
+            for await (const entry of iterateZipEntries(streamOf(bytes, 61))) {
+                seen.set(entry.header.name, await collect(entry.data()));
+            }
+            expect(seen.get('a.bin'), form).toEqual(oracle.readEntry('a.bin'));
+            expect(td.decode(seen.get('b.txt') as Uint8Array)).toBe('plain follower');
+        }
+    });
+
+    it('a lying descriptor CRC surfaces as a precise ZipDataError', async () => {
+        const bytes = buildRawZip([
+            { name: 'bad.bin', data: te.encode('content '.repeat(100)), method: 8, dataDescriptor: 'signed', descriptorCrcOverride: 0xDEADBEEF },
+        ]);
+        await expect(async () => {
+            for await (const entry of iterateZipEntries(streamOf(bytes))) {
+                await collect(entry.data());
+            }
+        }).rejects.toThrow(/descriptor CRC-32 mismatch/);
+    });
+
+    it('a lying descriptor size yields the no-matching-descriptor error', async () => {
+        const bytes = buildRawZip([
+            { name: 'bad.bin', data: te.encode('content '.repeat(100)), method: 8, dataDescriptor: 'signed', descriptorUncompressedSizeOverride: 5 },
+        ]);
+        await expect(async () => {
+            for await (const entry of iterateZipEntries(streamOf(bytes))) {
+                await collect(entry.data());
+            }
+        }).rejects.toThrow(ZipDataError);
+    });
+
+    it('store + bit 3 remains refused (not self-delimiting)', async () => {
+        const bytes = buildRawZip([
+            { name: 'stored.bin', data: te.encode('stored descriptor payload'), method: 0, dataDescriptor: 'signed' },
+        ]);
         await expect(async () => {
             for await (const entry of iterateZipEntries(streamOf(bytes))) {
                 await entry.skip();
             }
         }).rejects.toThrow(ZipUnsupportedError);
-        await expect(async () => {
-            for await (const entry of iterateZipEntries(streamOf(bytes))) {
-                await entry.skip();
-            }
-        }).rejects.toThrow(/openZip/);
     });
 
     it('encrypted entries yield a header; data() throws typed; skip() advances', async () => {

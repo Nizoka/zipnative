@@ -269,6 +269,69 @@ export function writeDataDescriptor(crc: number, compressedSize: number, uncompr
     return out;
 }
 
+/** What the forward reader MEASURED while decompressing a bit-3 entry. */
+export interface MeasuredEntry {
+    readonly crc32: number;
+    readonly compressedSize: number;
+    readonly uncompressedSize: number;
+}
+
+export type DescriptorMatch =
+    | { readonly ok: true; readonly byteLength: 12 | 16 | 20 | 24 }
+    | { readonly ok: false; readonly crcMismatch: { readonly expected: number; readonly actual: number } | null };
+
+/**
+ * Identify and validate a data descriptor against MEASURED values —
+ * validation-driven disambiguation: we hold the ground truth (measured
+ * CRC, consumed compressed length, produced uncompressed length), so a
+ * descriptor form is accepted only when ALL THREE of its fields
+ * reproduce them. The PK\x07\x08 signature is a hint, never
+ * authoritative (a stored CRC can legitimately equal the signature
+ * value), which is why the signless forms are tried regardless.
+ *
+ * The adversarial worst case is a wrong accepted LENGTH — after which
+ * the next record's signature check fails with a clean typed error; the
+ * accepted fields themselves were verified against real content, so no
+ * trust inversion is possible.
+ */
+export function matchDataDescriptor(head: Uint8Array, measured: MeasuredEntry): DescriptorMatch {
+    const dv = viewOf(head);
+    const u32 = (pos: number): number | null =>
+        pos + 4 <= head.length ? dv.getUint32(pos, true) : null;
+    const u64 = (pos: number): number | null => {
+        if (pos + 8 > head.length) return null;
+        const value = dv.getBigUint64(pos, true);
+        return value > BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(value);
+    };
+    const matches = (crc: number | null, csize: number | null, usize: number | null): boolean =>
+        crc === measured.crc32 && csize === measured.compressedSize && usize === measured.uncompressedSize;
+    const sized = (csize: number | null, usize: number | null): boolean =>
+        csize === measured.compressedSize && usize === measured.uncompressedSize;
+
+    const hasSignature = u32(0) === SIG_DATA_DESCRIPTOR;
+
+    // Acceptance passes, fixed order (frozen behavior).
+    if (hasSignature && matches(u32(4), u32(8), u32(12))) return { ok: true, byteLength: 16 };
+    if (hasSignature && matches(u32(4), u64(8), u64(16))) return { ok: true, byteLength: 24 };
+    if (matches(u32(0), u32(4), u32(8))) return { ok: true, byteLength: 12 };
+    if (matches(u32(0), u64(4), u64(12))) return { ok: true, byteLength: 20 };
+
+    // Diagnostic pass: sizes are the strong discriminators — a form whose
+    // both sizes match but whose CRC differs pins the precise failure.
+    const crcCandidates: Array<[number | null, boolean]> = [
+        [u32(4), hasSignature && sized(u32(8), u32(12))],
+        [u32(4), hasSignature && sized(u64(8), u64(16))],
+        [u32(0), sized(u32(4), u32(8))],
+        [u32(0), sized(u64(4), u64(12))],
+    ];
+    for (const [crcField, sizesMatch] of crcCandidates) {
+        if (sizesMatch && crcField !== null) {
+            return { ok: false, crcMismatch: { expected: crcField, actual: measured.crc32 } };
+        }
+    }
+    return { ok: false, crcMismatch: null };
+}
+
 export interface CentralHeaderFields extends LocalHeaderFields {
     readonly versionMadeBy: number;
     readonly internalAttributes: number;

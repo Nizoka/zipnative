@@ -13,7 +13,10 @@ async function* streamOf(bytes: Uint8Array, chunkSize: number): AsyncGenerator<U
 async function readAllForward(bytes: Uint8Array, chunkSize: number): Promise<Map<string, number>> {
     const sizes = new Map<string, number>();
     for await (const entry of iterateZipEntries(streamOf(bytes, chunkSize), { onDiagnostic: () => undefined })) {
-        if (entry.header.compressedSize === 0) continue; // auto-drained
+        const usesDescriptor = (entry.header.flags & 0x0008) !== 0;
+        // Zero-size non-descriptor entries are auto-drained; bit-3 entries
+        // declare 0 but carry a payload and MUST be consumed.
+        if (entry.header.compressedSize === 0 && !usesDescriptor) continue;
         let total = 0;
         if (entry.header.isEncrypted) {
             await entry.skip();
@@ -93,10 +96,14 @@ describe('fuzzing: forward reading across hostile chunk boundaries', () => {
         }
     });
 
-    it('bit-3 archives are refused with the typed error at any chunking', async () => {
+    it('bit-3 archives round-trip at any chunking (0.6: resumable inflater)', async () => {
+        const content = te.encode('descriptor content line\n'.repeat(2000));
         const zip = createZip();
+        zip.add('plain.txt', 'sibling');
         zip.addStream('s.bin', (async function* () {
-            yield te.encode('descriptor content');
+            for (let i = 0; i < content.length; i += 733) {
+                yield content.subarray(i, Math.min(i + 733, content.length));
+            }
         })());
         const parts: Uint8Array[] = [];
         for await (const chunk of zip.stream()) parts.push(chunk);
@@ -107,9 +114,36 @@ describe('fuzzing: forward reading across hostile chunk boundaries', () => {
             bytes.set(part, pos);
             pos += part.length;
         }
-        for (const chunkSize of [1, 64, bytes.length]) {
-            await expect(readAllForward(bytes, chunkSize), `chunkSize ${chunkSize}`)
-                .rejects.toThrow(/cd-less|data descriptor/);
+        const reference = await readAllForward(bytes, bytes.length);
+        expect(reference.get('s.bin')).toBe(content.length);
+        for (const chunkSize of [1, 7, 64, 509]) {
+            expect(await readAllForward(bytes, chunkSize), `chunkSize ${chunkSize}`).toEqual(reference);
+        }
+    });
+
+    it('truncations inside a bit-3 payload or descriptor stay typed errors', async () => {
+        const zip = createZip();
+        zip.addStream('s.bin', (async function* () {
+            yield te.encode('descriptor payload '.repeat(300));
+        })());
+        const parts: Uint8Array[] = [];
+        for await (const chunk of zip.stream()) parts.push(chunk);
+        const total = parts.reduce((sum, p) => sum + p.length, 0);
+        const bytes = new Uint8Array(total);
+        let pos = 0;
+        for (const part of parts) {
+            bytes.set(part, pos);
+            pos += part.length;
+        }
+        const points = new Set<number>();
+        for (let i = 30; i < bytes.length; i += 23) points.add(i);
+        for (let i = Math.max(0, bytes.length - 30); i < bytes.length; i++) points.add(i);
+        for (const cut of points) {
+            try {
+                await readAllForward(bytes.subarray(0, cut), 17);
+            } catch (err) {
+                expect(err, `cut ${cut}: ${String(err)}`).toBeInstanceOf(ZipError);
+            }
         }
     });
 

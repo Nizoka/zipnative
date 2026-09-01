@@ -22,6 +22,17 @@ export interface ChunkCursor {
     peek4(): Promise<Uint8Array | null>;
     /** Consume exactly `n` bytes, yielding source-sized zero-copy pieces. */
     take(n: number): AsyncGenerator<Uint8Array, void, undefined>;
+    /** Pull the next raw source-sized piece (zero-copy). `null` on EOF. */
+    nextChunk(): Promise<Uint8Array | null>;
+    /**
+     * Push back the unconsumed tail of a piece previously returned by this
+     * cursor; it is served first by all subsequent reads and `bytesRead`
+     * is rewound accordingly. Only bytes that came OUT of this cursor may
+     * be unread (keeps the offset meaningful).
+     */
+    unread(bytes: Uint8Array): void;
+    /** Peek up to `n` bytes without consuming (fewer only at EOF). */
+    peekUpTo(n: number): Promise<Uint8Array>;
     /** Total bytes consumed so far (for error offsets). */
     readonly bytesRead: number;
 }
@@ -103,6 +114,35 @@ export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCurso
                 out.set(piece.subarray(0, takeLen), pos);
                 pos += takeLen;
                 if (pos === 4) break;
+            }
+            return out;
+        },
+
+        async nextChunk(): Promise<Uint8Array | null> {
+            if (buffered === 0) {
+                await fill(1);
+                if (buffered === 0) return null;
+            }
+            return consume(pending[0].length);
+        },
+
+        unread(bytes: Uint8Array): void {
+            if (bytes.length === 0) return;
+            pending.unshift(bytes);
+            buffered += bytes.length;
+            bytesRead -= bytes.length;
+        },
+
+        async peekUpTo(n: number): Promise<Uint8Array> {
+            await fill(n);
+            const available = Math.min(n, buffered);
+            const out = new Uint8Array(available);
+            let pos = 0;
+            for (const piece of pending) {
+                const takeLen = Math.min(available - pos, piece.length);
+                out.set(piece.subarray(0, takeLen), pos);
+                pos += takeLen;
+                if (pos === available) break;
             }
             return out;
         },
