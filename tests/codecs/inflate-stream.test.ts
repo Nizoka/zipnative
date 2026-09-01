@@ -63,7 +63,10 @@ describe('createInflator: differential vs zlib across hostile chunkings', () => 
                     expect(leftover.length).toBe(0);
                 }
             }
-        }, 60_000);
+            // 120s: v8 coverage instrumentation slows the pure-TS decoder
+            // 20-50x, and the 1-byte chunking of the 130 KB corpus is the
+            // worst case (uninstrumented, the whole suite runs in seconds).
+        }, 120_000);
     }
 });
 

@@ -92,7 +92,7 @@ interface WriteCase {
     /** 'extract' = extract + byte-compare expected files; 'test' = integrity only. */
     readonly mode: 'extract' | 'test';
     readonly expected: ReadonlyArray<{ path: string; content: Uint8Array }>;
-    /** Documented tool-limitation exclusions: `${extractorId}@${platform}`. */
+    /** Documented tool-limitation exclusions: `id@platform`, or bare `id` for all platforms. */
     readonly excludeTools?: readonly string[];
     readonly build: () => Promise<Uint8Array>;
 }
@@ -225,6 +225,65 @@ function writeCases(): WriteCase[] {
             },
         },
         {
+            // Prepended-stub (SFX-shaped) archive produced by the modifier's
+            // append-only save over a manually prefixed source — foreign
+            // tools apply the standard offset shift and must still extract.
+            name: 'sfx-prefixed',
+            mode: 'extract',
+            expected: [
+                { path: 'payload.txt', content: te.encode('behind a stub\n') },
+            ],
+            // System.IO.Compression (Expand-Archive) does not apply the
+            // prepended-data offset shift — a known .NET limitation with
+            // SFX-shaped archives, on every platform. The archive itself is
+            // valid: bsdtar extracts it and our eager reader verifies it.
+            excludeTools: ['powershell-expand-archive'],
+            build: async () => {
+                const zip = createZip();
+                zip.add('payload.txt', 'behind a stub\n');
+                const inner = zip.toBytes();
+                const stub = te.encode('#!/bin/sh\necho self-extracting stub placeholder\n');
+                const prefixed = new Uint8Array(stub.length + inner.length);
+                prefixed.set(stub, 0);
+                prefixed.set(inner, stub.length);
+                const modifier = createZipModifier(openZip(prefixed, { onDiagnostic: () => undefined }), { onDiagnostic: () => undefined });
+                modifier.setComment('sfx interop case');
+                return modifier.save();
+            },
+        },
+        {
+            name: 'comment-heavy',
+            mode: 'extract',
+            expected: [
+                { path: 'readme.txt', content: te.encode('written by zipnative\n') },
+            ],
+            build: async () => {
+                const zip = createZip({ comment: 'archive-level comment: ' + 'x'.repeat(400) });
+                zip.add('readme.txt', 'written by zipnative\n', { comment: 'entry comment ' + 'y'.repeat(200) });
+                return zip.toBytes();
+            },
+        },
+        {
+            name: 'empty-archive',
+            mode: 'test',
+            expected: [],
+            build: async () => createZip().toBytes(),
+        },
+        {
+            name: 'store-only',
+            mode: 'extract',
+            expected: [
+                { path: 'readme.txt', content: te.encode('written by zipnative\n') },
+                { path: 'data/binary.bin', content: binary },
+            ],
+            build: async () => {
+                const zip = createZip({ compression: { method: 'store' } });
+                zip.add('readme.txt', 'written by zipnative\n');
+                zip.add('data/binary.bin', binary);
+                return zip.toBytes();
+            },
+        },
+        {
             name: 'zip64-66k-entries',
             mode: 'test',
             expected: [],
@@ -259,7 +318,8 @@ async function runWriteDirection(): Promise<number> {
         writeFileSync(archivePath, bytes);
         try {
             for (const extractor of available) {
-                if (testCase.excludeTools?.includes(`${extractor.id}@${process.platform}`)) {
+                if (testCase.excludeTools?.includes(`${extractor.id}@${process.platform}`)
+                    || testCase.excludeTools?.includes(extractor.id)) {
                     console.error(`SKIP  write ${testCase.name} ← ${extractor.id} (documented tool limitation on ${process.platform})`);
                     continue;
                 }
