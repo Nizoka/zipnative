@@ -42,7 +42,7 @@
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="../#features">Features</a></li>
-        <li><a href="../guides/index.html">Guides</a></li>
+        <li><a href="../guides/">Guides</a></li>
         <li><a href="./">Playgrounds</a></li>
         <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -77,7 +77,7 @@
         <a id="download" class="btn btn-secondary" download="playground.zip" style="display:none">Download .zip</a>
       </div>
 
-      <textarea id="entries" class="demo-editor" spellcheck="false" aria-label="Archive entries"
+      <textarea id="entries" spellcheck="false" aria-label="Archive entries"
         style="width:100%;min-height:180px;background:var(--c-code-bg);color:var(--c-code-text);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:14px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:13px;line-height:1.55;resize:vertical;tab-size:2">readme.txt: hello from zipnative
 data/config.json: {"version":1,"deterministic":true}
 docs/notes.md: # Notes
@@ -121,10 +121,13 @@ Built entirely in the browser.</textarea>
     }
 
     function parseEntries(text) {
-      // Each line "name: content"; blank lines join into the previous entry's body.
+      // A new entry starts at a line whose head looks like a path followed
+      // by a colon (word chars, dots, slashes, dashes — so a body line like
+      // "see https://example.com" never starts an entry); every other line
+      // joins the previous entry's body.
       const entries = [];
       for (const rawLine of text.split('\n')) {
-        const m = rawLine.match(/^([^:\n]+?):[ ]?(.*)$/);
+        const m = rawLine.match(/^([\w./-]+):[ ]?(.*)$/);
         if (m && !rawLine.startsWith(' ')) {
           entries.push({ name: m[1].trim(), lines: [m[2]] });
         } else if (entries.length > 0) {

@@ -13,9 +13,9 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://zipnative.dev/playgrounds/index.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/index.html"/>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/index.html"/>
+    <loc>https://zipnative.dev/playgrounds/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/"/>
     <lastmod>2026-09-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -45,9 +45,9 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://zipnative.dev/guides/index.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/index.html"/>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/index.html"/>
+    <loc>https://zipnative.dev/guides/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/"/>
     <lastmod>2026-09-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

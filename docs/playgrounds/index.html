@@ -12,9 +12,9 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
-  <link rel="canonical" href="https://zipnative.dev/playgrounds/index.html">
-  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/index.html">
-  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/index.html">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="../guides/guide.css">
@@ -25,7 +25,7 @@
       {
         "@type": "CollectionPage",
         "name": "zipnative Playgrounds",
-        "url": "https://zipnative.dev/playgrounds/index.html",
+        "url": "https://zipnative.dev/playgrounds/",
         "inLanguage": "en",
         "isPartOf": { "@id": "https://zipnative.dev/#website" },
         "mainEntity": {
@@ -60,7 +60,7 @@
         <li><a href="../#features">Features</a></li>
         <li><a href="../#examples">Examples</a></li>
         <li><a href="../#architecture">Architecture</a></li>
-        <li><a href="../guides/index.html">Guides</a></li>
+        <li><a href="../guides/">Guides</a></li>
         <li><a href="./" aria-current="page">Playgrounds</a></li>
         <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -77,9 +77,8 @@
         copy of zipnative's own zero-dependency <code>dist/index.js</code>, loaded locally
         (no CDN, no npm, nothing to install). What you see is exactly what the library does.</p>
       </blockquote>
-      <p>The browser path uses <code>DecompressionStream</code>/<code>CompressionStream</code> or
-      the pure-TS tier — <code>initNodeZipCodecs()</code> is a Node-only optimisation and is
-      never called here.</p>
+      <p>These pages use the synchronous APIs, so they run the pure-TS tier —
+      <code>initNodeZipCodecs()</code> is a Node-only optimisation and is never called here.</p>
       <div class="pg-grid">
         <a class="pg-card" href="toolkit.html">
           <div class="pg-icon" aria-hidden="true">🧰</div>
@@ -123,7 +122,7 @@
         <div class="footer-col">
           <h4>Guides</h4>
           <ul>
-            <li><a href="../guides/index.html">All guides</a></li>
+            <li><a href="../guides/">All guides</a></li>
             <li><a href="../guides/quickstart.html">Quickstart</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
           </ul>

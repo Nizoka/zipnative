@@ -34,7 +34,7 @@
         "@type": "BreadcrumbList",
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
-          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/index.html" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/" },
           { "@type": "ListItem", "position": 3, "name": "Errors and error codes" }
         ]
       },
@@ -63,7 +63,8 @@
         <li><a href="../#comparison">Compare</a></li>
         <li><a href="../#benchmarks">Benchmarks</a></li>
         <li><a href="../#architecture">Architecture</a></li>
-        <li><a href="index.html">Guides</a></li>
+        <li><a href="./">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
         <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
       </ul>
@@ -71,7 +72,7 @@
   </nav>
 
   <main class="guide-shell" id="main-content" tabindex="-1">
-    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="index.html">Guides</a> › Errors and error codes</div>
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Errors and error codes</div>
     <article id="guide-content" class="guide-content" data-md="errors.md" data-prerendered="true">
 <!-- guide:render:start -->
 <h1 id="errors-and-error-codes">Errors and error codes</h1>
@@ -246,8 +247,8 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </tr>
 <tr>
 <td><code>ZIP_PATH_TRAVERSAL</code></td>
-<td>CWE-22</td>
-<td>An entry name escapes the extraction root (zip-slip).</td>
+<td>CWE-22 / CWE-67</td>
+<td>An entry name escapes the extraction root (zip-slip) or is a Windows reserved device name (<code>CON</code>, <code>NUL</code>, <code>COM1</code>…).</td>
 </tr>
 <tr>
 <td><code>ZIP_SYMLINK_REJECTED</code></td>
@@ -379,7 +380,7 @@ flag reproducibility losses.</li>
         <div class="footer-col">
           <h4>Guides</h4>
           <ul>
-            <li><a href="index.html">All guides</a></li>
+            <li><a href="./">All guides</a></li>
             <li><a href="quickstart.html">Quickstart</a></li>
             <li><a href="security.html">Security model</a></li>
             <li><a href="determinism.html">Determinism contract</a></li>

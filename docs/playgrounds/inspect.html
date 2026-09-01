@@ -42,7 +42,7 @@
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="../#features">Features</a></li>
-        <li><a href="../guides/index.html">Guides</a></li>
+        <li><a href="../guides/">Guides</a></li>
         <li><a href="./">Playgrounds</a></li>
         <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -150,7 +150,7 @@
           `${reader.entryCount} entries (${dirs} dir, ${encrypted} encrypted) · walked in ${ms} ms\n` +
           `uncompressed ${fmtBytes(totalUnc)} · compressed ${fmtBytes(totalComp)} · ratio ${ratio}×\n` +
           `zip64: ${reader.isZip64 ? 'yes' : 'no'}` +
-          (reader.comment ? ` · comment: ${JSON.stringify(reader.comment)}` : '') +
+          (reader.comment.length > 0 ? ` · comment: ${JSON.stringify(new TextDecoder().decode(reader.comment))}` : '') +
           (diagnostics.length ? `\ndiagnostics: ${[...new Set(diagnostics)].join(', ')}` : '');
         $('report').hidden = false;
         setStatus(`Read ${reader.entryCount} entries without decompressing any of them.`, 'ok');

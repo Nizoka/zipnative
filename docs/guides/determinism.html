@@ -34,7 +34,7 @@
         "@type": "BreadcrumbList",
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
-          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/index.html" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/" },
           { "@type": "ListItem", "position": 3, "name": "The determinism contract" }
         ]
       },
@@ -63,7 +63,8 @@
         <li><a href="../#comparison">Compare</a></li>
         <li><a href="../#benchmarks">Benchmarks</a></li>
         <li><a href="../#architecture">Architecture</a></li>
-        <li><a href="index.html">Guides</a></li>
+        <li><a href="./">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
         <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
       </ul>
@@ -71,7 +72,7 @@
   </nav>
 
   <main class="guide-shell" id="main-content" tabindex="-1">
-    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="index.html">Guides</a> › The determinism contract</div>
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › The determinism contract</div>
     <article id="guide-content" class="guide-content" data-md="determinism.md" data-prerendered="true">
 <!-- guide:render:start -->
 <h1 id="the-zipnative-determinism-contract">The zipnative determinism contract</h1>
@@ -139,7 +140,7 @@ signatures.</li>
 </tr>
 <tr>
 <td>Extra fields</td>
-<td>none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied <code>extraFields</code> are embedded verbatim (their determinism is the caller&#39;s)</td>
+<td>none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied <code>extraFields</code> are embedded verbatim (their determinism is the caller&#39;s) and bounded — <code>maxExtraFieldBytes</code> plus a hard 65535 structural cap (the u16 header field), enforced at plan time since 0.8.1</td>
 </tr>
 <tr>
 <td>Method selection</td>
@@ -233,7 +234,7 @@ sha256(build()) === sha256(build());
         <div class="footer-col">
           <h4>Guides</h4>
           <ul>
-            <li><a href="index.html">All guides</a></li>
+            <li><a href="./">All guides</a></li>
             <li><a href="quickstart.html">Quickstart</a></li>
             <li><a href="security.html">Security model</a></li>
             <li><a href="determinism.html">Determinism contract</a></li>
