@@ -90,7 +90,7 @@ with raised limits on trusted input. Use `code` when the *cause* matters:
 | `ZIP_ENTRY_OVERLAP` | CWE-405 | Two entries share bytes. Always rejected; no opt-out. |
 | `ZIP_CD_LFH_MISMATCH` | CWE-436 | Local header contradicts the central directory on the method. |
 | `ZIP_ZIP64_CONTRADICTION` | CWE-1288 | A zip64 value contradicts a non-sentinel classic field. |
-| `ZIP_PATH_TRAVERSAL` | CWE-22 | An entry name escapes the extraction root (zip-slip). |
+| `ZIP_PATH_TRAVERSAL` | CWE-22 / CWE-67 | An entry name escapes the extraction root (zip-slip) or is a Windows reserved device name (`CON`, `NUL`, `COM1`…). |
 | `ZIP_SYMLINK_REJECTED` | CWE-59 | A symlink entry under `rejectSymlinks` (the default). |
 | `ZIP_EXTRACT_DUPLICATE_PATH` | CWE-694 | Duplicate output paths under `onDuplicate: 'error'` (the default). |
 

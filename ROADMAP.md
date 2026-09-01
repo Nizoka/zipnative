@@ -59,8 +59,9 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 
 ## 0.7.x — Interop corpus expansion + docs finish ✅ *(shipped 2026-09-01)*
 
-- Interop write gate: 11 → 17 validations (SFX stubs via the modifier,
-  comment-heavy, empty archive, store-only); refusal-posture suite
+- Interop write cases 7 → 11 (SFX stubs via the modifier,
+  comment-heavy, empty archive, store-only) — gate total 17 validations
+  with the 6 foreign-producer reads; refusal-posture suite
   pinning the typed refusals foreign tools tolerate
 - Guide renderer (`docs:guides`, .md as the source of truth) +
   `guide-render-sync`/`anchor-parity` rules (~17 named rules total)
@@ -69,22 +70,24 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 
 ## 0.8.x — Error-code stability + docs charter ✅ *(shipped 2026-09-01, current)*
 
-- 0.8.1: a three-agent code review (13 verified fixes, all regression-
-  tested), interactive browser playgrounds on a committed engine bundle,
-  and a four-case use-cases guide with diagrams
-
-- **Stable machine-readable error codes**: every thrown error carries
-  `err.code` from a closed 39-code union, frozen from 0.8.0
+- **0.8.0 — Stable machine-readable error codes**: every thrown error
+  carries `err.code` from a closed 39-code union, frozen from 0.8.0
   (removal/renaming is semver-major); registry `docs/data/errors.json`
-  + `error-parity` verify rule + the errors guide
-- Freeze decisions resolved: `createInflator`/`Inflator` published
-  (exact `bytesConsumed` — the resumable-inflate differentiator),
+  + `error-parity` verify rule + the errors guide. Freeze decisions
+  resolved: `createInflator`/`Inflator` published (exact
+  `bytesConsumed` — the resumable-inflate differentiator),
   `ZipUnsupportedFeature` closed, `FLAG_*` masks and
   `activeDeflateTier()` exported, `_spawn` removed from public types,
-  `./worker/zip-worker.js` subpath export, api.json covers `./worker`
-- Docs site rethemed to the exact pdfnative charter (tokens, layout,
-  guide chrome, Prism, architecture diagram, metrics/comparison/
-  benchmarks sections)
+  `./worker/zip-worker.js` subpath export, api.json covers `./worker`.
+  Docs site rethemed to the exact pdfnative charter.
+- **0.8.1 — Docs finish + multi-agent review**: 13 verified fixes
+  (12 regression-tested; B7 by inspection), interactive browser
+  playgrounds on a committed engine bundle, a four-case use-cases guide
+  with diagrams.
+- **0.8.2 — Conformance pass**: directory-form navigation (docs:serve
+  cleanUrls 404s fixed), APPNOTE-conformant LFH Zip64 extras, honest
+  CWE-67 refusal messages, documentation factuality sweep; verify-docs
+  at 21 named rules.
 
 ## 0.9 — Final pre-freeze release candidate
 

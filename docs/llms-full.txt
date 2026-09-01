@@ -10,7 +10,9 @@ Machine-readable artefacts: docs/assets/api.json (the full export surface —
 mechanically extracted, never guessed), docs/data/errors.json (the frozen
 error-code and diagnostic registry — code, class, cause, remedy),
 docs/llms-full.txt (concatenated documentation), docs/llms-index.json
-(artefact/guide index with sizes).
+(artefact/guide index with sizes). Interactive playgrounds (toolkit,
+inspector, secure-extraction demo) run the real engine in the browser at
+docs/playgrounds/ on a committed copy of the library's own bundle.
 
 ## Essentials
 
@@ -112,9 +114,15 @@ docs/llms-full.txt (concatenated documentation), docs/llms-index.json
 
 **A safe, deterministic, streaming ZIP engine for modern apps — and for the agents that operate them.**
 
+![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
+![91.7 percent statement coverage](https://img.shields.io/badge/coverage-91.7%25-brightgreen)
+![Node 22 or newer](https://img.shields.io/badge/node-%E2%89%A522-blue)
+![MIT license](https://img.shields.io/badge/license-MIT-blue)
+
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** The engine is feature-complete — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), resumable inflater + docs infrastructure (v0.6). The [roadmap](ROADMAP.md) continues with API-freeze hardening toward 1.0. Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/)).
+> **Status: pre-1.0.** The engine is feature-complete — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), resumable inflater (v0.6), the expanded interop gate and guide renderer (v0.7), and the **frozen machine-readable error-code vocabulary** (v0.8). The [roadmap](ROADMAP.md) continues with the final API-freeze release candidate toward 1.0. Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
 
 ## Why zipnative?
 
@@ -125,7 +133,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 - **Streaming.** Iterate entries and decompress through async iterables with bounded memory. Designed for serverless and Cloudflare Workers, not just long-lived servers.
 - **Deterministic.** Reproducible-build mode with a [written determinism contract](docs/guides/determinism.md): same inputs, same SHA-256 on every runtime via the pinned pure-TS deflate encoder. Canonical entry ordering, pinned timestamps, no environment leakage.
 - **Incremental modification.** Replace, remove, add or rename entries and `save()` without recompressing the untouched 99% of the archive — the append-only overlay model proven in pdfnative's PDF incremental updates. `saveCompact()` is the true-deletion path (removed content is otherwise still recoverable — [documented loudly](SECURITY.md)).
-- **Agent-pilotable.** Typed errors with the remedy in the message, a structured diagnostics channel, executable recipes, `llms.txt`, and a human-in-the-loop AI governance policy.
+- **Agent-pilotable.** Every thrown error carries a **stable machine-readable `err.code`** from a frozen 39-code vocabulary (v0.8+ — registry in [docs/data/errors.json](docs/data/errors.json), guide in [docs/guides/errors.md](docs/guides/errors.md)): branch on the code, never on message text. Plus remedy-bearing messages, a structured diagnostics channel, executable recipes, four documented [production use cases](docs/guides/use-cases.md), `llms.txt`, and a human-in-the-loop AI governance policy.
 
 ### Comparison (honest version)
 
@@ -271,7 +279,8 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 - `iterateZipEntries` reads data-descriptor entries (flag bit 3) for plain deflate since v0.6 — including zipnative's own `addStream()` output and bsdtar-style archives. Still refused: store+bit3 (not self-delimiting), encrypted+bit3, and custom-codec+bit3; `skip()` on a bit-3 entry costs a full decompress-and-discard.
 - Codec injection (`setDeflateImpl`, `registerCodec`) on the main entry does not propagate to the `zipnative/worker` bundle (separate module state); parallel/sequential byte-identity is promised for the built-in tiers.
 - `save()` keeps every original byte: removed/replaced content remains recoverable in the output (use `saveCompact()` for true deletion); `saveCompact()` drops SFX prefixes; archives with duplicate entry names cannot be modified incrementally.
-- `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; Zip64 streaming is scheduled post-M4. Buffered entries, entry counts and archive offsets are fully Zip64.
+- `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; the Zip64-streaming opt-in design is a 0.9 roadmap item. Buffered entries, entry counts and archive offsets are fully Zip64.
+- Since v0.8.1, default extraction also refuses entries whose names are **Windows reserved device names** (`CON`, `NUL`, `COM1`…`LPT9` — CWE-67) or that collapse to nothing (`.`, `./`). Archives authored on POSIX systems containing files like `aux.h` therefore throw by default on **every** platform; pass `rejectTraversal: false` to skip such entries instead.
 - Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.
 - Number fields above `Number.MAX_SAFE_INTEGER` (≈ 9 PB) are rejected; the public API uses `number`, not `bigint`.
 - Default deflate output is byte-stable per environment but not across zlib builds; pin `compression: { deterministic: true }` for cross-runtime identity — the full contract lives in [docs/guides/determinism.md](docs/guides/determinism.md).
@@ -358,7 +367,7 @@ enforce it byte-for-byte.
 | versions-needed | 20, or 45 exactly when the entry uses Zip64 |
 | External attributes | files `0o100644 << 16`, directories `(0o40755 << 16) \| 0x10` |
 | Internal attributes | 0 |
-| Extra fields | none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied `extraFields` are embedded verbatim (their determinism is the caller's) |
+| Extra fields | none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied `extraFields` are embedded verbatim (their determinism is the caller's) and bounded — `maxExtraFieldBytes` plus a hard 65535 structural cap (the u16 header field), enforced at plan time since 0.8.1 |
 | Method selection | empty content is stored; deflate falls back to store when it does not shrink the payload (a pure function of the content) |
 | Zip64 records | emitted exactly when a classic field overflows; classic EOCD sentinels only the overflowed fields |
 | Data descriptors | never on buffered entries; always on `addStream` entries |
@@ -501,7 +510,7 @@ with raised limits on trusted input. Use `code` when the *cause* matters:
 | `ZIP_ENTRY_OVERLAP` | CWE-405 | Two entries share bytes. Always rejected; no opt-out. |
 | `ZIP_CD_LFH_MISMATCH` | CWE-436 | Local header contradicts the central directory on the method. |
 | `ZIP_ZIP64_CONTRADICTION` | CWE-1288 | A zip64 value contradicts a non-sentinel classic field. |
-| `ZIP_PATH_TRAVERSAL` | CWE-22 | An entry name escapes the extraction root (zip-slip). |
+| `ZIP_PATH_TRAVERSAL` | CWE-22 / CWE-67 | An entry name escapes the extraction root (zip-slip) or is a Windows reserved device name (`CON`, `NUL`, `COM1`…). |
 | `ZIP_SYMLINK_REJECTED` | CWE-59 | A symlink entry under `rejectSymlinks` (the default). |
 | `ZIP_EXTRACT_DUPLICATE_PATH` | CWE-694 | Duplicate output paths under `onDuplicate: 'error'` (the default). |
 
@@ -647,7 +656,13 @@ recoverable; `saveCompact()` is the deletion path.
 - Parallel creation across worker threads: `import { createParallelZip } from 'zipnative/worker'`.
 - Reading unseekable streams: `iterateZipEntries(source)` — local headers
   only, so prefer `openZip()` whenever the whole archive is available.
-- Every error message starts with `zipnative:` and names the remedy.
+- Every thrown error carries a stable machine-readable `err.code` (39
+  frozen codes) — branch on it, never on message text: see
+  [Errors and error codes](errors.html). The message itself still starts
+  with `zipnative:` and names the remedy.
+- Four production architectures, with diagrams and honest limits:
+  [Use cases](use-cases.html). Try the engine live in your browser:
+  [Playgrounds](../playgrounds/).
 
 ---
 <!-- source: docs/guides/security.md -->
@@ -670,7 +685,7 @@ exhaustion — both are addressed structurally here.
 
 | Threat | Defence | CWE |
 |---|---|---|
-| Zip-slip traversal (`../`, absolute, drive letters, NTFS streams) | `rejectTraversal: true` by default; `sanitizeEntryPath()` for external sinks | CWE-22 |
+| Zip-slip traversal (`../`, absolute, drive letters, NTFS streams) and Windows reserved device names (`CON`, `NUL`, `COM1`…) | `rejectTraversal: true` by default; `sanitizeEntryPath()` for external sinks | CWE-22 / CWE-67 |
 | Decompression bombs | per-entry and total output caps, ratio bound, entry-count cap — enforced *during* inflation | CWE-400/409 |
 | Symlink entries | `rejectSymlinks: true` by default | CWE-59 |
 | Overlapping entries | always-on region-boundary checks | CWE-405 |

@@ -44,6 +44,14 @@ sibling [pdfnative](https://github.com/Nizoka/pdfnative). The short version:
    binaries must have foreign provenance, be < 20 KB, and be protected by
    `.gitattributes`.
 
+## Playground bundle
+
+The interactive playgrounds run a committed copy of the engine's own
+bundle (`docs/playgrounds/zipnative.js`). After any `src/` change, refresh
+it with `npm run build && npm run docs:playground` — the `playground-bundle`
+verify-docs rule byte-compares it against `dist/index.js` in CI and fails
+on drift.
+
 ## Docs local preview
 
 The documentation site (`docs/`) is static HTML/CSS/JS with **no build

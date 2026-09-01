@@ -6,14 +6,14 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 5469,
-      "approxTokens": 1367
+      "bytes": 5643,
+      "approxTokens": 1411
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 46694,
-      "approxTokens": 11674
+      "bytes": 48754,
+      "approxTokens": 12189
     },
     {
       "url": "llms-recipes.txt",
@@ -47,8 +47,8 @@
         "documented-determinism-losses",
         "verifying-reproducibility"
       ],
-      "bytes": 4718,
-      "approxTokens": 1180
+      "bytes": 4846,
+      "approxTokens": 1212
     },
     {
       "title": "Errors and error codes",
@@ -62,8 +62,8 @@
         "diagnostics-are-not-errors",
         "see-also"
       ],
-      "bytes": 7697,
-      "approxTokens": 1924
+      "bytes": 7769,
+      "approxTokens": 1942
     },
     {
       "title": "Quickstart",
@@ -78,8 +78,8 @@
         "modify-without-recompressing",
         "going-further"
       ],
-      "bytes": 2650,
-      "approxTokens": 663
+      "bytes": 2995,
+      "approxTokens": 749
     },
     {
       "title": "Security model",
@@ -93,8 +93,8 @@
         "what-the-engine-never-does",
         "reporting"
       ],
-      "bytes": 2336,
-      "approxTokens": 584
+      "bytes": 2405,
+      "approxTokens": 601
     },
     {
       "title": "Use cases",

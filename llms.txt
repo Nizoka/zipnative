@@ -10,7 +10,9 @@ Machine-readable artefacts: docs/assets/api.json (the full export surface —
 mechanically extracted, never guessed), docs/data/errors.json (the frozen
 error-code and diagnostic registry — code, class, cause, remedy),
 docs/llms-full.txt (concatenated documentation), docs/llms-index.json
-(artefact/guide index with sizes).
+(artefact/guide index with sizes). Interactive playgrounds (toolkit,
+inspector, secure-extraction demo) run the real engine in the browser at
+docs/playgrounds/ on a committed copy of the library's own bundle.
 
 ## Essentials
 

@@ -37,7 +37,7 @@ enforce it byte-for-byte.
 | versions-needed | 20, or 45 exactly when the entry uses Zip64 |
 | External attributes | files `0o100644 << 16`, directories `(0o40755 << 16) \| 0x10` |
 | Internal attributes | 0 |
-| Extra fields | none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied `extraFields` are embedded verbatim (their determinism is the caller's) |
+| Extra fields | none, except Zip64 (0x0001) exactly when a field overflows, carrying exactly the overflowed fields in spec order; caller-supplied `extraFields` are embedded verbatim (their determinism is the caller's) and bounded — `maxExtraFieldBytes` plus a hard 65535 structural cap (the u16 header field), enforced at plan time since 0.8.1 |
 | Method selection | empty content is stored; deflate falls back to store when it does not shrink the payload (a pure function of the content) |
 | Zip64 records | emitted exactly when a classic field overflows; classic EOCD sentinels only the overflowed fields |
 | Data descriptors | never on buffered entries; always on `addStream` entries |

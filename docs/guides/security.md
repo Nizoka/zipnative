@@ -16,7 +16,7 @@ exhaustion — both are addressed structurally here.
 
 | Threat | Defence | CWE |
 |---|---|---|
-| Zip-slip traversal (`../`, absolute, drive letters, NTFS streams) | `rejectTraversal: true` by default; `sanitizeEntryPath()` for external sinks | CWE-22 |
+| Zip-slip traversal (`../`, absolute, drive letters, NTFS streams) and Windows reserved device names (`CON`, `NUL`, `COM1`…) | `rejectTraversal: true` by default; `sanitizeEntryPath()` for external sinks | CWE-22 / CWE-67 |
 | Decompression bombs | per-entry and total output caps, ratio bound, entry-count cap — enforced *during* inflation | CWE-400/409 |
 | Symlink entries | `rejectSymlinks: true` by default | CWE-59 |
 | Overlapping entries | always-on region-boundary checks | CWE-405 |

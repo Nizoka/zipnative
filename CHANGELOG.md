@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-Thirteen findings from a three-agent review (two reviewers + an adversarial verifier), each with a regression test in [tests/integration/review-fixes.test.ts](tests/integration/review-fixes.test.ts):
+Thirteen findings from a three-agent review (two reviewers + an adversarial verifier), twelve with a regression test in [tests/integration/review-fixes.test.ts](tests/integration/review-fixes.test.ts):
 
 - **`renameEntry` mojibake** — renaming a CP437 source entry to a non-ASCII name now sets the UTF-8 flag to match the re-encoded bytes; the entry no longer round-trips corrupt or becomes unfindable after `save()`/`saveCompact()`.
 - **`save()` Zip64 sizes** — the append path applied Zip64 only to the local-header offset; raw-copied (renamed) entries ≥ 4 GiB now sentinel their sizes and carry the Zip64 size extra in both LFH and CFH instead of silently truncating to a corrupt archive.
@@ -67,7 +67,7 @@ None engine-side.
 - **`npm run docs:serve`** (transient `npx serve`, nothing added to package dependencies) plus a CONTRIBUTING "Docs local preview" section — the site is static, any static server works.
 - **Visual identity**: redesigned [docs/favicon.svg](docs/favicon.svg) (gradient tile, geometric Z monogram, the family folded-corner mark), new [docs/assets/logo.svg](docs/assets/logo.svg), and the previously deferred **og:image shipped** — [docs/assets/og-image.svg](docs/assets/og-image.svg) as the committed source, rasterised once to the 1200×630 [og-image.png](docs/assets/og-image.png) via headless Edge (an OS tool; the command is documented in the SVG header), with `og:image`/`twitter:card` metadata wired into every page.
 - **Architecture diagrams**: a new `#architecture` landing section with two inline, theme-aware, accessible SVGs — the strict `types → codecs → core → parser → worker` layer flow ("zero reverse edges"), and the shared segment generator feeding both `toBytes()` and `stream()` byte-identically.
-- **Interop write corpus expanded to 17 validations**: `sfx-prefixed` (a stub-prepended archive produced by the incremental modifier, extracted by foreign tools — Expand-Archive excluded with its documented .NET offset limitation), `comment-heavy` (archive + per-entry comments), `empty-archive` (a bare EOCD must be accepted everywhere), `store-only`; `excludeTools` now accepts platform-qualified ids (`tool@platform`).
+- **Interop gate expanded to 17 validations** (6 foreign-producer reads + 11 written archives extracted): `sfx-prefixed` (a stub-prepended archive produced by the incremental modifier, extracted by foreign tools — Expand-Archive excluded with its documented .NET offset limitation), `comment-heavy` (archive + per-entry comments), `empty-archive` (a bare EOCD must be accepted everywhere), `store-only`; `excludeTools` now accepts platform-qualified ids (`tool@platform`).
 - **Refusal-posture integration suite** ([tests/integration/refusal-posture.test.ts](tests/integration/refusal-posture.test.ts)): archives many foreign tools tolerate — multi-disk EOCDs (classic and zip64-locator forms), contradictory entry counts, trailing garbage — are pinned to their typed refusals (`ZipUnsupportedError('multi-disk')`, `ZipFormatError`); the posture gap with foreign tools is deliberate and now regression-tested.
 
 ### Changed

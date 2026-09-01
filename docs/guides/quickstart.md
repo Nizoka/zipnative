@@ -85,4 +85,10 @@ recoverable; `saveCompact()` is the deletion path.
 - Parallel creation across worker threads: `import { createParallelZip } from 'zipnative/worker'`.
 - Reading unseekable streams: `iterateZipEntries(source)` — local headers
   only, so prefer `openZip()` whenever the whole archive is available.
-- Every error message starts with `zipnative:` and names the remedy.
+- Every thrown error carries a stable machine-readable `err.code` (39
+  frozen codes) — branch on it, never on message text: see
+  [Errors and error codes](errors.html). The message itself still starts
+  with `zipnative:` and names the remedy.
+- Four production architectures, with diagrams and honest limits:
+  [Use cases](use-cases.html). Try the engine live in your browser:
+  [Playgrounds](../playgrounds/).
