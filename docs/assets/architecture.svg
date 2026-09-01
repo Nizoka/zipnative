@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" role="img" aria-labelledby="arch-title arch-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="arch-title">zipnative — module architecture</title>
+  <desc id="arch-desc">Layered dependency diagram for the zipnative library. Top band: five strict layers left to right — types (errors and limits), codecs (deflate, inflate, crc32, registry), core (segments, builder, stream writer, structs), parser (reader, modifier, extract, forward iterate) and worker (parallel deflate pool, the ./worker subpath). Arrows point from each layer to the one it imports; reverse edges are forbidden by policy and cross-layer needs travel by parameter injection. Bottom band: the write path — planArchive validates, compresses and orders entries, feeding archiveSegments, the ONE segment generator with exact offsets; both toBytes (sync, buffered) and stream (chunked, bounded memory) drain that same generator, so their output is byte-identical by construction. A header badge notes the repository's AI-agent governance with a human-in-the-loop contribution gate. A legend explains the three edge types: imports, the shared generator path, and the forbidden reverse edge.</desc>
+
+  <defs>
+    <marker id="ah-import" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 4 L0 8 Z" fill="#94A3B8"/>
+    </marker>
+    <marker id="ah-gen" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 4 L0 8 Z" fill="#6366F1"/>
+    </marker>
+
+    <linearGradient id="g-canvas" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F8FAFC"/>
+    </linearGradient>
+    <linearGradient id="g-lib" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FCFDFE"/>
+      <stop offset="100%" stop-color="#F6F8FB"/>
+    </linearGradient>
+    <linearGradient id="g-write" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6F8FF"/>
+      <stop offset="100%" stop-color="#EEF1FE"/>
+    </linearGradient>
+
+    <linearGradient id="g-types" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#EEF2F7"/></linearGradient>
+    <linearGradient id="g-codecs" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F2FDFF"/><stop offset="100%" stop-color="#E1F7FB"/></linearGradient>
+    <linearGradient id="g-core" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F3F8FF"/><stop offset="100%" stop-color="#E3EDFE"/></linearGradient>
+    <linearGradient id="g-core-head" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient>
+    <linearGradient id="g-parser" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F6F8FF"/><stop offset="100%" stop-color="#E9ECFF"/></linearGradient>
+    <linearGradient id="g-worker" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F0FDF8"/><stop offset="100%" stop-color="#DAFBE7"/></linearGradient>
+    <linearGradient id="g-plan" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#EEF2F7"/></linearGradient>
+    <linearGradient id="g-seg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F3F8FF"/><stop offset="100%" stop-color="#DBEAFE"/></linearGradient>
+
+    <linearGradient id="g-accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient>
+
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1E293B" flood-opacity="0.08"/>
+    </filter>
+    <filter id="soft-sm" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1E293B" flood-opacity="0.07"/>
+    </filter>
+  </defs>
+
+  <!-- Canvas -->
+  <rect x="0" y="0" width="960" height="600" fill="url(#g-canvas)"/>
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <text x="480" y="38" text-anchor="middle" font-size="20" font-weight="800" fill="#0F172A" letter-spacing="-0.3">zipnative — Module Architecture</text>
+  <rect x="446" y="48" width="68" height="4" rx="2" fill="url(#g-accent)"/>
+  <text x="480" y="72" text-anchor="middle" font-size="12" font-weight="500" fill="#64748B">Strict unidirectional flow · zero runtime dependencies · types ← codecs ← core ← parser ← worker</text>
+
+  <!-- AI-governance badge -->
+  <g filter="url(#soft-sm)">
+    <rect x="686" y="20" width="246" height="26" rx="13" fill="#FFFFFF" stroke="#C7D2FE" stroke-width="1.25"/>
+  </g>
+  <path d="M703 27 l6 -3 l6 3 v5 c0 4 -3 6 -6 7 c-3 -1 -6 -3 -6 -7 Z" fill="none" stroke="#4F46E5" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M706.5 33 l2 2 l4 -4" fill="none" stroke="#4F46E5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="724" y="37" font-size="9.5" font-weight="700" fill="#4338CA" letter-spacing="0.1">AI Governance · Human-in-the-loop</text>
+
+  <!-- ════════════ LAYERS BAND ════════════ -->
+  <rect x="28" y="92" width="904" height="196" rx="16" fill="url(#g-lib)" stroke="#E2E8F0" stroke-width="1.25"/>
+  <rect x="44" y="83" width="156" height="20" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+  <circle cx="58" cy="93" r="3" fill="#2563EB"/>
+  <text x="68" y="97" font-size="10.5" font-weight="700" fill="#334155" letter-spacing="0.6">ZIPNATIVE LIBRARY</text>
+
+  <!-- types/ -->
+  <g filter="url(#soft-sm)"><rect x="56" y="122" width="150" height="104" rx="13" fill="url(#g-types)" stroke="#CBD5E1" stroke-width="1.25"/></g>
+  <rect x="56" y="122" width="5" height="104" rx="2.5" fill="#94A3B8"/>
+  <rect x="74" y="136" width="30" height="30" rx="8" fill="#94A3B8" fill-opacity="0.14"/>
+  <path d="M82 145 h14 M82 151 h14 M82 157 h9" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round"/>
+  <text x="74" y="188" font-size="15" font-weight="700" fill="#475569">types/</text>
+  <text x="74" y="204" font-size="10" font-weight="600" fill="#64748B">errors · limits</text>
+  <text x="74" y="218" font-size="9.5" fill="#94A3B8">frozen err.code union</text>
+
+  <!-- codecs/ -->
+  <g filter="url(#soft-sm)"><rect x="230" y="122" width="150" height="104" rx="13" fill="url(#g-codecs)" stroke="#5EBECF" stroke-width="1.25"/></g>
+  <rect x="230" y="122" width="5" height="104" rx="2.5" fill="#0E7490"/>
+  <rect x="248" y="136" width="30" height="30" rx="8" fill="#0E7490" fill-opacity="0.12"/>
+  <path d="M255 151 h6 l3 -8 l4 16 l3 -8 h6" fill="none" stroke="#0E7490" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="248" y="188" font-size="15" font-weight="700" fill="#155E75">codecs/</text>
+  <text x="248" y="204" font-size="10" font-weight="600" fill="#0E7490">deflate · inflate · crc32</text>
+  <text x="248" y="218" font-size="9.5" fill="#0891B2">resumable inflator · registry</text>
+
+  <!-- core/ (prominent) -->
+  <g filter="url(#soft)"><rect x="404" y="114" width="152" height="120" rx="14" fill="url(#g-core)" stroke="#3B82F6" stroke-width="1.5"/></g>
+  <path d="M404 144 L404 128 Q404 114 418 114 L542 114 Q556 114 556 128 L556 144 Z" fill="url(#g-core-head)"/>
+  <text x="480" y="134" text-anchor="middle" font-size="15" font-weight="800" fill="#FFFFFF" letter-spacing="0.2">core/</text>
+  <text x="480" y="166" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1D4ED8">segments · builder</text>
+  <text x="480" y="182" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1D4ED8">stream writer · structs</text>
+  <line x1="424" y1="192" x2="536" y2="192" stroke="#BFDBFE" stroke-width="1"/>
+  <text x="480" y="208" text-anchor="middle" font-size="9.5" fill="#3B82F6">limits · diagnostics · encoding</text>
+  <text x="480" y="222" text-anchor="middle" font-size="9.5" fill="#3B82F6">dos-time · extra fields</text>
+
+  <!-- parser/ -->
+  <g filter="url(#soft-sm)"><rect x="580" y="122" width="150" height="104" rx="13" fill="url(#g-parser)" stroke="#A5B4FC" stroke-width="1.25"/></g>
+  <rect x="580" y="122" width="5" height="104" rx="2.5" fill="#6366F1"/>
+  <rect x="598" y="136" width="30" height="30" rx="8" fill="#6366F1" fill-opacity="0.12"/>
+  <circle cx="610" cy="148" r="6" fill="none" stroke="#6366F1" stroke-width="2"/>
+  <path d="M615 153 l6 6" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+  <text x="598" y="188" font-size="15" font-weight="700" fill="#4338CA">parser/</text>
+  <text x="598" y="204" font-size="10" font-weight="600" fill="#6366F1">reader · modifier</text>
+  <text x="598" y="218" font-size="9.5" fill="#818CF8">extract · forward iterate</text>
+
+  <!-- worker/ -->
+  <g filter="url(#soft-sm)"><rect x="754" y="122" width="150" height="104" rx="13" fill="url(#g-worker)" stroke="#34D399" stroke-width="1.25"/></g>
+  <rect x="754" y="122" width="5" height="104" rx="2.5" fill="#10B981"/>
+  <rect x="772" y="136" width="30" height="30" rx="8" fill="#10B981" fill-opacity="0.12"/>
+  <path d="M787 141 l-8 12 h6 l-2 9 l8 -12 h-6 Z" fill="none" stroke="#059669" stroke-width="1.8" stroke-linejoin="round"/>
+  <text x="772" y="188" font-size="15" font-weight="700" fill="#059669">worker/</text>
+  <text x="772" y="204" font-size="10" font-weight="600" fill="#10B981">parallel deflate pool</text>
+  <text x="772" y="218" font-size="9.5" fill="#34D399">the ./worker subpath</text>
+
+  <!-- import edges (each layer imports the one to its left) -->
+  <line x1="228" y1="174" x2="208" y2="174" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
+  <line x1="402" y1="174" x2="382" y2="174" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
+  <line x1="578" y1="174" x2="558" y2="174" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
+  <line x1="752" y1="174" x2="732" y2="174" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
+
+  <text x="480" y="266" text-anchor="middle" font-size="10.5" fill="#64748B">arrows = imports from · reverse edges forbidden by policy — cross-layer needs travel by parameter injection</text>
+
+  <!-- ════════════ WRITE-PATH BAND ════════════ -->
+  <rect x="28" y="312" width="904" height="208" rx="16" fill="url(#g-write)" stroke="#C7D2FE" stroke-width="1.25"/>
+  <rect x="44" y="303" width="252" height="20" rx="10" fill="#FFFFFF" stroke="#C7D2FE" stroke-width="1"/>
+  <circle cx="58" cy="313" r="3" fill="#6366F1"/>
+  <text x="68" y="317" font-size="10.5" font-weight="700" fill="#4F46E5" letter-spacing="0.6">ONE WRITE PATH · BYTE-IDENTICAL</text>
+
+  <!-- planArchive -->
+  <g filter="url(#soft-sm)"><rect x="68" y="374" width="200" height="84" rx="13" fill="url(#g-plan)" stroke="#CBD5E1" stroke-width="1.25"/></g>
+  <text x="88" y="404" font-size="14.5" font-weight="700" fill="#475569">planArchive()</text>
+  <text x="88" y="422" font-size="10" font-weight="600" fill="#64748B">validate · compress · order</text>
+  <text x="88" y="437" font-size="9.5" fill="#94A3B8">every throw happens here,</text>
+  <text x="88" y="449" font-size="9.5" fill="#94A3B8">before the first byte</text>
+
+  <!-- archiveSegments (highlighted) -->
+  <g filter="url(#soft)"><rect x="360" y="366" width="240" height="100" rx="14" fill="url(#g-seg)" stroke="#3B82F6" stroke-width="2"/></g>
+  <text x="480" y="399" text-anchor="middle" font-size="15.5" font-weight="800" fill="#1D4ED8">archiveSegments()</text>
+  <text x="480" y="419" text-anchor="middle" font-size="10.5" font-weight="600" fill="#3B82F6">ONE generator · exact offsets</text>
+  <line x1="386" y1="430" x2="574" y2="430" stroke="#BFDBFE" stroke-width="1"/>
+  <text x="480" y="447" text-anchor="middle" font-size="9.5" fill="#3B82F6">LFH · payloads · central directory · EOCD</text>
+
+  <!-- toBytes -->
+  <g filter="url(#soft-sm)"><rect x="700" y="344" width="196" height="60" rx="12" fill="url(#g-plan)" stroke="#CBD5E1" stroke-width="1.25"/></g>
+  <text x="718" y="370" font-size="13.5" font-weight="700" fill="#475569">toBytes()</text>
+  <text x="718" y="388" font-size="9.5" fill="#64748B">sync · buffered · one allocation</text>
+
+  <!-- stream -->
+  <g filter="url(#soft-sm)"><rect x="700" y="424" width="196" height="60" rx="12" fill="url(#g-plan)" stroke="#CBD5E1" stroke-width="1.25"/></g>
+  <text x="718" y="450" font-size="13.5" font-weight="700" fill="#475569">stream()</text>
+  <text x="718" y="468" font-size="9.5" fill="#64748B">async · chunked · bounded memory</text>
+
+  <!-- write-path edges -->
+  <line x1="270" y1="416" x2="356" y2="416" stroke="#6366F1" stroke-width="1.8" marker-end="url(#ah-gen)"/>
+  <path d="M602 396 C 640 384, 660 380, 696 374" fill="none" stroke="#6366F1" stroke-width="1.8" marker-end="url(#ah-gen)"/>
+  <path d="M602 436 C 640 446, 660 448, 696 454" fill="none" stroke="#6366F1" stroke-width="1.8" marker-end="url(#ah-gen)"/>
+  <g transform="translate(650 416)">
+    <rect x="-46" y="-11" width="92" height="18" rx="9" fill="#FFFFFF" stroke="#A7F3D0" stroke-width="1"/>
+    <text x="0" y="2" text-anchor="middle" font-size="9.5" font-weight="700" fill="#059669">byte-identical</text>
+  </g>
+
+  <!-- ── Legend ─────────────────────────────────────────────────── -->
+  <line x1="28" y1="548" x2="932" y2="548" stroke="#E2E8F0" stroke-width="1"/>
+  <g font-size="10.5" fill="#475569">
+    <line x1="150" y1="572" x2="180" y2="572" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
+    <text x="188" y="576">imports</text>
+
+    <line x1="300" y1="572" x2="330" y2="572" stroke="#6366F1" stroke-width="1.8" marker-end="url(#ah-gen)"/>
+    <text x="338" y="576">shared segment generator</text>
+
+    <line x1="540" y1="572" x2="570" y2="572" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="4,3"/>
+    <path d="M578 566 l8 8 M586 566 l-8 8" stroke="#DC2626" stroke-width="1.8" stroke-linecap="round"/>
+    <text x="596" y="576">reverse edge — forbidden by policy</text>
+  </g>
+</svg>
