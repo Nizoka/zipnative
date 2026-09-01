@@ -74,10 +74,19 @@ jobs:
           test -f dist/index.cjs
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+          test -f dist/worker/index.js
+          test -f dist/worker/zip-worker.js
 
+      # Real node:worker_threads against the built worker bundle — this
+      # suite self-skips when dist/ is absent, so it must run post-build.
+      - name: Worker integration (real threads, post-build)
+        run: npx vitest run tests/worker/worker-integration.test.ts
+
+      # --profile node16: legacy node10 (pre-"exports") resolution cannot
+      # see subpath exports like ./worker; engines require Node >= 22.
       - name: Check package exports (attw + publint)
         run: |
-          npx attw --pack .
+          npx attw --pack . --profile node16
           npx publint
 
   # A ZIP library lives or dies on Windows correctness: path separators,
@@ -110,3 +119,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Worker integration (real threads, post-build)
+        run: npx vitest run tests/worker/worker-integration.test.ts

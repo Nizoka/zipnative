@@ -1,6 +1,6 @@
 {
   "name": "zipnative",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Zero-dependency native ZIP engine: random-access reads without extracting, secure-by-default extraction (zip-slip, zip-bomb and header-ambiguity guards), true streaming, deterministic reproducible archives, and incremental modification without recompression. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, built under a human-in-the-loop AI-agent governance policy.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -19,6 +19,20 @@
       "require": {
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
+      }
+    },
+    "./worker": {
+      "browser": {
+        "types": "./dist/worker/index.d.ts",
+        "default": "./dist/worker/index.js"
+      },
+      "import": {
+        "types": "./dist/worker/index.d.ts",
+        "default": "./dist/worker/index.js"
+      },
+      "require": {
+        "types": "./dist/worker/index.d.cts",
+        "default": "./dist/worker/index.cjs"
       }
     },
     "./package.json": "./package.json"
@@ -45,7 +59,7 @@
     "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
     "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:scripts",
-    "check:package": "npm run build && npx attw --pack . && npx publint",
+    "check:package": "npm run build && npx attw --pack . --profile node16 && npx publint",
     "bench": "vitest bench",
     "prepublishOnly": "npm run build"
   },
