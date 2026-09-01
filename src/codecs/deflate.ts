@@ -108,8 +108,19 @@ export function deflateRawSync(data: Uint8Array, level: number, deterministic = 
     return deflateRawJS(data, level);
 }
 
-/** Which tier `deflateRawSync` would use right now (for diagnostics). */
-export function activeDeflateTier(deterministic: boolean): 'pure-pinned' | 'injected' | 'node-zlib' | 'pure' {
+/** The four compression tiers {@link activeDeflateTier} can report. */
+export type DeflateTier = 'pure-pinned' | 'injected' | 'node-zlib' | 'pure';
+
+/**
+ * The compression tier `deflateRawSync` would use right now.
+ *
+ * `'pure-pinned'` (with `deterministic: true`) → the frozen pure-TS
+ * encoder; `'injected'` → a `setDeflateImpl` codec; `'node-zlib'` →
+ * `node:zlib`; `'pure'` → the pure-TS encoder as best available tier.
+ * Determinism headline: bytes are cross-runtime identical only under
+ * `'pure-pinned'`; other tiers are stable per environment.
+ */
+export function activeDeflateTier(deterministic = false): DeflateTier {
     if (deterministic) return 'pure-pinned';
     if (_injected) return 'injected';
     if (getNodeDeflateRaw()) return 'node-zlib';

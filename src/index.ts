@@ -96,8 +96,25 @@ export {
     initNodeZipCodecs,
     setInflateImpl,
 } from './codecs/inflate.js';
-export { setDeflateImpl } from './codecs/deflate.js';
+export {
+    activeDeflateTier,
+    setDeflateImpl,
+    type DeflateTier,
+} from './codecs/deflate.js';
+export {
+    createInflator,
+    type Inflator,
+} from './codecs/inflate-stream.js';
 export { crc32 } from './codecs/crc32.js';
+
+// General-purpose flag masks for the public `flags` fields
+// (ZipEntry.flags, StreamedZipHeader.flags, LocalFileHeader parses).
+export {
+    FLAG_DATA_DESCRIPTOR,
+    FLAG_ENCRYPTED,
+    FLAG_STRONG_ENCRYPTION,
+    FLAG_UTF8,
+} from './core/zip-constants.js';
 
 // ── 9. Package metadata ──────────────────────────────────────────────
 /** Library version — kept in sync with package.json by verify:docs. */

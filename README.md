@@ -141,7 +141,7 @@ for await (const entry of iterateZipEntries(request.body)) {
 // available; it is the authoritative path.
 ```
 
-**Bundler notes for `zipnative/worker`**: the worker script is resolved as `new URL('./zip-worker.js', import.meta.url)`, which Vite and webpack 5 detect and bundle automatically. If your bundler cannot (or your CSP restricts worker sources), pass `workerUrl` explicitly — e.g. `createParallelZip({ workerUrl: new URL('zip-worker.js', yourAssetBase) })` — pointing at a copy of `node_modules/zipnative/dist/worker/zip-worker.js` served from your origin. On runtimes without workers the same code runs entirely on the calling thread.
+**Bundler notes for `zipnative/worker`**: the worker script is resolved as `new URL('./zip-worker.js', import.meta.url)`, which Vite and webpack 5 detect and bundle automatically. If your bundler cannot (or your CSP restricts worker sources), pass `workerUrl` explicitly — e.g. `createParallelZip({ workerUrl: new URL('zip-worker.js', yourAssetBase) })` — pointing at a copy of the script served from your origin (locate it with `import.meta.resolve('zipnative/worker/zip-worker.js')` — a dedicated subpath export since 0.8). On runtimes without workers the same code runs entirely on the calling thread.
 
 Everything public is exported from the single entry point; if it is not in `zipnative`'s root import, it is private.
 

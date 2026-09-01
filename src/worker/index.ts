@@ -47,8 +47,12 @@ import {
     type ZipCtx,
 } from '../core/zip-segments.js';
 import { streamArchive, type StreamOptions } from '../core/zip-stream-writer.js';
-import { detectConcurrency, type WorkerHandle } from './worker-adapter.js';
-import { createDeflatePool } from './worker-pool.js';
+
+// Re-exported so subpath consumers can name the type `stream()` accepts
+// without importing from the main entry.
+export { type StreamOptions } from '../core/zip-stream-writer.js';
+import { detectConcurrency } from './worker-adapter.js';
+import { createDeflatePool, type WorkerSpawnSeam } from './worker-pool.js';
 
 /** Options for {@link createParallelZip} — a superset of CreateZipOptions. */
 export interface ParallelZipOptions extends CreateZipOptions {
@@ -68,8 +72,6 @@ export interface ParallelZipOptions extends CreateZipOptions {
     readonly jobTimeout?: number;
     /** Explicit worker-script URL for bundlers that can't resolve `new URL(...)`. */
     readonly workerUrl?: string | URL;
-    /** @internal Test seam: replaces real worker spawning (see worker-pool.ts). */
-    readonly _spawn?: (workerUrl?: string | URL) => Promise<WorkerHandle | null>;
 }
 
 /**
@@ -118,7 +120,7 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
                 workers: Math.min(workerCount, dispatchable),
                 jobTimeout,
                 workerUrl: options?.workerUrl,
-                _spawn: options?._spawn,
+                _spawn: (options as (ParallelZipOptions & WorkerSpawnSeam) | undefined)?._spawn,
             })
             : null;
 

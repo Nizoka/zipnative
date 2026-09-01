@@ -281,9 +281,32 @@ function* inflateChunked(st: InflateState): Generator<Yielded, void, Uint8Array>
 }
 
 /**
- * Create a resumable raw-deflate decoder.
+ * Create a resumable raw-deflate (RFC 1951) decoder — public since 0.8.0.
  *
- * @param maxOutput - Hard decompressed-output bound (`ZipDataError` beyond it)
+ * Feed compressed bytes with `push(chunk)` at ANY chunking (1 byte to the
+ * whole stream); each call returns the decompressed pieces it produced.
+ * When `finished` flips true, `bytesConsumed` reports the EXACT number of
+ * compressed bytes the stream occupied and `leftover` returns the unread
+ * tail of the last chunk byte-for-byte — the property that lets zipnative
+ * delimit data-descriptor entries in forward streaming, and that neither
+ * `DecompressionStream` nor `node:zlib` exposes.
+ *
+ * ```ts
+ * const inflator = createInflator(100 * 1024 * 1024);
+ * for (const chunk of compressedChunks) {
+ *   for (const piece of inflator.push(chunk)) sink(piece);
+ *   if (inflator.finished) break;
+ * }
+ * inflator.end(); // throws if the stream never completed
+ * ```
+ *
+ * Thrown codes: `ZIP_DEFLATE_CORRUPT`, `ZIP_DEFLATE_TRUNCATED` (from
+ * `end()` on an incomplete stream), `ZIP_INFLATE_OUTPUT_OVERFLOW` (past
+ * `maxOutput`), `ZIP_API_MISUSE` (`push()` after `finished`).
+ *
+ * @param maxOutput - Hard decompressed-output bound. Required by design:
+ *   inflate output on untrusted input must always be bounded (CWE-409) —
+ *   pass `Number.MAX_SAFE_INTEGER` only for trusted streams.
  */
 export function createInflator(maxOutput: number): Inflator {
     const st: InflateState = {

@@ -19,12 +19,20 @@ import { deflateRawSync } from '../codecs/deflate.js';
 import { spawnWorker, type WorkerHandle } from './worker-adapter.js';
 import { type WorkerJobRequest, type WorkerResponse } from './worker-protocol.js';
 
-export interface DeflatePoolOptions {
+/**
+ * @internal Test seam: replaces real worker spawning. Deliberately NOT
+ * part of the public `ParallelZipOptions` — tests intersect it in
+ * (`ParallelZipOptions & WorkerSpawnSeam`) via deep import; the public
+ * subpath surface never names it.
+ */
+export interface WorkerSpawnSeam {
+    readonly _spawn?: (workerUrl?: string | URL) => Promise<WorkerHandle | null>;
+}
+
+export interface DeflatePoolOptions extends WorkerSpawnSeam {
     readonly workers: number;
     readonly jobTimeout: number;
     readonly workerUrl?: string | URL;
-    /** @internal Test seam: replaces real worker spawning. */
-    readonly _spawn?: (workerUrl?: string | URL) => Promise<WorkerHandle | null>;
 }
 
 export interface DeflatePool {

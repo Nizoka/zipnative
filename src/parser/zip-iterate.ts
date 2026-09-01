@@ -64,7 +64,12 @@ import { parseExtraFields, resolveUtMtime, resolveZip64 } from '../core/zip-extr
 import { matchDataDescriptor, parseLocalFileHeader } from '../core/zip-structs.js';
 import { createChunkCursor, type ChunkCursor } from './zip-chunk-cursor.js';
 
-/** Options for {@link iterateZipEntries} (the shared strict/diagnostic/limits set). */
+/**
+ * Options for {@link iterateZipEntries} (the shared strict/diagnostic/
+ * limits set). Intentionally identical to `ZipCommonOptions` today — the
+ * alias is the reserved extension point for forward-streaming-specific
+ * options, so it is part of the frozen surface.
+ */
 export type IterateZipOptions = ZipCommonOptions;
 
 /**

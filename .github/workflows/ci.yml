@@ -84,9 +84,12 @@ jobs:
 
       # --profile node16: legacy node10 (pre-"exports") resolution cannot
       # see subpath exports like ./worker; engines require Node >= 22.
+      # --ignore-rules cjs-resolves-to-esm: ./worker/zip-worker.js is the
+      # ESM-only worker SCRIPT — loaded by URL, never require()d; the
+      # subpath exists so bundlers/import.meta.resolve can locate it.
       - name: Check package exports (attw + publint)
         run: |
-          npx attw --pack . --profile node16
+          npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm
           npx publint
 
   # A ZIP library lives or dies on Windows correctness: path separators,

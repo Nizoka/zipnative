@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createZip, openZip } from 'zipnative';
-import { createParallelZip } from '../../src/worker/index.ts';
+import { createParallelZip, type ParallelZipOptions, type ParallelZipWriter } from '../../src/worker/index.ts';
+import { type WorkerSpawnSeam } from '../../src/worker/worker-pool.ts';
 import { createFakeSpawn } from '../helpers/fake-worker.ts';
+
+// The _spawn test seam is deliberately absent from the public options
+// type (0.8 surface hygiene) — the intersection restores it for tests.
+const createSeamedZip = (options: ParallelZipOptions & WorkerSpawnSeam): ParallelZipWriter =>
+    createParallelZip(options);
 
 const te = new TextEncoder();
 
@@ -36,7 +42,7 @@ describe('createParallelZip: byte-identity with createZip', () => {
         const sequential = createZip();
         addCorpus(sequential);
         const { spawn } = createFakeSpawn({ delayMs: 2 });
-        const parallel = createParallelZip({ workers: 3, minWorkerJobSize: 1024, _spawn: spawn });
+        const parallel = createSeamedZip({ workers: 3, minWorkerJobSize: 1024, _spawn: spawn });
         addCorpus(parallel);
         expect(await parallel.toBytes()).toEqual(sequential.toBytes());
     });
@@ -46,7 +52,7 @@ describe('createParallelZip: byte-identity with createZip', () => {
         const sequential = createZip(options);
         addCorpus(sequential);
         const { spawn } = createFakeSpawn();
-        const parallel = createParallelZip({ ...options, workers: 2, minWorkerJobSize: 1024, _spawn: spawn });
+        const parallel = createSeamedZip({ ...options, workers: 2, minWorkerJobSize: 1024, _spawn: spawn });
         addCorpus(parallel);
         expect(await parallel.toBytes()).toEqual(sequential.toBytes());
     });
@@ -59,7 +65,7 @@ describe('createParallelZip: byte-identity with createZip', () => {
         };
         const sequential = build(createZip({ order: 'insertion' }));
         const { spawn } = createFakeSpawn();
-        const parallel = build(createParallelZip({ order: 'insertion', workers: 2, _spawn: spawn }));
+        const parallel = build(createSeamedZip({ order: 'insertion', workers: 2, _spawn: spawn }));
         expect(await parallel.toBytes()).toEqual(sequential.toBytes());
     });
 
@@ -67,19 +73,19 @@ describe('createParallelZip: byte-identity with createZip', () => {
         const sequential = createZip();
         addCorpus(sequential);
         const { spawn } = createFakeSpawn({ failJobs: [1, 2], dieAtBoot: [2] });
-        const parallel = createParallelZip({ workers: 2, minWorkerJobSize: 1024, _spawn: spawn });
+        const parallel = createSeamedZip({ workers: 2, minWorkerJobSize: 1024, _spawn: spawn });
         addCorpus(parallel);
         expect(await parallel.toBytes()).toEqual(sequential.toBytes());
     });
 
     it('stream() output is byte-identical to toBytes()', async () => {
         const { spawn } = createFakeSpawn();
-        const a = createParallelZip({ workers: 2, minWorkerJobSize: 1024, _spawn: spawn });
+        const a = createSeamedZip({ workers: 2, minWorkerJobSize: 1024, _spawn: spawn });
         addCorpus(a);
         const buffered = await a.toBytes();
 
         const { spawn: spawn2 } = createFakeSpawn();
-        const b = createParallelZip({ workers: 2, minWorkerJobSize: 1024, _spawn: spawn2 });
+        const b = createSeamedZip({ workers: 2, minWorkerJobSize: 1024, _spawn: spawn2 });
         addCorpus(b);
         const parts: Uint8Array[] = [];
         let total = 0;
@@ -98,7 +104,7 @@ describe('createParallelZip: byte-identity with createZip', () => {
 
     it('the archive opens and verifies through the eager reader', async () => {
         const { spawn } = createFakeSpawn();
-        const parallel = createParallelZip({ workers: 3, minWorkerJobSize: 1024, _spawn: spawn });
+        const parallel = createSeamedZip({ workers: 3, minWorkerJobSize: 1024, _spawn: spawn });
         addCorpus(parallel);
         const reader = openZip(await parallel.toBytes(), { validate: 'eager' });
         for (const entry of reader.entries()) {
