@@ -1,12 +1,16 @@
 {
-  "$comment": "Machine-generated export surface of the zipnative package — the ground truth for agents (dist/*.d.ts is gitignored). Fields that cannot be extracted mechanically are null, never guessed. Regenerate with `npm run docs:api`; verify-docs api-json-sync enforces freshness.",
+  "$comment": "Machine-generated export surface of the zipnative package (root entry AND the ./worker subpath) — the ground truth for agents (dist/*.d.ts is gitignored). Fields that cannot be extracted mechanically are null, never guessed. Regenerate with `npm run docs:api`; verify-docs api-json-sync enforces freshness.",
   "package": "zipnative",
-  "source": "src/index.ts",
-  "exportCount": 57,
+  "sources": [
+    "src/index.ts",
+    "src/worker/index.ts"
+  ],
+  "exportCount": 69,
   "exports": [
     {
       "name": "AddEntryOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/core/zip-builder.ts",
       "signature": "export interface AddEntryOptions",
       "summary": "Per-entry options for `add`/`addDirectory`/`addStream`."
@@ -14,6 +18,7 @@
     {
       "name": "CodecCompressOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export interface CodecCompressOptions",
       "summary": "Options passed to `ZipCodec.compressSync` (M2+)."
@@ -21,6 +26,7 @@
     {
       "name": "CreateZipOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/core/zip-builder.ts",
       "signature": "export interface CreateZipOptions extends ZipCommonOptions",
       "summary": "Options for createZip."
@@ -28,13 +34,23 @@
     {
       "name": "DEFAULT_ZIP_LIMITS",
       "kind": "value",
+      "subpath": ".",
       "module": "src/core/zip-limits.ts",
       "signature": "export const DEFAULT_ZIP_LIMITS: ZipLimits =",
       "summary": "Default security bounds — the safe path for untrusted input."
     },
     {
+      "name": "DeflateTier",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/codecs/deflate.ts",
+      "signature": "export type DeflateTier = 'pure-pinned' | 'injected' | 'node-zlib' | 'pure';",
+      "summary": "The four compression tiers activeDeflateTier can report."
+    },
+    {
       "name": "EntryVerification",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface EntryVerification",
       "summary": "Result of `ZipReader.verifyEntry()`."
@@ -42,6 +58,7 @@
     {
       "name": "ExtractOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export interface ExtractOptions extends ZipCommonOptions",
       "summary": "Options for extractZip / extractZipStream."
@@ -49,6 +66,7 @@
     {
       "name": "ExtractedEntry",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export interface ExtractedEntry",
       "summary": "One extracted file."
@@ -56,20 +74,63 @@
     {
       "name": "ExtractedStreamEntry",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export interface ExtractedStreamEntry",
       "summary": "One extracted file, streamed."
     },
     {
+      "name": "FLAG_DATA_DESCRIPTOR",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-constants.ts",
+      "signature": "export const FLAG_DATA_DESCRIPTOR = 0x0008; // bit 3 — sizes/CRC trail the data",
+      "summary": null
+    },
+    {
+      "name": "FLAG_ENCRYPTED",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-constants.ts",
+      "signature": "export const FLAG_ENCRYPTED = 0x0001; // bit 0 — ZipCrypto/AES marker",
+      "summary": null
+    },
+    {
+      "name": "FLAG_STRONG_ENCRYPTION",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-constants.ts",
+      "signature": "export const FLAG_STRONG_ENCRYPTION = 0x0040; // bit 6",
+      "summary": null
+    },
+    {
+      "name": "FLAG_UTF8",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-constants.ts",
+      "signature": "export const FLAG_UTF8 = 0x0800; // bit 11 — EFS: name/comment are UTF-8",
+      "summary": null
+    },
+    {
+      "name": "Inflator",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/codecs/inflate-stream.ts",
+      "signature": "export interface Inflator",
+      "summary": "Resumable raw-deflate decoder — obtain via createInflator."
+    },
+    {
       "name": "IterateZipOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-iterate.ts",
       "signature": "export type IterateZipOptions = ZipCommonOptions;",
-      "summary": "Options for iterateZipEntries (the shared strict/diagnostic/limits set)."
+      "summary": "Options for iterateZipEntries (the shared strict/diagnostic/ limits set)."
     },
     {
       "name": "METHOD_DEFLATE",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export const METHOD_DEFLATE = 8;",
       "summary": null
@@ -77,6 +138,7 @@
     {
       "name": "METHOD_STORE",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export const METHOD_STORE = 0;",
       "summary": "ZIP compression-method ids for the built-in codecs."
@@ -84,6 +146,7 @@
     {
       "name": "OpenZipOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-reader.ts",
       "signature": "export interface OpenZipOptions extends ZipCommonOptions",
       "summary": "Options for openZip."
@@ -91,6 +154,7 @@
     {
       "name": "ReadEntryOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-reader.ts",
       "signature": "export interface ReadEntryOptions",
       "summary": "Options for the per-entry read methods."
@@ -98,6 +162,7 @@
     {
       "name": "StreamOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/core/zip-stream-writer.ts",
       "signature": "export interface StreamOptions",
       "summary": "Options for `ZipWriter.stream()`."
@@ -105,6 +170,7 @@
     {
       "name": "StreamedZipEntry",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-iterate.ts",
       "signature": "export interface StreamedZipEntry",
       "summary": "One forward-streamed entry."
@@ -112,6 +178,7 @@
     {
       "name": "StreamedZipHeader",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-iterate.ts",
       "signature": "export interface StreamedZipHeader",
       "summary": "LFH-derived metadata only — a SUBSET of `ZipEntry`."
@@ -119,6 +186,7 @@
     {
       "name": "VERSION",
       "kind": "value",
+      "subpath": ".",
       "module": "src/index.ts",
       "signature": "export const VERSION = '0.7.0';",
       "summary": "Library version — kept in sync with package.json by verify:docs."
@@ -126,6 +194,7 @@
     {
       "name": "ZipBaseErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipBaseErrorCode =",
       "summary": "Codes carried by the base ZipError (usage and invariant faults)."
@@ -133,6 +202,7 @@
     {
       "name": "ZipCodec",
       "kind": "type",
+      "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export interface ZipCodec",
       "summary": "One compression codec, keyed by its CFH compression-method id."
@@ -140,6 +210,7 @@
     {
       "name": "ZipCommonOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface ZipCommonOptions",
       "summary": "Shared option fragment embedded in every top-level options type."
@@ -147,6 +218,7 @@
     {
       "name": "ZipCompressionOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/core/zip-builder.ts",
       "signature": "export interface ZipCompressionOptions",
       "summary": "Per-entry / archive-default compression settings."
@@ -154,6 +226,7 @@
     {
       "name": "ZipDataError",
       "kind": "value",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipDataError extends ZipError",
       "summary": "Content integrity failure: CRC or size mismatch against declared metadata."
@@ -161,6 +234,7 @@
     {
       "name": "ZipDataErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipDataErrorCode =",
       "summary": "Codes carried by ZipDataError."
@@ -168,6 +242,7 @@
     {
       "name": "ZipDiagnostic",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface ZipDiagnostic",
       "summary": "A single non-fatal conformance diagnostic."
@@ -175,6 +250,7 @@
     {
       "name": "ZipDiagnosticCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export type ZipDiagnosticCode =",
       "summary": "Closed union of diagnostic codes."
@@ -182,6 +258,7 @@
     {
       "name": "ZipDiagnosticHandler",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export type ZipDiagnosticHandler = (diagnostic: ZipDiagnostic) => void;",
       "summary": "Caller-supplied diagnostic sink (receives every diagnostic, no dedup)."
@@ -189,6 +266,7 @@
     {
       "name": "ZipEntry",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface ZipEntry",
       "summary": "One central-directory entry — a plain readonly data object."
@@ -196,6 +274,7 @@
     {
       "name": "ZipError",
       "kind": "value",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipError extends Error",
       "summary": "Base class for every error thrown by zipnative."
@@ -203,6 +282,7 @@
     {
       "name": "ZipErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipErrorCode =",
       "summary": "Every stable error code zipnative can throw."
@@ -210,6 +290,7 @@
     {
       "name": "ZipExtraField",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface ZipExtraField",
       "summary": "One raw extra field, id + payload (zero-copy subarray of the source)."
@@ -217,6 +298,7 @@
     {
       "name": "ZipFormatError",
       "kind": "value",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipFormatError extends ZipError",
       "summary": "The archive (or one of its records) is structurally invalid."
@@ -224,6 +306,7 @@
     {
       "name": "ZipFormatErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipFormatErrorCode =",
       "summary": "Codes carried by ZipFormatError."
@@ -231,6 +314,7 @@
     {
       "name": "ZipLimitError",
       "kind": "value",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipLimitError extends ZipError",
       "summary": "A configured security bound from ZipLimits was exceeded."
@@ -238,6 +322,7 @@
     {
       "name": "ZipLimitErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipLimitErrorCode =",
       "summary": "Codes carried by ZipLimitError."
@@ -245,6 +330,7 @@
     {
       "name": "ZipLimits",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface ZipLimits",
       "summary": "Named security bounds consulted by every loop over untrusted archive bytes."
@@ -252,6 +338,7 @@
     {
       "name": "ZipModifier",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-modifier.ts",
       "signature": "export interface ZipModifier",
       "summary": "Incremental archive modifier — obtain via createZipModifier."
@@ -259,6 +346,7 @@
     {
       "name": "ZipModifierOptions",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-modifier.ts",
       "signature": "export interface ZipModifierOptions extends ZipCommonOptions",
       "summary": "Options for createZipModifier."
@@ -266,6 +354,7 @@
     {
       "name": "ZipReader",
       "kind": "type",
+      "subpath": ".",
       "module": "src/parser/zip-reader.ts",
       "signature": "export interface ZipReader",
       "summary": "Random-access, lazy, secure ZIP reader over an in-memory archive."
@@ -273,6 +362,7 @@
     {
       "name": "ZipSecurityError",
       "kind": "value",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipSecurityError extends ZipError",
       "summary": "The archive has an active-attack shape: path traversal, overlapping entries, central-directory/local-header divergence, Zip64 spoofing."
@@ -280,6 +370,7 @@
     {
       "name": "ZipSecurityErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipSecurityErrorCode =",
       "summary": "Codes carried by ZipSecurityError."
@@ -287,6 +378,7 @@
     {
       "name": "ZipUnsupportedError",
       "kind": "value",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export class ZipUnsupportedError extends ZipError",
       "summary": "The archive uses a feature zipnative deliberately does not support (encryption, unknown compression method, multi-disk, Zip64 streaming, CD-less descriptors in unsupported shapes)."
@@ -294,6 +386,7 @@
     {
       "name": "ZipUnsupportedErrorCode",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipUnsupportedErrorCode =",
       "summary": "Codes carried by ZipUnsupportedError."
@@ -301,6 +394,7 @@
     {
       "name": "ZipUnsupportedFeature",
       "kind": "type",
+      "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipUnsupportedFeature =",
       "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compression method."
@@ -308,20 +402,39 @@
     {
       "name": "ZipWriter",
       "kind": "type",
+      "subpath": ".",
       "module": "src/core/zip-builder.ts",
       "signature": "export interface ZipWriter",
       "summary": "Archive writer — obtain via createZip."
     },
     {
+      "name": "activeDeflateTier",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/codecs/deflate.ts",
+      "signature": "export function activeDeflateTier(deterministic = false): DeflateTier",
+      "summary": "The compression tier `deflateRawSync` would use right now."
+    },
+    {
       "name": "crc32",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/crc32.ts",
       "signature": "export function crc32(data: Uint8Array, seed = 0): number",
       "summary": "Compute (or continue) a CRC-32."
     },
     {
+      "name": "createInflator",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/codecs/inflate-stream.ts",
+      "signature": "export function createInflator(maxOutput: number): Inflator",
+      "summary": "Create a resumable raw-deflate (RFC 1951) decoder — public since 0.8.0."
+    },
+    {
       "name": "createZip",
       "kind": "value",
+      "subpath": ".",
       "module": "src/core/zip-builder.ts",
       "signature": "export function createZip(options?: CreateZipOptions): ZipWriter",
       "summary": "Create an archive writer."
@@ -329,6 +442,7 @@
     {
       "name": "createZipModifier",
       "kind": "value",
+      "subpath": ".",
       "module": "src/parser/zip-modifier.ts",
       "signature": "export function createZipModifier(reader: ZipReader, options?: ZipModifierOptions): ZipModifier",
       "summary": "Wrap an opened archive in an incremental modifier."
@@ -336,6 +450,7 @@
     {
       "name": "extractZip",
       "kind": "value",
+      "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export function extractZip(bytes: Uint8Array, options?: ExtractOptions): ExtractedEntry[]",
       "summary": "Extract an archive fully, in memory, with the security guards applied."
@@ -343,6 +458,7 @@
     {
       "name": "extractZipStream",
       "kind": "value",
+      "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export async function* extractZipStream( bytes: Uint8Array, options?: ExtractOptions, )",
       "summary": "Extract an archive entry-by-entry with streamed content — bounded memory for large entries."
@@ -350,6 +466,7 @@
     {
       "name": "getCodec",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export function getCodec(method: number): ZipCodec | null",
       "summary": "Look up the codec for a compression-method id, or `null` if unregistered."
@@ -357,6 +474,7 @@
     {
       "name": "initNodeZipCodecs",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/inflate.ts",
       "signature": "export async function initNodeZipCodecs(): Promise<void>",
       "summary": "Resolve node:zlib in ESM contexts — both directions (inflate here, deflate via codecs/deflate.ts)."
@@ -364,6 +482,7 @@
     {
       "name": "iterateZipEntries",
       "kind": "value",
+      "subpath": ".",
       "module": "src/parser/zip-iterate.ts",
       "signature": "export async function* iterateZipEntries( source: AsyncIterable<Uint8Array>, options?: IterateZipOptions, )",
       "summary": "Iterate an archive's local entries off an async byte stream."
@@ -371,6 +490,7 @@
     {
       "name": "openZip",
       "kind": "value",
+      "subpath": ".",
       "module": "src/parser/zip-reader.ts",
       "signature": "export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader",
       "summary": "Open a ZIP archive held in memory."
@@ -378,6 +498,7 @@
     {
       "name": "registerCodec",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export function registerCodec(codec: ZipCodec): void",
       "summary": "Register (or replace) a codec for a compression-method id."
@@ -385,6 +506,7 @@
     {
       "name": "sanitizeEntryPath",
       "kind": "value",
+      "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export function sanitizeEntryPath(name: string): string | null",
       "summary": "Return the safe relative form of an entry name, or `null` when the name cannot be made safe (traversal, absolute, drive/UNC, NUL, NTFS ADS)."
@@ -392,6 +514,7 @@
     {
       "name": "setDeflateImpl",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/deflate.ts",
       "signature": "export function setDeflateImpl(fn: ((data: Uint8Array, level: number) => Uint8Array) | null): void",
       "summary": "Inject a custom raw-deflate compressor (tier 1), or `null` to remove it."
@@ -399,9 +522,42 @@
     {
       "name": "setInflateImpl",
       "kind": "value",
+      "subpath": ".",
       "module": "src/codecs/inflate.ts",
       "signature": "export function setInflateImpl(fn: ((data: Uint8Array, maxOutput: number) => Uint8Array) | null): void",
       "summary": "Inject a custom raw-deflate decompressor (tier 1), or `null` to remove it."
+    },
+    {
+      "name": "ParallelZipOptions",
+      "kind": "type",
+      "subpath": "./worker",
+      "module": "src/worker/index.ts",
+      "signature": "export interface ParallelZipOptions extends CreateZipOptions",
+      "summary": "Options for createParallelZip — a superset of CreateZipOptions."
+    },
+    {
+      "name": "ParallelZipWriter",
+      "kind": "type",
+      "subpath": "./worker",
+      "module": "src/worker/index.ts",
+      "signature": "export interface ParallelZipWriter",
+      "summary": "Same surface as `ZipWriter`, with the one honest signature change: worker compression is asynchronous, so `toBytes()` returns a Promise."
+    },
+    {
+      "name": "StreamOptions",
+      "kind": "type",
+      "subpath": "./worker",
+      "module": "src/core/zip-stream-writer.ts",
+      "signature": "export interface StreamOptions",
+      "summary": "Options for `ZipWriter.stream()`."
+    },
+    {
+      "name": "createParallelZip",
+      "kind": "value",
+      "subpath": "./worker",
+      "module": "src/worker/index.ts",
+      "signature": "export function createParallelZip(options?: ParallelZipOptions): ParallelZipWriter",
+      "summary": "Create a parallel archive writer (see the module header for the contract)."
     }
   ]
 }

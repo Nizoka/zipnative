@@ -12,8 +12,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 35157,
-      "approxTokens": 8789
+      "bytes": 35231,
+      "approxTokens": 8808
     },
     {
       "url": "llms-recipes.txt",
@@ -24,8 +24,8 @@
     {
       "url": "assets/api.json",
       "description": "The mechanically extracted export surface — the API ground truth.",
-      "bytes": 15140,
-      "approxTokens": 3785
+      "bytes": 19904,
+      "approxTokens": 4976
     },
     {
       "url": "assets/ecosystem.json",
