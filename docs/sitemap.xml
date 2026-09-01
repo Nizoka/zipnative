@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- lastmod is the documentation-audit date (ecosystem.json verifiedOn),
+     NOT the git commit date — CI's shallow checkout has no history, and a
+     false date is worse than no date. verify-docs sitemap-parity bounds it. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://zipnative.dev/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/"/>
+    <lastmod>2026-09-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/index.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/index.html"/>
+    <lastmod>2026-09-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/quickstart.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/quickstart.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/quickstart.html"/>
+    <lastmod>2026-09-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/security.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/security.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/security.html"/>
+    <lastmod>2026-09-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/determinism.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/determinism.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/determinism.html"/>
+    <lastmod>2026-09-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>

@@ -1,0 +1,297 @@
+# zipnative — executable recipes
+
+Each file below is CI-executed against the current tree; the expectations
+declared in recipes/index.json are asserted on every run — these samples
+cannot silently rot.
+
+---
+<!-- source: recipes/_helpers.ts -->
+
+```ts
+/**
+ * Shared demo-archive builders for the recipes. Recipes demonstrate the
+ * READING API (M1); archives are hand-assembled here until createZip ships
+ * in M2, at which point these helpers switch to the public writer.
+ */
+import { buildRawZip } from '../tests/helpers/raw-zip-builder.ts';
+
+const te = new TextEncoder();
+
+/** dir/ + hello.txt + data.bin — the archive the recipe expectations assume. */
+export function buildDemoArchive(): Uint8Array {
+    return buildRawZip([
+        { name: 'dir/', data: new Uint8Array(0), externalAttributes: 0x10 },
+        { name: 'hello.txt', data: te.encode('hello zipnative') },
+        { name: 'data.bin', data: te.encode('payload '.repeat(100)), method: 8 },
+    ]);
+}
+
+/** A zip-slip archive: one traversal entry. */
+export function buildHostileArchive(): Uint8Array {
+    return buildRawZip([
+        { name: '../escape.txt', data: te.encode('evil') },
+    ]);
+}
+```
+
+---
+<!-- source: recipes/create-streaming.ts -->
+
+```ts
+/**
+ * Recipe: create an archive with bounded memory — stream() output plus an
+ * addStream() entry fed chunk by chunk (data-descriptor layout).
+ * Task: serverless/Workers-friendly archive creation without buffering
+ * the whole output or the large entry.
+ */
+import { createZip, openZip } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    // Pseudo-random content: stays large after compression, so the 16 KiB
+    // chunking below is actually exercised.
+    const bigContent = new Uint8Array(80_000);
+    let state = 0xACE1;
+    for (let i = 0; i < bigContent.length; i++) {
+        state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+        bigContent[i] = (state >>> 16) & 0xff;
+    }
+
+    const zip = createZip();
+    zip.add('readme.txt', 'streamed archive demo');
+    zip.addStream('data/big.bin', (async function* () {
+        for (let i = 0; i < bigContent.length; i += 4096) {
+            yield bigContent.subarray(i, Math.min(i + 4096, bigContent.length));
+        }
+    })());
+
+    // Consume fixed-size chunks — in production these go straight to a
+    // socket or file; here we reassemble to verify the round-trip.
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    let chunks = 0;
+    for await (const chunk of zip.stream({ chunkSize: 16 * 1024 })) {
+        parts.push(chunk);
+        total += chunk.length;
+        chunks++;
+    }
+    const bytes = new Uint8Array(total);
+    let pos = 0;
+    for (const part of parts) {
+        bytes.set(part, pos);
+        pos += part.length;
+    }
+
+    const reader = openZip(bytes);
+    const restored = reader.readEntry('data/big.bin');
+
+    return {
+        'multiple-chunks': String(chunks > 1),
+        'round-trip': String(restored.length === bigContent.length),
+    };
+}
+```
+
+---
+<!-- source: recipes/deterministic-build.ts -->
+
+```ts
+/**
+ * Recipe: build a reproducible archive — identical inputs, identical SHA-256.
+ * Task: content-addressable / reproducible-build output via
+ * compression: { deterministic: true } (see docs/determinism.md).
+ */
+import { createZip } from 'zipnative';
+
+async function sha256hex(bytes: Uint8Array): Promise<string> {
+    const digest = await crypto.subtle.digest('SHA-256', bytes.slice().buffer);
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    const build = (): Uint8Array => {
+        const zip = createZip({ compression: { deterministic: true } });
+        zip.add('manifest.json', '{"name":"demo","version":"1.0.0"}');
+        zip.add('data/payload.txt', 'reproducible '.repeat(100));
+        return zip.toBytes();
+    };
+
+    const first = await sha256hex(build());
+    const second = await sha256hex(build());
+
+    return {
+        identical: String(first === second),
+    };
+}
+```
+
+---
+<!-- source: recipes/extract-safe.ts -->
+
+```ts
+/**
+ * Recipe: extract an untrusted archive in memory with the security defaults.
+ * Task: safe extraction — traversal, symlinks and bombs are rejected unless
+ * explicitly configured otherwise; a hostile archive throws ZipSecurityError.
+ */
+import { extractZip, ZipSecurityError } from 'zipnative';
+import { buildDemoArchive, buildHostileArchive } from './_helpers.ts';
+
+export default async function run(): Promise<Record<string, string>> {
+    // A clean archive extracts to sanitized relative paths + data.
+    const files = extractZip(buildDemoArchive(), {
+        limits: { maxEntries: 10_000, maxTotalUncompressedSize: 1024 * 1024 * 1024 },
+    });
+
+    // A zip-slip archive is refused by default.
+    let traversalRejected = false;
+    try {
+        extractZip(buildHostileArchive());
+    } catch (err) {
+        traversalRejected = err instanceof ZipSecurityError;
+    }
+
+    return {
+        extracted: String(files.length),
+        'traversal-rejected': String(traversalRejected),
+    };
+}
+```
+
+---
+<!-- source: recipes/iterate-stream.ts -->
+
+```ts
+/**
+ * Recipe: read a ZIP off a stream you cannot seek — forward, CD-less
+ * iteration (v0.5.0). TRUST CAVEAT: local headers only, no central
+ * directory cross-check; whenever the whole archive is available,
+ * openZip() is the authoritative path.
+ */
+import { createZip, iterateZipEntries } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    // Simulate a network body: an archive arriving in small chunks.
+    const bytes = ((): Uint8Array => {
+        const zip = createZip();
+        zip.add('manifest.json', '{"name":"streamed"}');
+        zip.add('data/log.txt', 'line\n'.repeat(2000));
+        return zip.toBytes();
+    })();
+    async function* body(): AsyncGenerator<Uint8Array> {
+        for (let i = 0; i < bytes.length; i += 512) {
+            yield bytes.subarray(i, Math.min(i + 512, bytes.length));
+        }
+    }
+
+    const names: string[] = [];
+    let manifest = '';
+    for await (const entry of iterateZipEntries(body())) {
+        names.push(entry.header.name);
+        if (entry.header.name === 'manifest.json') {
+            const parts: Uint8Array[] = [];
+            for await (const chunk of entry.data()) parts.push(chunk);
+            manifest = new TextDecoder().decode(parts[0]);
+        } else if (entry.header.compressedSize > 0) {
+            await entry.skip(); // fast-forward without decompressing
+        }
+    }
+
+    return {
+        entries: names.sort().join(','),
+        manifest,
+    };
+}
+```
+
+---
+<!-- source: recipes/random-access-single-entry.ts -->
+
+```ts
+/**
+ * Recipe: read exactly one entry from an archive, CRC-verified.
+ * Task: pull a manifest out of a large archive without extracting the rest —
+ * the random-access path OOXML/EPUB/JAR tooling and AI agents rely on.
+ */
+import { openZip } from 'zipnative';
+import { buildDemoArchive } from './_helpers.ts';
+
+export default async function run(): Promise<Record<string, string>> {
+    const bytes = buildDemoArchive();
+    const zip = openZip(bytes);
+
+    const entry = zip.getEntry('hello.txt');
+    if (entry === null) throw new Error('recipe: hello.txt missing from the demo archive');
+
+    const content = new TextDecoder().decode(zip.readEntry(entry));
+    const verification = zip.verifyEntry(entry);
+
+    return {
+        content,
+        verified: String(verification.ok),
+    };
+}
+```
+
+---
+<!-- source: recipes/read-list-entries.ts -->
+
+```ts
+/**
+ * Recipe: open an archive and list entries without decompressing anything.
+ * Task: inventory a ZIP's contents cheaply — only the central directory is
+ * parsed; no entry data is touched.
+ */
+import { openZip } from 'zipnative';
+import { buildDemoArchive } from './_helpers.ts';
+
+export default async function run(): Promise<Record<string, string>> {
+    const bytes = buildDemoArchive();
+
+    const zip = openZip(bytes);
+    const names: string[] = [];
+    for (const entry of zip.entries()) {
+        names.push(entry.name);
+    }
+
+    return {
+        entryCount: String(zip.entryCount),
+        names: names.join(','),
+    };
+}
+```
+
+---
+<!-- source: recipes/update-entry-in-place.ts -->
+
+```ts
+/**
+ * Recipe: update one entry of an existing archive without recompressing
+ * the rest — the incremental modifier (v0.4.0).
+ * Task: replace a 2 KB config inside a large archive; save() appends
+ * (original bytes untouched), saveCompact() rewrites for true deletion.
+ */
+import { createZip, createZipModifier, openZip } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    // An existing archive (in production: bytes you loaded from storage).
+    const original = ((): Uint8Array => {
+        const zip = createZip({ compression: { deterministic: true } });
+        zip.add('config.json', '{"version":1}');
+        zip.add('assets/large.bin', 'untouched payload '.repeat(5000));
+        return zip.toBytes();
+    })();
+
+    const modifier = createZipModifier(openZip(original));
+    modifier.replaceEntry('config.json', '{"version":2}');
+    const updated = modifier.save(); // append-only: no recompression of large.bin
+
+    const prefixIntact = updated.subarray(0, original.length).every((b, i) => b === original[i]);
+    const reader = openZip(updated, { onDiagnostic: () => undefined });
+    const config = new TextDecoder().decode(reader.readEntry('config.json'));
+
+    return {
+        'prefix-intact': String(prefixIntact),
+        config,
+    };
+}
+```

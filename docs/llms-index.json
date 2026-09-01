@@ -1,0 +1,85 @@
+{
+  "$comment": "Index of zipnative’s machine-readable artefacts and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. approxTokens = bytes/4, approximate by construction.",
+  "site": "https://zipnative.dev",
+  "verifiedOn": "2026-09-01",
+  "artefacts": [
+    {
+      "url": "llms.txt",
+      "description": "Machine-readable documentation index (the entry point).",
+      "bytes": 5076,
+      "approxTokens": 1269
+    },
+    {
+      "url": "llms-full.txt",
+      "description": "Concatenated documentation: llms.txt + README + every guide.",
+      "bytes": 27018,
+      "approxTokens": 6755
+    },
+    {
+      "url": "llms-recipes.txt",
+      "description": "Every executable recipe, fenced as TypeScript.",
+      "bytes": 9632,
+      "approxTokens": 2408
+    },
+    {
+      "url": "assets/api.json",
+      "description": "The mechanically extracted export surface — the API ground truth.",
+      "bytes": 13076,
+      "approxTokens": 3269
+    },
+    {
+      "url": "assets/ecosystem.json",
+      "description": "Versions, counts and milestones — the single source of truth.",
+      "bytes": 860,
+      "approxTokens": 215
+    }
+  ],
+  "guides": [
+    {
+      "title": "The zipnative determinism contract",
+      "summary": "Reproducible output is a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what `compression: { deterministic: true }` pins bit-for-bit on every runtime.",
+      "html": "guides/determinism.html",
+      "markdown": "guides/determinism.md",
+      "anchors": [
+        "the-three-levels-of-guarantee",
+        "canonicalization-rules-level-1-always",
+        "the-frozen-encoder-contract-level-3",
+        "documented-determinism-losses",
+        "verifying-reproducibility"
+      ],
+      "bytes": 4718,
+      "approxTokens": 1180
+    },
+    {
+      "title": "Quickstart",
+      "summary": "Install zipnative and cover the four core workflows — reading with random access, secure extraction, deterministic creation, and incremental modification — in about five minutes.",
+      "html": "guides/quickstart.html",
+      "markdown": "guides/quickstart.md",
+      "anchors": [
+        "install",
+        "read-with-random-access",
+        "extract-securely",
+        "create--reproducibly",
+        "modify-without-recompressing",
+        "going-further"
+      ],
+      "bytes": 2646,
+      "approxTokens": 662
+    },
+    {
+      "title": "Security model",
+      "summary": "zipnative treats every archive as untrusted input: the default code path is the safe one, every parser loop runs under a named CWE-tagged bound, and ambiguity is refused rather than guessed at.",
+      "html": "guides/security.html",
+      "markdown": "guides/security.md",
+      "anchors": [
+        "why-zip-needs-this",
+        "the-guards",
+        "the-forward-readers-trust-caveat",
+        "what-the-engine-never-does",
+        "reporting"
+      ],
+      "bytes": 2336,
+      "approxTokens": 584
+    }
+  ]
+}

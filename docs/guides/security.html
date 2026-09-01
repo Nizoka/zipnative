@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security model — zipnative</title>
+  <meta name="description" content="zipnative treats every archive as untrusted input: the default path is the safe one, every parser loop runs under a named CWE-tagged bound, and ambiguity is refused rather than guessed at.">
+  <meta property="og:locale" content="en_US">
+  <link rel="canonical" href="https://zipnative.dev/guides/security.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/security.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/security.html">
+  <link rel="alternate" type="text/markdown" href="security.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <nav class="nav" aria-label="Main">
+    <a class="nav-brand" href="../">zip<span>native</span></a>
+    <div class="nav-links">
+      <a href="index.html">Guides</a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
+      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    </div>
+  </nav>
+  <article id="guide-content" class="guide-content" data-md="security.md">
+    <h1>Security model</h1>
+    <blockquote><p>zipnative treats every archive as untrusted input: the default code path is the safe one, every parser loop runs under a named CWE-tagged bound, and ambiguity is refused rather than guessed at.</p></blockquote>
+
+    <h2 id="why-zip-needs-this">Why ZIP needs this</h2>
+    <p>ZIP is an attacker-friendly format: parsed from the end, tolerant of leading and trailing garbage, metadata duplicated between the central directory and local headers, and 16/32/64-bit size fields mixed freely. Most historical archive CVEs are parser differentials or resource exhaustion — both are addressed structurally here.</p>
+
+    <h2 id="the-guards">The guards</h2>
+    <table>
+      <thead><tr><th>Threat</th><th>Defence</th><th>CWE</th></tr></thead>
+      <tbody>
+        <tr><td>Zip-slip traversal (<code>../</code>, absolute, drive letters, NTFS streams)</td><td><code>rejectTraversal: true</code> by default; <code>sanitizeEntryPath()</code> for external sinks</td><td>CWE-22</td></tr>
+        <tr><td>Decompression bombs</td><td>per-entry and total output caps, ratio bound, entry-count cap — enforced <em>during</em> inflation</td><td>CWE-400/409</td></tr>
+        <tr><td>Symlink entries</td><td><code>rejectSymlinks: true</code> by default</td><td>CWE-59</td></tr>
+        <tr><td>Overlapping entries</td><td>always-on region-boundary checks</td><td>CWE-405</td></tr>
+        <tr><td>Central-vs-local header differentials</td><td>the central directory is authoritative; method/size divergence is fatal</td><td>CWE-436</td></tr>
+        <tr><td>Ambiguous EOCD / trailing garbage</td><td>only a self-consistent record closest to EOF is accepted</td><td>—</td></tr>
+        <tr><td>Zip64 sentinel spoofing</td><td>cross-checks against every non-sentinel classic field</td><td>CWE-1288</td></tr>
+        <tr><td>Duplicate names</td><td><code>onDuplicate: 'error'</code> by default</td><td>CWE-694</td></tr>
+      </tbody>
+    </table>
+    <p>Every bound lives on <code>ZipLimits</code>, is documented, and is caller-configurable — raising one is an explicit decision, never a silent default.</p>
+
+    <h2 id="the-forward-readers-trust-caveat">The forward reader's trust caveat</h2>
+    <p><code>iterateZipEntries()</code> reads local headers <strong>alone</strong> — there is no central directory to cross-check names, sizes or methods, so a hostile archive can present different content there than <code>openZip()</code> authoritatively reports. Use it only for streams you cannot seek, and never feed its names to a filesystem without <code>sanitizeEntryPath()</code>.</p>
+
+    <h2 id="what-the-engine-never-does">What the engine never does</h2>
+    <p>No filesystem access, no sockets, no <code>eval</code>, no runtime dependencies — the supply chain is one repository, watched by CodeQL, OpenSSF Scorecard and an adversarial fuzzing suite on Linux and Windows.</p>
+
+    <h2 id="reporting">Reporting</h2>
+    <p>Privately, via GitHub Security Advisories — see <a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">SECURITY.md</a>.</p>
+  </article>
+  <script src="../app.js" defer></script>
+</body>
+</html>

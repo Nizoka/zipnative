@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>zipnative — safe, deterministic, streaming ZIP engine for TypeScript</title>
+  <meta name="description" content="Zero-dependency ZIP engine in pure TypeScript: random-access reads, secure-by-default extraction, deterministic reproducible archives, incremental modification and worker parallelism — for Node, browsers, Deno, Bun and the agents that operate them.">
+  <meta name="keywords" content="zip, typescript, zero-dependency, streaming, deterministic, reproducible builds, zip-slip, zip64, unzip, archive">
+  <meta name="author" content="Nizoka">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#0f172a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://zipnative.dev/">
+  <meta property="og:title" content="zipnative — safe, deterministic, streaming ZIP engine for TypeScript">
+  <meta property="og:description" content="Zero-dependency ZIP engine: random access, secure extraction, reproducible archives, incremental modification, worker parallelism.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="zipnative">
+  <meta name="twitter:description" content="The safe, deterministic, streaming ZIP engine for modern TypeScript apps and AI agents.">
+  <link rel="canonical" href="https://zipnative.dev/">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/">
+  <link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://zipnative.dev/#website",
+        "url": "https://zipnative.dev/",
+        "name": "zipnative",
+        "inLanguage": "en",
+        "publisher": { "@id": "https://zipnative.dev/#org" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://zipnative.dev/#org",
+        "name": "Nizoka",
+        "url": "https://zipnative.dev/",
+        "sameAs": ["https://github.com/Nizoka/zipnative"]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://zipnative.dev/#library",
+        "name": "zipnative",
+        "inLanguage": "en",
+        "programmingLanguage": "TypeScript",
+        "codeRepository": "https://github.com/Nizoka/zipnative",
+        "license": "https://opensource.org/licenses/MIT",
+        "softwareVersion": "0.6.0",
+        "description": "Zero-dependency native ZIP engine: random-access reads, secure-by-default extraction, deterministic archives, incremental modification, worker parallelism."
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <a class="nav-brand" href="./">zip<span>native</span></a>
+    <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">☰</button>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="#determinism">Determinism</a>
+      <a href="#examples">Examples</a>
+      <a href="guides/index.html">Guides</a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
+      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    </div>
+  </nav>
+
+  <section class="hero" id="main-content">
+    <h1>The ZIP engine for modern apps<br>— and the agents that operate them</h1>
+    <p class="hero-sub">
+      100&nbsp;% TypeScript. Zero runtime dependencies. One API across Node&nbsp;≥&nbsp;22,
+      browsers, Deno, Bun and Workers. Safe by default, deterministic by contract,
+      streaming by design.
+    </p>
+    <div class="hero-install">
+      <code id="install-cmd">npm install zipnative</code>
+      <button class="copy-btn" data-copy="npm install zipnative" aria-label="Copy install command">Copy</button>
+    </div>
+    <p class="hero-note">Pre-1.0 — all five engine milestones shipped; API-freeze phase in progress.</p>
+  </section>
+
+  <section class="section" id="features">
+    <h2>What only zipnative does</h2>
+    <div class="feature-grid">
+      <article class="card">
+        <h3>Random access</h3>
+        <p>Read one entry of a 4&nbsp;GB archive with three range reads — the central directory is parsed lazily, payloads are zero-copy views. No “extract everything first”.</p>
+      </article>
+      <article class="card">
+        <h3>Safe by default</h3>
+        <p>Zip-slip, symlinks, duplicate names, decompression bombs, overlapping entries, Zip64 spoofing and EOCD ambiguity are all rejected unless you explicitly opt out. Every parser loop runs under a named, CWE-tagged bound.</p>
+      </article>
+      <article class="card">
+        <h3>Deterministic</h3>
+        <p>Reproducible-build mode with a written contract: identical inputs, identical SHA-256, on every runtime — via a pure-TS deflate encoder whose constants are frozen public API.</p>
+      </article>
+      <article class="card">
+        <h3>Incremental modification</h3>
+        <p>Replace, add, remove or rename entries and save without recompressing the untouched 99&nbsp;% — the append-only model proven in pdfnative's PDF incremental updates.</p>
+      </article>
+      <article class="card">
+        <h3>True streaming</h3>
+        <p>Create archives in fixed-size chunks with bounded memory, and read unseekable streams forward — data-descriptor entries included, thanks to a resumable pure-TS inflater.</p>
+      </article>
+      <article class="card">
+        <h3>Worker parallelism</h3>
+        <p><code>zipnative/worker</code> fans per-entry compression across a real pool (worker_threads and Web Workers) — byte-identical output, graceful degradation, never an infra failure.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="security">
+    <h2>Security model</h2>
+    <p>
+      Every archive is treated as untrusted input. The default code path is the safe
+      one: extraction refuses traversal (<code>../</code>, absolute paths, drive
+      letters, NTFS streams), symlink entries and bombs; the reader refuses
+      overlapping entries, parser-differential headers and ambiguous
+      end-of-central-directory records. Bounds are named, documented and
+      caller-configurable — raising one is always an explicit decision.
+    </p>
+    <p><a href="guides/security.html">Read the full threat model →</a></p>
+  </section>
+
+  <section class="section" id="determinism">
+    <h2>Determinism as a contract</h2>
+    <p>
+      <code>compression: { deterministic: true }</code> pins the pure-TS encoder:
+      <code>SHA256(A) === SHA256(B)</code> for identical inputs on any runtime —
+      the mode for content addressing, caching, signatures and reproducible
+      builds. The contract is written down and golden-tested; changing the
+      emitted bytes is a semver-major event.
+    </p>
+    <p><a href="guides/determinism.html">Read the determinism contract →</a></p>
+  </section>
+
+  <section class="section" id="examples">
+    <h2>Ninety seconds of API</h2>
+    <div class="tabs" data-tabs>
+      <div class="tab-buttons" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="read">Read</button>
+        <button role="tab" aria-selected="false" data-tab="write">Write</button>
+        <button role="tab" aria-selected="false" data-tab="modify">Modify</button>
+      </div>
+      <pre class="tab-panel" data-panel="read"><code>import { openZip, extractZip } from 'zipnative';
+
+const zip = openZip(bytes);              // lazy — nothing decompressed
+const manifest = zip.readEntry('manifest.json'); // one entry, CRC-verified
+
+const files = extractZip(bytes);         // traversal/bombs rejected by default</code></pre>
+      <pre class="tab-panel" data-panel="write" hidden><code>import { createZip } from 'zipnative';
+
+const zip = createZip({ compression: { deterministic: true } });
+zip.add('data.json', payload);
+const bytes = zip.toBytes();             // same inputs → same SHA-256, anywhere</code></pre>
+      <pre class="tab-panel" data-panel="modify" hidden><code>import { createZipModifier, openZip } from 'zipnative';
+
+const mod = createZipModifier(openZip(bytes));
+mod.replaceEntry('word/document.xml', updated);
+const saved = mod.save();                // untouched entries never recompressed</code></pre>
+    </div>
+    <p><a href="guides/quickstart.html">Full quickstart →</a></p>
+  </section>
+
+  <section class="section" id="agents">
+    <h2>Built for AI agents</h2>
+    <p>
+      Typed errors with the remedy in the message, a structured diagnostics
+      channel, executable recipes, and machine-readable ground truth:
+      <a href="assets/api.json">api.json</a> (the mechanically extracted export
+      surface), <a href="llms.txt">llms.txt</a> and
+      <a href="llms-full.txt">llms-full.txt</a>. Developed under a
+      human-in-the-loop AI governance policy.
+    </p>
+  </section>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a> ·
+      <a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a> ·
+      <a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a> ·
+      <a href="llms.txt">llms.txt</a>
+    </p>
+    <p class="footer-fine">MIT © 2026 Nizoka — sibling of <a href="https://pdfnative.dev" rel="noopener" target="_blank">pdfnative</a>. Zero runtime dependencies, verified on 2026-09-01.</p>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

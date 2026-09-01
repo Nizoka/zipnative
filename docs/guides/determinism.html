@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The determinism contract — zipnative</title>
+  <meta name="description" content="Reproducible output as a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what deterministic: true pins bit-for-bit on every runtime.">
+  <meta property="og:locale" content="en_US">
+  <link rel="canonical" href="https://zipnative.dev/guides/determinism.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/determinism.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/determinism.html">
+  <link rel="alternate" type="text/markdown" href="determinism.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <nav class="nav" aria-label="Main">
+    <a class="nav-brand" href="../">zip<span>native</span></a>
+    <div class="nav-links">
+      <a href="index.html">Guides</a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
+      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    </div>
+  </nav>
+  <article id="guide-content" class="guide-content" data-md="determinism.md">
+    <h1>The zipnative determinism contract</h1>
+    <blockquote><p>Reproducible output is a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what <code>compression: { deterministic: true }</code> pins bit-for-bit on every runtime.</p></blockquote>
+
+    <h2 id="the-three-levels-of-guarantee">The three levels of guarantee</h2>
+    <ol>
+      <li><strong>Structurally deterministic — always.</strong> Entry order, header layout, flags, attributes, timestamps and Zip64 decisions never depend on the clock, randomness, locale or environment.</li>
+      <li><strong>Bitwise deterministic per environment — the default.</strong> Deflate compresses through the best available tier, so bytes are stable for a given runtime + zlib build.</li>
+      <li><strong>Bitwise deterministic everywhere — <code>deterministic: true</code>.</strong> The pure-TS encoder is pinned: <code>SHA256(A) === SHA256(B)</code> for identical inputs on every runtime — the mode for content addressing, reproducible builds, caching and signatures.</li>
+    </ol>
+
+    <h2 id="canonicalization-rules">Canonicalization rules (always)</h2>
+    <p>Entries sort by raw UTF-8 name bytes (<code>order: 'insertion'</code> preserves call order); timestamps default to the DOS epoch (<code>'now'</code> costs a diagnostic); version-made-by, external attributes and flags are constants; Zip64 records appear exactly when a field overflows; empty content is stored and deflate falls back to store when it does not shrink the payload — both pure functions of the content.</p>
+
+    <h2 id="the-frozen-encoder-contract">The frozen encoder contract</h2>
+    <p>Under <code>deterministic: true</code>, every constant of the pure-TS encoder is frozen public API — the hash function, zlib's level configuration table, the one-step-lazy tie rules, the Huffman construction ordering and the block-cost tie order. <strong>Changing any of them changes emitted bytes and is a semver-major release</strong>; golden SHA-256 tables in the test suite are the tripwire.</p>
+
+    <h2 id="documented-determinism-losses">Documented determinism losses</h2>
+    <table>
+      <thead><tr><th>Situation</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>Default codec tier</td><td>bytes vary across zlib builds (diagnostic when a date is pinned)</td></tr>
+        <tr><td><code>defaultDate: 'now'</code></td><td>bytes vary per run (diagnostic)</td></tr>
+        <tr><td><code>addStream</code> vs <code>add</code> of identical content</td><td>different layout (data descriptor)</td></tr>
+        <tr><td>Injected codec</td><td>caller-defined bytes; never used under <code>deterministic: true</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>The full normative text lives in the <a href="determinism.md">Markdown source</a> of this guide, enforced byte-for-byte by the golden test suites.</p>
+  </article>
+  <script src="../app.js" defer></script>
+</body>
+</html>

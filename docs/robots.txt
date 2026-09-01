@@ -1,0 +1,9 @@
+# zipnative — https://zipnative.dev
+# Machine-readable documentation for LLMs/agents:
+#   https://zipnative.dev/llms.txt
+#   https://zipnative.dev/llms-full.txt
+#   https://zipnative.dev/assets/api.json
+User-agent: *
+Allow: /
+
+Sitemap: https://zipnative.dev/sitemap.xml

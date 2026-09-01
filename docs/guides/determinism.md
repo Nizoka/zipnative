@@ -1,9 +1,13 @@
 # The zipnative determinism contract
 
-zipnative treats reproducible output as a product feature. This document is
-the contract; it is written down *before* anyone depends on it, and the
-golden tests ([tests/core/zip-determinism.test.ts](../tests/core/zip-determinism.test.ts),
-[tests/codecs/deflate-pure.test.ts](../tests/codecs/deflate-pure.test.ts))
+> Reproducible output is a product feature with a written contract: what is
+> guaranteed always, what is guaranteed per environment, and what
+> `compression: { deterministic: true }` pins bit-for-bit on every runtime.
+
+This document is the contract; it was written down *before* anyone depended
+on it, and the golden tests
+([tests/core/zip-determinism.test.ts](https://github.com/Nizoka/zipnative/blob/main/tests/core/zip-determinism.test.ts),
+[tests/codecs/deflate-pure.test.ts](https://github.com/Nizoka/zipnative/blob/main/tests/codecs/deflate-pure.test.ts))
 enforce it byte-for-byte.
 
 ## The three levels of guarantee
@@ -41,7 +45,7 @@ enforce it byte-for-byte.
 ## The frozen encoder contract (level 3)
 
 Under `deterministic: true`, deflate output bytes are produced by
-[src/codecs/deflate-pure.ts](../src/codecs/deflate-pure.ts) and every
+[src/codecs/deflate-pure.ts](https://github.com/Nizoka/zipnative/blob/main/src/codecs/deflate-pure.ts) and every
 constant in that file is frozen public API:
 
 - hash function `imul(3-byte window, 0x9E3779B1) >>> 17` over a 32 KiB

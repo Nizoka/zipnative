@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quickstart — zipnative</title>
+  <meta name="description" content="Install zipnative and cover the four core workflows — random-access reading, secure extraction, deterministic creation and incremental modification — in five minutes.">
+  <meta property="og:locale" content="en_US">
+  <link rel="canonical" href="https://zipnative.dev/guides/quickstart.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/quickstart.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/quickstart.html">
+  <link rel="alternate" type="text/markdown" href="quickstart.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <nav class="nav" aria-label="Main">
+    <a class="nav-brand" href="../">zip<span>native</span></a>
+    <div class="nav-links">
+      <a href="index.html">Guides</a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
+      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    </div>
+  </nav>
+  <article id="guide-content" class="guide-content" data-md="quickstart.md">
+    <h1>Quickstart</h1>
+    <blockquote><p>Install zipnative and cover the four core workflows — reading with random access, secure extraction, deterministic creation, and incremental modification — in about five minutes.</p></blockquote>
+
+    <h2 id="install">Install</h2>
+    <pre><code>npm install zipnative</code></pre>
+    <p>Node ≥ 22, browsers, Deno, Bun and Workers share one API. Zero runtime dependencies — what you install is what runs.</p>
+
+    <h2 id="read-with-random-access">Read with random access</h2>
+    <pre><code>import { openZip } from 'zipnative';
+
+const zip = openZip(bytes);          // lazy: only the trailer is located
+console.log(zip.entryCount);
+
+for (const entry of zip.entries()) {
+    console.log(entry.name, entry.uncompressedSize);
+}
+
+const manifest = zip.readEntry('manifest.json'); // one entry, CRC-verified
+for await (const chunk of zip.readEntryStream('video.bin')) {
+    // bounded memory for large entries
+}</code></pre>
+
+    <h2 id="extract-securely">Extract securely</h2>
+    <pre><code>import { extractZip } from 'zipnative';
+
+const files = extractZip(bytes);
+// Traversal, symlinks, duplicate names and decompression bombs are
+// rejected BY DEFAULT — opting out is always explicit.
+for (const file of files) {
+    console.log(file.path, file.data.length); // path is sanitized, relative
+}</code></pre>
+    <p>The engine never touches a filesystem; join <code>file.path</code> under your own root (see the <a href="security.html">security guide</a>).</p>
+
+    <h2 id="create-reproducibly">Create — reproducibly</h2>
+    <pre><code>import { createZip } from 'zipnative';
+
+const zip = createZip({ compression: { deterministic: true } });
+zip.add('data.json', JSON.stringify(payload));
+zip.add('raw.bin', bytes, { compression: { method: 'store' } });
+
+const archive = zip.toBytes();       // sync
+// or, with bounded memory and byte-identical output:
+for await (const chunk of zip.stream()) { /* send */ }</code></pre>
+    <p>Identical inputs give identical SHA-256 on every runtime — the <a href="determinism.html">determinism contract</a>.</p>
+
+    <h2 id="modify-without-recompressing">Modify without recompressing</h2>
+    <pre><code>import { createZipModifier, openZip } from 'zipnative';
+
+const mod = createZipModifier(openZip(bytes));
+mod.replaceEntry('config.json', '{"version":2}');
+mod.removeEntry('obsolete.log');
+
+const updated = mod.save();          // append-only: untouched entries untouched
+const compact = mod.saveCompact();   // true deletion, still no recompression</code></pre>
+    <p>Note: <code>save()</code> keeps every original byte — removed content remains recoverable; <code>saveCompact()</code> is the deletion path.</p>
+
+    <h2 id="going-further">Going further</h2>
+    <ul>
+      <li>Parallel creation across worker threads: <code>import { createParallelZip } from 'zipnative/worker'</code>.</li>
+      <li>Reading unseekable streams: <code>iterateZipEntries(source)</code> — local headers only, so prefer <code>openZip()</code> whenever the whole archive is available.</li>
+      <li>Every error message starts with <code>zipnative:</code> and names the remedy.</li>
+    </ul>
+  </article>
+  <script src="../app.js" defer></script>
+</body>
+</html>
