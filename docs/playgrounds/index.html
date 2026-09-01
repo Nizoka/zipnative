@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playgrounds — zipnative</title>
+  <meta name="description" content="Run zipnative in your browser: build deterministic archives, inspect any .zip's central directory, and watch the secure-extraction guards reject hostile archives — all on a local zero-dependency bundle.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/index.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/index.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/index.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "name": "zipnative Playgrounds",
+        "url": "https://zipnative.dev/playgrounds/index.html",
+        "inLanguage": "en",
+        "isPartOf": { "@id": "https://zipnative.dev/#website" },
+        "mainEntity": {
+          "@type": "ItemList",
+          "numberOfItems": 3,
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Archive toolkit", "url": "https://zipnative.dev/playgrounds/toolkit.html" },
+            { "@type": "ListItem", "position": 2, "name": "Archive inspector", "url": "https://zipnative.dev/playgrounds/inspect.html" },
+            { "@type": "ListItem", "position": 3, "name": "Secure extraction", "url": "https://zipnative.dev/playgrounds/secure-extract.html" }
+          ]
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Playgrounds" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/index.html">Guides</a></li>
+        <li><a href="./" aria-current="page">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › Playgrounds</div>
+    <article class="guide-content">
+      <h1>Playgrounds</h1>
+      <blockquote>
+        <p>Every playground runs the <strong>real engine</strong> in your browser — a committed
+        copy of zipnative's own zero-dependency <code>dist/index.js</code>, loaded locally
+        (no CDN, no npm, nothing to install). What you see is exactly what the library does.</p>
+      </blockquote>
+      <p>The browser path uses <code>DecompressionStream</code>/<code>CompressionStream</code> or
+      the pure-TS tier — <code>initNodeZipCodecs()</code> is a Node-only optimisation and is
+      never called here.</p>
+      <div class="pg-grid">
+        <a class="pg-card" href="toolkit.html">
+          <div class="pg-icon" aria-hidden="true">🧰</div>
+          <h3>Archive toolkit</h3>
+          <p>Build an archive from entries you type, toggle deterministic mode, and see its
+          size, entry table and SHA-256 — then download it.</p>
+          <div class="pg-tags"><span class="pg-tag">createZip</span><span class="pg-tag">openZip</span><span class="pg-tag">deterministic</span></div>
+          <span class="pg-cta">Open toolkit →</span>
+        </a>
+        <a class="pg-card" href="inspect.html">
+          <div class="pg-icon" aria-hidden="true">🔍</div>
+          <h3>Archive inspector</h3>
+          <p>Drop any <code>.zip</code> (DOCX, JAR, VSIX, EPUB…) and read its central directory —
+          names, methods, sizes, CRCs, flags — without extracting a byte.</p>
+          <div class="pg-tags"><span class="pg-tag">openZip</span><span class="pg-tag">entries()</span><span class="pg-tag">random access</span></div>
+          <span class="pg-cta">Open inspector →</span>
+        </a>
+        <a class="pg-card" href="secure-extract.html">
+          <div class="pg-icon" aria-hidden="true">🛡️</div>
+          <h3>Secure extraction</h3>
+          <p>Watch the default guards reject a zip-slip archive and a corrupt one with typed
+          <code>err.code</code>s — then drop your own and see what passes.</p>
+          <div class="pg-tags"><span class="pg-tag">extractZip</span><span class="pg-tag">err.code</span><span class="pg-tag">zip-slip</span></div>
+          <span class="pg-cta">Open demo →</span>
+        </a>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Playgrounds</h4>
+          <ul>
+            <li><a href="toolkit.html">Archive toolkit</a></li>
+            <li><a href="inspect.html">Archive inspector</a></li>
+            <li><a href="secure-extract.html">Secure extraction</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="../guides/index.html">All guides</a></li>
+            <li><a href="../guides/quickstart.html">Quickstart</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+</body>
+</html>

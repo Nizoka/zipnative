@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archive toolkit — zipnative playground</title>
+  <meta name="description" content="Build a ZIP archive in your browser from entries you type, toggle deterministic mode, and read back its size, entry table and SHA-256 — running zipnative's real zero-dependency engine.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/toolkit.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/toolkit.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/toolkit.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative Archive toolkit",
+    "url": "https://zipnative.dev/playgrounds/toolkit.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../guides/index.html">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › Archive toolkit</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html" aria-current="page">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>Archive toolkit</h1>
+      <p>One entry per line as <code>name: content</code>. Build it into a real ZIP with
+      <code>createZip()</code>, then read it back with <code>openZip()</code> — size, entry
+      table and SHA-256, computed in your browser by the actual engine.</p>
+
+      <div class="pg-toolbar">
+        <label><input type="checkbox" id="deterministic" checked> deterministic</label>
+        <label>method
+          <select id="method" class="pg-picker" style="flex:0 0 auto;min-width:120px">
+            <option value="deflate">deflate</option>
+            <option value="store">store</option>
+          </select>
+        </label>
+        <button id="build" class="btn btn-primary" type="button">Build archive →</button>
+        <a id="download" class="btn btn-secondary" download="playground.zip" style="display:none">Download .zip</a>
+      </div>
+
+      <textarea id="entries" class="demo-editor" spellcheck="false" aria-label="Archive entries"
+        style="width:100%;min-height:180px;background:var(--c-code-bg);color:var(--c-code-text);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:14px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:13px;line-height:1.55;resize:vertical;tab-size:2">readme.txt: hello from zipnative
+data/config.json: {"version":1,"deterministic":true}
+docs/notes.md: # Notes
+
+Built entirely in the browser.</textarea>
+
+      <div id="status" class="pg-status" role="status" aria-live="polite"></div>
+      <div id="report" hidden>
+        <div class="pg-table-wrap">
+          <table class="pg-table">
+            <thead><tr><th>Name</th><th>Method</th><th>Size</th><th>Compressed</th><th>CRC-32</th></tr></thead>
+            <tbody id="entry-rows"></tbody>
+          </table>
+        </div>
+        <div class="pg-output" id="summary"></div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · runs the committed dist bundle, locally</span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { createZip, openZip, METHOD_STORE, ZipError } from './zipnative.js';
+
+    const $ = (id) => document.getElementById(id);
+    const te = new TextEncoder();
+    const status = $('status');
+    let lastUrl = null;
+
+    function setStatus(msg, kind) {
+      status.className = 'pg-status ' + kind;
+      status.textContent = msg;
+    }
+
+    function parseEntries(text) {
+      // Each line "name: content"; blank lines join into the previous entry's body.
+      const entries = [];
+      for (const rawLine of text.split('\n')) {
+        const m = rawLine.match(/^([^:\n]+?):[ ]?(.*)$/);
+        if (m && !rawLine.startsWith(' ')) {
+          entries.push({ name: m[1].trim(), lines: [m[2]] });
+        } else if (entries.length > 0) {
+          entries[entries.length - 1].lines.push(rawLine);
+        }
+      }
+      return entries.map((e) => ({ name: e.name, data: te.encode(e.lines.join('\n')) }));
+    }
+
+    function fmtBytes(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    async function sha256Hex(bytes) {
+      if (!(crypto && crypto.subtle)) return '(SubtleCrypto unavailable on this origin)';
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function build() {
+      try {
+        const specs = parseEntries($('entries').value);
+        if (specs.length === 0) { setStatus('Add at least one "name: content" line.', 'error'); return; }
+        const method = $('method').value;
+        const deterministic = $('deterministic').checked;
+
+        const zip = createZip({ compression: { method, deterministic } });
+        for (const s of specs) zip.add(s.name, s.data);
+        const t0 = performance.now();
+        const bytes = zip.toBytes();
+        const ms = (performance.now() - t0).toFixed(1);
+
+        // Read it straight back — the archive is its own proof.
+        const reader = openZip(bytes, { validate: 'eager' });
+        const rows = $('entry-rows');
+        rows.innerHTML = '';
+        for (const entry of reader.entries()) {
+          const tr = document.createElement('tr');
+          const cells = [
+            entry.name,
+            entry.compressionMethod === METHOD_STORE ? 'store' : 'deflate',
+            fmtBytes(entry.uncompressedSize),
+            fmtBytes(entry.compressedSize),
+            '0x' + (entry.crc32 >>> 0).toString(16).padStart(8, '0'),
+          ];
+          for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+          rows.appendChild(tr);
+        }
+
+        const sha = await sha256Hex(bytes);
+        $('summary').textContent =
+          `${specs.length} ${specs.length === 1 ? 'entry' : 'entries'} · ${fmtBytes(bytes.length)} · built in ${ms} ms\n` +
+          `method: ${method} · deterministic: ${deterministic}\n` +
+          `SHA-256: ${sha}` +
+          (deterministic ? '\n\n↻ deterministic: true — rebuilding these exact inputs gives this exact SHA-256 on any runtime.'
+                         : '\n\n(non-deterministic tier — bytes are stable per environment only.)');
+        $('report').hidden = false;
+
+        if (lastUrl) URL.revokeObjectURL(lastUrl);
+        const blob = new Blob([bytes], { type: 'application/zip' });
+        lastUrl = URL.createObjectURL(blob);
+        const dl = $('download');
+        dl.href = lastUrl;
+        dl.style.display = '';
+        setStatus(`Built and re-opened ${specs.length} entries — the archive validated eagerly.`, 'ok');
+      } catch (err) {
+        $('report').hidden = true;
+        if (err instanceof ZipError) setStatus(`${err.code}\n${err.message}`, 'error');
+        else setStatus(String(err && err.stack ? err.stack : err), 'error');
+      }
+    }
+
+    $('build').addEventListener('click', build);
+    build();
+  </script>
+</body>
+</html>

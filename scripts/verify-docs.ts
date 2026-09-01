@@ -109,6 +109,30 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
     }
 }
 
+// ── Rule: playground-bundle ──────────────────────────────────────────
+// The playgrounds run a committed copy of the engine's own dist bundle.
+// It must match dist/index.js byte-for-byte (minus the sourceMappingURL
+// line dropped by `docs:playground`) and carry the manifest version, or
+// the playgrounds silently run stale code. dist/ is gitignored, so this
+// only checks when a build is present (CI builds before verifying).
+{
+    const bundlePath = 'docs/playgrounds/zipnative.js';
+    if (existsSync(resolve(ROOT, bundlePath))) {
+        const committed = read(bundlePath);
+        const versionMatch = committed.match(/VERSION = "([^"]+)"/);
+        if (versionMatch === null || versionMatch[1] !== pkg.version) {
+            report(bundlePath, 1, 'playground-bundle',
+                `bundle VERSION ${versionMatch?.[1] ?? '(missing)'} != package.json ${pkg.version} — run \`npm run docs:playground\``);
+        }
+        if (existsSync(resolve(ROOT, 'dist/index.js'))) {
+            const dist = read('dist/index.js').split('\n').filter((l) => !l.startsWith('//# sourceMappingURL=')).join('\n');
+            if (dist !== committed) {
+                report(bundlePath, 1, 'playground-bundle', 'differs from dist/index.js — run `npm run docs:playground`');
+            }
+        }
+    }
+}
+
 // ── Rule: api-json-sync ──────────────────────────────────────────────
 {
     const rebuilt = `${JSON.stringify(buildApiJson(ROOT), null, 2)}\n`;

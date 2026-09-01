@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure extraction — zipnative playground</title>
+  <meta name="description" content="Watch zipnative's default extraction guards reject a zip-slip archive and a corrupt one with typed error codes, then drop your own archive to see what passes — all in your browser.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/secure-extract.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/secure-extract.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/secure-extract.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative Secure extraction demo",
+    "url": "https://zipnative.dev/playgrounds/secure-extract.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../guides/security.html">Security</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › Secure extraction</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html" aria-current="page">Secure extraction</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>Secure extraction</h1>
+      <p><code>extractZip()</code> treats every archive as hostile until proven otherwise. Run the
+      two crafted archives below — a zip-slip and a header-inconsistent one — and watch each
+      refusal come back as a typed <code>err.code</code>. Then drop your own to see what passes.</p>
+
+      <div class="pg-toolbar">
+        <button class="btn btn-secondary" type="button" data-demo="hostile">Run zip-slip archive</button>
+        <button class="btn btn-secondary" type="button" data-demo="corrupt">Run corrupt archive</button>
+      </div>
+
+      <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop a .zip file or click to choose">
+        <strong>…or drop your own archive</strong><br>
+        extractZip runs with its defaults on — it never touches a filesystem
+        <input type="file" id="file" accept=".zip,application/zip" hidden>
+      </div>
+
+      <div id="status" class="pg-status" role="status" aria-live="polite"></div>
+      <div id="report" hidden>
+        <div class="pg-output" id="summary"></div>
+        <div class="pg-table-wrap">
+          <table class="pg-table">
+            <thead><tr><th>Extracted path</th><th>Size</th></tr></thead>
+            <tbody id="entry-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · guards run on the committed engine bundle</span>
+        <span><a href="../guides/security.html">Security model →</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { extractZip, ZipError, ZipSecurityError } from './zipnative.js';
+
+    const $ = (id) => document.getElementById(id);
+    const status = $('status');
+
+    // Crafted by tests/helpers/raw-zip-builder.ts (engine-independent, node:zlib).
+    // hostile: entries '../evil.txt' (zip-slip) + 'ok.txt'. corrupt: EOCD claims 9 entries, holds 1.
+    const DEMOS = {
+      hostile: 'UEsDBBQAAAAAAAAAIQB+UwTZBQAAAAUAAAALAAAALi4vZXZpbC50eHRwd25lZFBLAwQUAAAAAAAAACEAZo1BSA0AAAANAAAABgAAAG9rLnR4dGxlZ2l0IGNvbnRlbnRQSwECHgMUAAAAAAAAACEAflME2QUAAAAFAAAACwAAAAAAAAAAAAAAAAAAAAAALi4vZXZpbC50eHRQSwECHgMUAAAAAAAAACEAZo1BSA0AAAANAAAABgAAAAAAAAAAAAAAAAAuAAAAb2sudHh0UEsFBgAAAAACAAIAbQAAAF8AAAAAAA==',
+      corrupt: 'UEsDBBQAAAAAAAAAIQCDFtyMAQAAAAEAAAAFAAAAYS50eHR4UEsBAh4DFAAAAAAAAAAhAIMW3IwBAAAAAQAAAAUAAAAAAAAAAAAAAAAAAAAAAGEudHh0UEsFBgAAAAAJAAkAMwAAACQAAAAAAA==',
+    };
+
+    function setStatus(msg, kind) { status.className = 'pg-status ' + kind; status.textContent = msg; }
+    function fmtBytes(n) { return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB'; }
+    function b64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+
+    function run(bytes, label) {
+      try {
+        const files = extractZip(bytes);
+        const rows = $('entry-rows');
+        rows.innerHTML = '';
+        for (const f of files) {
+          const tr = document.createElement('tr');
+          const p = document.createElement('td'); p.textContent = f.path;
+          const s = document.createElement('td'); s.textContent = fmtBytes(f.data.length);
+          tr.appendChild(p); tr.appendChild(s); rows.appendChild(tr);
+        }
+        $('summary').textContent =
+          `${label}: extractZip returned ${files.length} clean ${files.length === 1 ? 'entry' : 'entries'}.\n` +
+          `Every path is sanitized and relative — safe to join under your own root.`;
+        $('report').hidden = false;
+        setStatus(`Accepted — ${files.length} entries passed every guard.`, 'ok');
+      } catch (err) {
+        $('report').hidden = true;
+        if (err instanceof ZipError) {
+          const kind = err instanceof ZipSecurityError ? 'security refusal' : 'refusal';
+          setStatus(`${label}: rejected (${kind})\n\nerr.code = ${err.code}\n${err.message}`, 'error');
+        } else {
+          setStatus(String(err && err.stack ? err.stack : err), 'error');
+        }
+      }
+    }
+
+    document.querySelectorAll('[data-demo]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-demo');
+        run(b64(DEMOS[key]), key === 'hostile' ? 'zip-slip archive' : 'corrupt archive');
+      });
+    });
+
+    const drop = $('drop'), file = $('file');
+    async function fromFile(f) {
+      setStatus(`Extracting ${f.name}…`, 'info');
+      run(new Uint8Array(await f.arrayBuffer()), f.name);
+    }
+    drop.addEventListener('click', () => file.click());
+    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+    file.addEventListener('change', () => { if (file.files[0]) fromFile(file.files[0]); });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('dragover'); if (e.dataTransfer.files[0]) fromFile(e.dataTransfer.files[0]); });
+  </script>
+</body>
+</html>

@@ -58,6 +58,7 @@
     "docs:guides": "npx tsx scripts/build-guides.ts",
     "docs:llms": "npx tsx scripts/build-llms-full.ts",
     "docs:all": "npm run docs:api && npm run docs:guides && npm run docs:llms",
+    "docs:playground": "node scripts/copy-playground-bundle.mjs",
     "docs:serve": "npx serve docs/ --listen 5000",
     "verify:issue": "node scripts/verify-issue.mjs",
     "lint": "eslint src/",

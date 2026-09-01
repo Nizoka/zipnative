@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archive inspector — zipnative playground</title>
+  <meta name="description" content="Drop any .zip — DOCX, JAR, VSIX, EPUB — and read its central directory in your browser: names, methods, sizes, CRCs and flags, without extracting a byte. Runs zipnative's real engine locally.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/inspect.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/inspect.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/inspect.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative Archive inspector",
+    "url": "https://zipnative.dev/playgrounds/inspect.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../guides/index.html">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › Archive inspector</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html" aria-current="page">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>Archive inspector</h1>
+      <p>A <code>.docx</code>, <code>.jar</code>, <code>.vsix</code> and <code>.epub</code> are all ZIP
+      archives. Drop one below: <code>openZip()</code> walks its central directory lazily and lists
+      every entry — <strong>nothing is decompressed and nothing leaves your browser</strong>.</p>
+
+      <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop a .zip file or click to choose">
+        <strong>Drop a .zip / .docx / .jar / .vsix here</strong><br>
+        or click to choose a file — it never leaves your browser
+        <input type="file" id="file" accept=".zip,.docx,.jar,.vsix,.epub,.xlsx,.pptx,application/zip" hidden>
+      </div>
+
+      <div id="status" class="pg-status" role="status" aria-live="polite"></div>
+      <div id="report" hidden>
+        <div class="pg-output" id="summary"></div>
+        <div class="pg-table-wrap">
+          <table class="pg-table">
+            <thead><tr><th>Name</th><th>Method</th><th>Uncompressed</th><th>Compressed</th><th>CRC-32</th><th>Flags</th></tr></thead>
+            <tbody id="entry-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · your file never leaves the browser</span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { openZip, METHOD_STORE, FLAG_ENCRYPTED, FLAG_DATA_DESCRIPTOR, FLAG_UTF8, ZipError } from './zipnative.js';
+
+    const $ = (id) => document.getElementById(id);
+    const status = $('status');
+    const drop = $('drop');
+    const file = $('file');
+
+    function setStatus(msg, kind) { status.className = 'pg-status ' + kind; status.textContent = msg; }
+    function fmtBytes(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+    function flagList(f) {
+      const on = [];
+      if (f & FLAG_ENCRYPTED) on.push('encrypted');
+      if (f & FLAG_DATA_DESCRIPTOR) on.push('descriptor');
+      if (f & FLAG_UTF8) on.push('utf8');
+      return on.length ? on.join(' · ') : '—';
+    }
+
+    async function inspect(fileObj) {
+      try {
+        setStatus(`Reading ${fileObj.name}…`, 'info');
+        const bytes = new Uint8Array(await fileObj.arrayBuffer());
+        const t0 = performance.now();
+        const diagnostics = [];
+        const reader = openZip(bytes, { onDiagnostic: (d) => diagnostics.push(d.code) });
+        const rows = $('entry-rows');
+        rows.innerHTML = '';
+        let totalUnc = 0, totalComp = 0, dirs = 0, encrypted = 0;
+        for (const entry of reader.entries()) {
+          totalUnc += entry.uncompressedSize;
+          totalComp += entry.compressedSize;
+          if (entry.isDirectory) dirs++;
+          if (entry.isEncrypted) encrypted++;
+          const tr = document.createElement('tr');
+          const cells = [
+            entry.name,
+            entry.isDirectory ? 'dir' : (entry.compressionMethod === METHOD_STORE ? 'store' : (entry.compressionMethod === 8 ? 'deflate' : 'method ' + entry.compressionMethod)),
+            fmtBytes(entry.uncompressedSize),
+            fmtBytes(entry.compressedSize),
+            '0x' + (entry.crc32 >>> 0).toString(16).padStart(8, '0'),
+            flagList(entry.flags),
+          ];
+          for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+          rows.appendChild(tr);
+        }
+        const ms = (performance.now() - t0).toFixed(1);
+        const ratio = totalComp > 0 ? (totalUnc / totalComp).toFixed(2) : '—';
+        $('summary').textContent =
+          `${fileObj.name} · ${fmtBytes(bytes.length)} on disk\n` +
+          `${reader.entryCount} entries (${dirs} dir, ${encrypted} encrypted) · walked in ${ms} ms\n` +
+          `uncompressed ${fmtBytes(totalUnc)} · compressed ${fmtBytes(totalComp)} · ratio ${ratio}×\n` +
+          `zip64: ${reader.isZip64 ? 'yes' : 'no'}` +
+          (reader.comment ? ` · comment: ${JSON.stringify(reader.comment)}` : '') +
+          (diagnostics.length ? `\ndiagnostics: ${[...new Set(diagnostics)].join(', ')}` : '');
+        $('report').hidden = false;
+        setStatus(`Read ${reader.entryCount} entries without decompressing any of them.`, 'ok');
+      } catch (err) {
+        $('report').hidden = true;
+        if (err instanceof ZipError) setStatus(`${err.code}\n${err.message}`, 'error');
+        else setStatus(String(err && err.stack ? err.stack : err), 'error');
+      }
+    }
+
+    drop.addEventListener('click', () => file.click());
+    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+    file.addEventListener('change', () => { if (file.files[0]) inspect(file.files[0]); });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      drop.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) inspect(e.dataTransfer.files[0]);
+    });
+  </script>
+</body>
+</html>
