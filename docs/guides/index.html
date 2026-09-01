@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guides — zipnative</title>
-  <meta name="description" content="zipnative guides: quickstart, the security model, and the determinism contract.">
+  <meta name="description" content="zipnative guides: quickstart, the security model, the determinism contract, and the frozen error-code vocabulary.">
+  <meta name="theme-color" content="#2563eb">
   <meta property="og:locale" content="en_US">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -17,36 +18,52 @@
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
   <nav class="nav" aria-label="Main">
-    <a class="nav-brand" href="../">zip<span>native</span></a>
-    <div class="nav-links">
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
-      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
     </div>
   </nav>
-  <article class="guide-content">
-    <h1>Guides</h1>
-    <div class="guide-cards">
-      <a class="card" href="quickstart.html">
-        <h3>Quickstart</h3>
-        <p>Install and cover the four core workflows in five minutes.</p>
-      </a>
-      <a class="card" href="security.html">
-        <h3>Security model</h3>
-        <p>The threat table, the CWE-tagged bounds, and the forward reader's trust caveat.</p>
-      </a>
-      <a class="card" href="determinism.html">
-        <h3>The determinism contract</h3>
-        <p>Three guarantee levels and the frozen encoder constants behind reproducible archives.</p>
-      </a>
-      <a class="card" href="errors.html">
-        <h3>Errors and error codes</h3>
-        <p>The frozen machine-readable vocabulary: branch on err.code, never on message text.</p>
-      </a>
-    </div>
-  </article>
-  <script src="../app.js" defer></script>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › Guides</div>
+    <article class="guide-content">
+      <h1>Guides</h1>
+      <ul class="guide-toc-list">
+        <li>
+          <a href="quickstart.html">Quickstart</a>
+          <span class="guide-toc-desc">Install and cover the four core workflows in five minutes.</span>
+        </li>
+        <li>
+          <a href="security.html">Security model</a>
+          <span class="guide-toc-desc">The threat table, the CWE-tagged bounds, and the forward reader's trust caveat.</span>
+        </li>
+        <li>
+          <a href="determinism.html">The determinism contract</a>
+          <span class="guide-toc-desc">Three guarantee levels and the frozen encoder constants behind reproducible archives.</span>
+        </li>
+        <li>
+          <a href="errors.html">Errors and error codes</a>
+          <span class="guide-toc-desc">The frozen machine-readable vocabulary: branch on err.code, never on message text.</span>
+        </li>
+      </ul>
+    </article>
+  </main>
+
+  <script src="guide.js" defer></script>
 </body>
 </html>

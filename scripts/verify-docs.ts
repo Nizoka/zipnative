@@ -263,8 +263,11 @@ for (const page of htmlPages) {
             if (/^https?:/.test(target)) continue;
             let resolvedTarget = page;
             if (target !== '') {
-                const abs = resolve(dirname(resolve(ROOT, page)), target.replace(/\.md$/, '.html'));
+                let abs = resolve(dirname(resolve(ROOT, page)), target.replace(/\.md$/, '.html'));
                 if (!existsSync(abs)) continue; // internal-links reports the missing file
+                // Directory URLs ('../#features') serve their index.html.
+                if (statSync(abs).isDirectory()) abs = resolve(abs, 'index.html');
+                if (!existsSync(abs)) continue;
                 resolvedTarget = rel(abs);
             }
             if (!idsOf(resolvedTarget).has(fragment)) {

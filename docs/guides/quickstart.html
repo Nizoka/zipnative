@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quickstart — zipnative</title>
   <meta name="description" content="Install zipnative and cover the four core workflows — random-access reading, secure extraction, deterministic creation and incremental modification — in five minutes.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://zipnative.dev/guides/quickstart.html">
+  <meta property="og:title" content="Quickstart — zipnative">
+  <meta property="og:description" content="Install zipnative and cover the four core workflows — random-access reading, secure extraction, deterministic creation and incremental modification — in five minutes.">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -18,17 +24,55 @@
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/index.html" },
+          { "@type": "ListItem", "position": 3, "name": "Quickstart" }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Quickstart",
+        "inLanguage": "en",
+        "description": "Install zipnative and cover the four core workflows — random-access reading, secure extraction, deterministic creation and incremental modification — in five minutes.",
+        "url": "https://zipnative.dev/guides/quickstart.html",
+        "author": { "@type": "Organization", "name": "Nizoka", "url": "https://zipnative.dev/" }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
   <nav class="nav" aria-label="Main">
-    <a class="nav-brand" href="../">zip<span>native</span></a>
-    <div class="nav-links">
-      <a href="index.html">Guides</a>
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a>
-      <button class="theme-toggle" aria-label="Toggle theme">◐</button>
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="index.html">Guides</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
     </div>
   </nav>
-  <article id="guide-content" class="guide-content" data-md="quickstart.md" data-prerendered="true">
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="index.html">Guides</a> › Quickstart</div>
+    <article id="guide-content" class="guide-content" data-md="quickstart.md" data-prerendered="true">
 <!-- guide:render:start -->
 <h1 id="quickstart">Quickstart</h1>
 <blockquote>
@@ -102,6 +146,11 @@ only, so prefer <code>openZip()</code> whenever the whole archive is available.<
 </ul>
 <!-- guide:render:end -->
   </article>
-  <script src="../app.js" defer></script>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
 </body>
 </html>

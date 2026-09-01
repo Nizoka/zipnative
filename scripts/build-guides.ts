@@ -8,8 +8,9 @@
  * (marked ≥ 5 no longer emits heading ids itself). Content is
  * first-party Markdown reviewed in the repo, so no sanitiser runs.
  *
- * The pages are prerendered-only: no client-side markdown, no CDN
- * scripts — the strictly-more-zero-dependency variant of the pdfnative
+ * The pages are prerendered-only: no client-side markdown rendering.
+ * Prism (SRI-pinned CDN, 0.8+) is the sole external load — the same
+ * highlighting path as the pdfnative
  * pipeline. `applyGuideRender` is pure (returns the updated shell) so
  * verify-docs's guide-render-sync rule rebuilds in memory and
  * byte-compares.
