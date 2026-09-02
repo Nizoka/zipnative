@@ -96,9 +96,13 @@ SKIP — never simulated. The Linux CI runner has all of them; the Windows
 runner contributes 7-Zip, bsdtar, Python and jar. Exit codes are read per
 each tool's own contract: Info-ZIP unzip's documented exit 1 ("warning
 errors … but processing completed successfully anyway" — fires on an empty
-zipfile and on SFX prefixes) and 7-Zip's documented exit 1 ("Warning (Non
-fatal error(s))" — fires on prepended data) count as a pass; exit 2+ —
-where both tools put real format and CRC errors — fails.
+zipfile and on SFX prefixes) counts as a pass; codes where the tools put
+real format and CRC errors fail. Two tool asymmetries are carried as
+documented per-file exclusions rather than loosened exit codes: bsdtar on
+Windows mangles non-ASCII names, and modern 7-Zip's `t` verb refuses
+archives it must open with an offset (SFX prefixes) even though its `x`
+verb extracts the very same archive — which the level-2 matrix does, with
+a byte-compare, so the content stays proven.
 
 ## Level 2 — the differential extraction matrix
 
