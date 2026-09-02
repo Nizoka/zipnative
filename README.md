@@ -2,11 +2,17 @@
 
 **A safe, deterministic, streaming ZIP engine for modern apps — and for the agents that operate them.**
 
+[![CI](https://github.com/Nizoka/zipnative/actions/workflows/ci.yml/badge.svg)](https://github.com/Nizoka/zipnative/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Nizoka/zipnative/actions/workflows/codeql.yml/badge.svg)](https://github.com/Nizoka/zipnative/actions/workflows/codeql.yml)
+[![npm version](https://img.shields.io/npm/v/zipnative)](https://www.npmjs.com/package/zipnative)
+[![npm downloads](https://img.shields.io/npm/dm/zipnative)](https://www.npmjs.com/package/zipnative)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/zipnative)](https://bundlephobia.com/package/zipnative)
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
 ![93.9 percent statement coverage](https://img.shields.io/badge/coverage-93.9%25-brightgreen)
-![Node 22 or newer](https://img.shields.io/badge/node-%E2%89%A522-blue)
-![MIT license](https://img.shields.io/badge/license-MIT-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![npm provenance](https://img.shields.io/badge/provenance-signed-blueviolet)
+[![website](https://img.shields.io/badge/zipnative.dev-2563EB)](https://zipnative.dev)
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
@@ -176,6 +182,10 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 - overlapping entries and central-directory/local-header disagreement rejected (parser-differential smuggling);
 - Zip64 sentinel spoofing cross-checked; ambiguous EOCD placement refused;
 - the engine never opens a socket, never touches the filesystem, and never evals.
+
+## Conformance
+
+ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 validator existed. So zipnative ships both halves of the answer: **the first open clause-by-clause ISO/IEC 21320-1:2015 conformance validator** (`npm run validate:zip` — an independent raw parser, never the engine's own, checking the ISO-standardised ZIP profile the Library of Congress recognises), and an **Archivematica-grade differential extraction matrix** (`npm run test:interop` — six independent parsers extract and byte-compare zipnative's archives on Linux and Windows). Both gates are blocking in CI and re-run before every npm publish. Every archive zipnative writes conforms to the ISO profile; the full story — including why spec-valid ≠ safe — is in the [conformance guide](docs/guides/conformance.md).
 
 ## Known limitations
 

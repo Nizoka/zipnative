@@ -129,6 +129,14 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   states the promise; `tsdoc-complete` polices 77/77 documented exports)
 - npm Trusted Publishing (OIDC) + provenance + CycloneDX SBOM; the
   publish workflow re-runs the entire gate before `npm publish`
+- The conformance authority gate ("veraZIP"): `validate:zip` — the
+  first open clause-by-clause ISO/IEC 21320-1:2015 validator
+  (independent raw parser; JHOVE has no ZIP module, `zip -T` aliases
+  `unzip -tqq`) + foreign integrity pass, blocking in conformance.yml
+  and publish.yml on top of the six-parser extraction matrix
+- Agent token economy: docs/agent-brief.md (+ landing "Copy as
+  prompt"), completed llms-index token budget; satellite `--summary`/
+  `--fields` contract recorded in AGENTS.md
 - Visual identity: the zipper-cut Z (logo, favicon, og-image, GitHub
   social preview)
 

@@ -10,6 +10,10 @@ zipnative is a **zero-runtime-dependency, pure-TypeScript ZIP engine**:
 random access, secure-by-default extraction, streaming, deterministic output,
 incremental modification. Sibling of pdfnative — same doctrine, same shape.
 
+Quality bar: GAFAM-grade. 386 tests, 93.9% statement coverage measured at
+v1.0.0, blocking ISO/IEC 21320-1 + six-parser interop conformance gates in
+CI, SLSA provenance on npm.
+
 ## Commands
 
 ```bash
@@ -22,6 +26,7 @@ npm run build             # tsup → dist (esm+cjs+dts)
 npm run check:package     # build + attw + publint
 npm run test:interop      # foreign-tool conformance matrix
 npm run test:generate     # sample corpus → test-output/ (git-ignored)
+npm run validate:zip      # ISO/IEC 21320-1 conformance over the corpus
 npm run bench             # vitest bench (bench/)
 ```
 
@@ -95,6 +100,14 @@ dependencies — a PR or AI draft proposing one fails review mechanically
 `zipnative-mcp`, each in its own repo pinning `zipnative ^x.y.0`. The core
 stays dependency-free by exiling integrations there. Cross-repo version
 facts live in `docs/assets/ecosystem.json` (single source of truth).
+
+Satellite agent contract (committed for their design, like pdfnative's):
+a global `--json` envelope carrying `err.code` verbatim, plus
+token-economy output projection — compact JSON by default, `--summary`
+for a minimal verdict, `--fields a,b.c` dot-path projection. The library
+side of token economy ships today: `docs/agent-brief.md` (paste-ready
+briefing) and `docs/llms-index.json` (byte + approximate token budget per
+artefact, so agents choose what to fetch before spending the tokens).
 
 ## AI governance
 

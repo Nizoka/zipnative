@@ -85,6 +85,14 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://zipnative.dev/guides/conformance.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/conformance.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/conformance.html"/>
+    <lastmod>2026-09-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://zipnative.dev/guides/use-cases.html</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/use-cases.html"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/use-cases.html"/>

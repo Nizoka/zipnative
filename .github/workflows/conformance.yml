@@ -1,18 +1,20 @@
-# Interop conformance gate — zipnative's analogue of pdfnative's veraPDF gate.
+# Conformance gate — zipnative's analogue of pdfnative's veraPDF gate,
+# in two layers:
 #
-# Every archive zipnative generates must be accepted by the mainstream
-# extractors real users run. The driver (scripts/run-interop.ts) builds an
-# archive matrix through the public API, validates each archive with every
-# tool available on the runner, extracts, and byte-compares the content.
+#   1. ISO/IEC 21320-1:2015 profile validation (scripts/validate-zip.ts)
+#      — the sample corpus is regenerated and every archive is checked
+#      clause by clause against the ISO-standardised ZIP profile by an
+#      independent raw parser (never the engine's own), plus a foreign
+#      integrity pass. Declared-hostile archives MUST fail. BLOCKING
+#      since v1.0.0.
+#   2. The differential-extraction matrix (scripts/run-interop.ts) —
+#      every archive zipnative generates must be accepted, extracted and
+#      byte-compared by the mainstream extractors real users run, in
+#      both directions (zipnative also reads foreign producers).
+#      BLOCKING since M2 (v0.2.0).
 #
 # Tool versions are echoed into the job summary first, so a failure is
 # attributable to "our bug" vs "runner image tool drift".
-#
-# Status: BLOCKING since M2 (v0.2.0) — the driver validates both
-# directions: zipnative reads foreign producers byte-for-byte, and
-# foreign extractors validate/extract zipnative's archive matrix
-# (store/deflate, streamed data-descriptor entries, deterministic mode,
-# unicode names, zip64 entry counts).
 name: Conformance
 
 on:
@@ -22,6 +24,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/run-interop.ts'
+      - 'scripts/validate-zip.ts'
+      - 'scripts/generate-samples.ts'
+      - 'scripts/generators/**'
       - '.github/workflows/conformance.yml'
   pull_request:
     branches: [main, master]
@@ -29,6 +34,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'scripts/run-interop.ts'
+      - 'scripts/validate-zip.ts'
+      - 'scripts/generate-samples.ts'
+      - 'scripts/generators/**'
       - '.github/workflows/conformance.yml'
 
 permissions:
@@ -45,6 +53,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js 22
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -67,6 +77,12 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Generate the sample corpus
+        run: npm run test:generate
+
+      - name: Validate ISO/IEC 21320-1 conformance (blocking)
+        run: npm run validate:zip
+
       - name: Run interop matrix
         run: npm run test:interop
 
@@ -76,6 +92,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js 22
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -95,6 +113,12 @@ jobs:
           tar.exe --version | Select-Object -First 1 >> $env:GITHUB_STEP_SUMMARY
           java -version 2>&1 | Select-Object -First 1 >> $env:GITHUB_STEP_SUMMARY
           '```' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Generate the sample corpus
+        run: npm run test:generate
+
+      - name: Validate ISO/IEC 21320-1 conformance (blocking)
+        run: npm run validate:zip
 
       - name: Run interop matrix
         run: npm run test:interop

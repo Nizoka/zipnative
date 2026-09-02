@@ -74,6 +74,12 @@ Every refusal above is thrown with a **stable machine-readable error code**
 - CI runs CodeQL, OpenSSF Scorecard, `npm audit`, and an adversarial fuzzing
   suite (truncation, corruption, bombs, encoding tricks) on every push,
   on Linux and Windows.
+- Every archive zipnative writes is validated clause by clause against
+  ISO/IEC 21320-1:2015 by an engine-independent validator
+  (`npm run validate:zip`), blocking in CI and before every publish — see
+  the [conformance guide](docs/guides/conformance.md). Conformance is not
+  safety: hostile-but-spec-valid archives (zip-slip et al.) are exactly why
+  the guards above exist.
 
 ### Known limitations
 

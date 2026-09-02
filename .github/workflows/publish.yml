@@ -26,6 +26,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -81,9 +83,16 @@ jobs:
           npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm
           npx publint
 
-      # Interop gate: the domain conformance check (the analogue of a PDF
-      # library's veraPDF gate) — foreign extractors must accept and
-      # byte-compare zipnative's archive matrix. BLOCKING.
+      # Conformance gates: the domain checks (the analogue of a PDF
+      # library's veraPDF gate) — the release must never publish samples
+      # the reference validator rejects, nor archives foreign extractors
+      # cannot read. BLOCKING.
+      - name: Generate the sample corpus
+        run: npm run test:generate
+
+      - name: Validate ISO/IEC 21320-1 conformance (blocking)
+        run: npm run validate:zip
+
       - name: Interop conformance (blocking)
         run: npm run test:interop
 

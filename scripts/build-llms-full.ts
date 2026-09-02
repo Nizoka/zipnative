@@ -130,9 +130,11 @@ function guideEntry(root: string, name: string): GuideIndexEntry {
 export function buildLlmsIndex(root: string): string {
     const artefactSources: Array<[string, string, string]> = [
         ['llms.txt', 'llms.txt', 'Machine-readable documentation index (the entry point).'],
+        ['agent-brief.md', 'docs/agent-brief.md', "A compact briefing for AI agents writing code with zipnative — paste it into a coding agent's context."],
         ['llms-full.txt', 'docs/llms-full.txt', 'Concatenated documentation: llms.txt + README + every guide.'],
         ['llms-recipes.txt', 'docs/llms-recipes.txt', 'Every executable recipe, fenced as TypeScript.'],
         ['assets/api.json', 'docs/assets/api.json', 'The mechanically extracted export surface — the API ground truth.'],
+        ['data/errors.json', 'docs/data/errors.json', 'The frozen error-code and diagnostic registry — code, class, cause, remedy.'],
         ['assets/ecosystem.json', 'docs/assets/ecosystem.json', 'Versions, counts and milestones — the single source of truth.'],
     ];
     const artefacts = artefactSources.map(([url, path, description]) => {

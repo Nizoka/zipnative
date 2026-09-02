@@ -102,6 +102,26 @@
     });
   });
 
+  // "Copy as prompt": fetch a same-origin document and copy its text
+  // (the agent-brief pattern shared with pdfnative).
+  document.querySelectorAll('[data-copy-url]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var url = btn.getAttribute('data-copy-url');
+      if (!url) return;
+      var prev = btn.textContent;
+      fetch(url).then(function (r) {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.text();
+      }).then(copyText).then(function () {
+        btn.textContent = '✓ Copied';
+      }, function () {
+        btn.textContent = '✗ Copy failed';
+      }).then(function () {
+        setTimeout(function () { btn.textContent = prev; }, 1500);
+      });
+    });
+  });
+
   // ── Code tabs ─────────────────────────────────────────────
   // Scoped to the Examples section so future page controls are never
   // captured by this tablist.

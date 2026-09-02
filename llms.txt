@@ -6,11 +6,14 @@
 
 Verified on: 2026-09-02
 
-Machine-readable artefacts: docs/assets/api.json (the full export surface —
-mechanically extracted, never guessed), docs/data/errors.json (the frozen
-error-code and diagnostic registry — code, class, cause, remedy),
-docs/llms-full.txt (concatenated documentation), docs/llms-index.json
-(artefact/guide index with sizes). Interactive playgrounds (toolkit,
+Machine-readable artefacts: docs/agent-brief.md (a compact briefing for
+coding agents — paste it into your context), docs/assets/api.json (the
+full export surface — mechanically extracted, never guessed),
+docs/data/errors.json (the frozen error-code and diagnostic registry —
+code, class, cause, remedy), docs/llms-full.txt (concatenated
+documentation), docs/llms-index.json (artefact/guide index with byte and
+approximate token sizes, so you can decide what to fetch before spending
+the tokens). Interactive playgrounds (toolkit,
 inspector, secure-extraction demo, incremental modify, forward streaming)
 run the real engine in the browser at docs/playgrounds/ — the published
 package from a version-pinned CDN, falling back to a committed copy of the
@@ -118,6 +121,16 @@ library's own bundle.
   `crcMatch`/`sizeMatch`/`localHeaderMatch`, and encrypted or
   stream-only-codec entries are reported as `skipped` with a reason —
   never faked as corruption. Only caller bugs (invalid limits) throw.
+
+## Conformance (v1.0)
+
+- Every archive zipnative writes conforms to ISO/IEC 21320-1:2015 (the
+  ISO-standardised ZIP profile) — validated clause by clause in CI by
+  `npm run validate:zip`, the first open ISO 21320-1 validator (raw
+  parser, independent of the engine), plus a six-parser differential
+  extraction matrix (`npm run test:interop`). Guide:
+  docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
+  ISO-conformant, which is why the extraction guards exist on top.
 
 ## Docs
 

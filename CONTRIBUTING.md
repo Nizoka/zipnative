@@ -57,10 +57,9 @@ on drift.
 The documentation site (`docs/`) is static HTML/CSS/JS with **no build
 step for viewing** — every guide is pre-rendered into its shell by
 `npm run docs:guides` (verify-docs's `guide-render-sync` keeps the
-committed render in sync with its Markdown source). Opening
-`docs/index.html` as a `file://` URL works for every current page; an
-HTTP origin is still the faithful preview (correct root-relative paths,
-and required the day interactive pages arrive):
+committed render in sync with its Markdown source). The playgrounds use
+module scripts and a CDN loader, so serve over HTTP (`file://` blocks
+them; the same port pdfnative uses):
 
 ```bash
 npm run docs:serve                                # http://localhost:5000
@@ -69,9 +68,33 @@ npx http-server docs/ -p 5000
 python -m http.server 5000 --directory docs/
 ```
 
-Entry points: `/` (landing), `/guides/` (guide hub). After editing a
+Entry points: `http://localhost:5000/` (landing),
+`http://localhost:5000/guides/` (guide hub),
+`http://localhost:5000/playgrounds/` (playgrounds). After editing a
 guide's `.md`, run `npm run docs:guides && npm run docs:llms` and commit
 the regenerated files — CI rejects stale renders.
+
+## Conformance validation (the veraPDF analogue)
+
+Every generated sample archive is validated clause by clause against
+ISO/IEC 21320-1:2015 by `scripts/validate-zip.ts` — an independent raw
+parser that never imports the engine (a validator sharing the engine's
+parser would attest the engine with the engine):
+
+```bash
+npm run test:generate   # 33-sample corpus → test-output/ (git-ignored)
+npm run validate:zip    # ISO profile + foreign integrity pass
+```
+
+No external installation is needed — level 0 is pure byte parsing; the
+foreign integrity pass uses whatever tools your machine has (`unzip`,
+`7z`, `python`, `tar`, `jar`) and prints SKIP for the rest. Expectations
+are two-sided: the hostile archives from the refusals/forward-trust
+corpora MUST fail with their declared clause, and the scanned counts are
+canaried against `declared.iso21320` in `docs/assets/ecosystem.json` —
+adding or removing a sample means updating that manifest. **CI is
+blocking**: both conformance jobs (Linux + Windows) and the publish
+workflow run the validator before the interop matrix.
 
 ## Honesty rules
 

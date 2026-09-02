@@ -106,12 +106,18 @@
         GitHub
       </a>
     </div>
-    <div class="hero-badges">
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero runtime dependencies" loading="lazy"></a>
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript strict mode" loading="lazy"></a>
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/coverage-93.9%25-brightgreen" alt="93.9 percent statement coverage" loading="lazy"></a>
-      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/node-%E2%89%A522-blue" alt="Node 22 or newer" loading="lazy"></a>
-      <a href="https://github.com/Nizoka/zipnative/blob/main/LICENSE" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license" loading="lazy"></a>
+    <div class="hero-badges" aria-label="Project status badges">
+      <a href="https://github.com/Nizoka/zipnative/actions/workflows/ci.yml" rel="noopener" target="_blank"><img src="https://github.com/Nizoka/zipnative/actions/workflows/ci.yml/badge.svg" alt="CI status" height="20" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative/actions/workflows/codeql.yml" rel="noopener" target="_blank"><img src="https://github.com/Nizoka/zipnative/actions/workflows/codeql.yml/badge.svg" alt="CodeQL security scan" height="20" loading="lazy"></a>
+      <a href="https://securityscorecards.dev/viewer/?uri=github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://api.securityscorecards.dev/projects/github.com/Nizoka/zipnative/badge" alt="OpenSSF Scorecard" height="20" loading="lazy"></a>
+      <a href="https://www.npmjs.com/package/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/npm/v/zipnative" alt="npm version" height="20" loading="lazy"></a>
+      <a href="https://www.npmjs.com/package/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/npm/dm/zipnative" alt="npm monthly downloads" height="20" loading="lazy"></a>
+      <a href="https://bundlephobia.com/package/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/bundlephobia/minzip/zipnative" alt="Minified + gzipped bundle size" height="20" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero runtime dependencies" height="20" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript strict mode" height="20" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/coverage-93.9%25-brightgreen" alt="93.9 percent statement coverage" height="20" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/provenance-signed-blueviolet" alt="npm provenance signed" height="20" loading="lazy"></a>
+      <a href="https://github.com/Nizoka/zipnative/blob/main/LICENSE" rel="noopener" target="_blank"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" height="20" loading="lazy"></a>
     </div>
     <div class="install-cmd">
       <code id="install-cmd">npm install zipnative</code>
@@ -322,7 +328,14 @@ const saved = mod.save();                // untouched entries never recompressed
           diagnostics channel, executable recipes, and the mechanically extracted export
           surface in <a href="assets/api.json">api.json</a> — plus
           <a href="llms.txt">llms.txt</a> and <a href="llms-full.txt">llms-full.txt</a>
-          for context ingestion. Developed under a human-in-the-loop AI governance policy.
+          for context ingestion, with byte and approximate token budgets for every artefact
+          in <a href="llms-index.json">llms-index.json</a> so an agent can decide what to
+          fetch before spending the tokens. Developed under a human-in-the-loop AI
+          governance policy.
+        </p>
+        <p style="margin-top: 16px;">
+          <a class="btn btn-secondary" href="agent-brief.md">Agent brief →</a>
+          <button class="btn btn-secondary" type="button" data-copy-url="agent-brief.md">Copy as prompt</button>
         </p>
       </div>
     </div>
@@ -365,6 +378,7 @@ const saved = mod.save();                // untouched entries never recompressed
             <li><a href="guides/determinism.html">Determinism contract</a></li>
             <li><a href="guides/errors.html">Errors and error codes</a></li>
             <li><a href="guides/use-cases.html">Use cases</a></li>
+            <li><a href="guides/conformance.html">Conformance and validation</a></li>
           </ul>
         </div>
         <div class="footer-col">

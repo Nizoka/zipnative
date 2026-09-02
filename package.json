@@ -54,6 +54,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:interop": "npx tsx scripts/run-interop.ts",
+    "validate:zip": "npx tsx scripts/validate-zip.ts",
     "test:generate": "npx tsx scripts/generate-samples.ts",
     "fixtures:generate": "npx tsx scripts/generate-fixtures.ts",
     "verify:docs": "npx tsx scripts/verify-docs.ts",

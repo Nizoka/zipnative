@@ -25,6 +25,7 @@ zipnative 1.0.0 — the zero-dependency TypeScript ZIP engine, frozen and publis
 | Verification (v0.9) | `verifyZip` one-call machine-readable report; never throws for archive problems |
 | Sources (v0.9) | `ByteSource` — `ReadableStream` accepted everywhere, release-without-cancel enforced on every exit path |
 | Publication (v1.0) | `publish.yml`: OIDC Trusted Publishing, provenance, CycloneDX SBOM, full gate re-run before `npm publish` |
+| Conformance (v1.0) | `validate:zip` — the first open clause-by-clause ISO/IEC 21320-1:2015 validator (independent raw parser) + foreign integrity pass, blocking in CI and publish; conformance guide |
 | Freeze (v1.0) | TSDoc 77/77 + `tsdoc-complete` rule; SECURITY.md supported-versions + compatibility promise; docs flipped to 1.x stance; new logo/OG/social identity |
 
 ## Deferred to post-1.0 (recorded, not forgotten)
@@ -36,7 +37,8 @@ zipnative 1.0.0 — the zero-dependency TypeScript ZIP engine, frozen and publis
 
 ## Docs, samples & playgrounds
 
-- 6 guides (quickstart, security, determinism, errors, use-cases + hub), machine-rendered from `.md`; 22-rule `verify:docs`.
+- 6 guides (quickstart, security, determinism, errors, use-cases, conformance) + hub, machine-rendered from `.md`; 22-rule `verify:docs`.
+- `docs/agent-brief.md` — the paste-ready agent briefing, budgeted with every artefact in `llms-index.json`.
 - 33 self-validated sample archives (hostile refusal corpus generated under inverse validation), 12 executable recipes, 5 browser playgrounds with CDN-first engine loading (version-pinned esm.sh → jsDelivr → committed local bundle).
 - Machine-readable artefacts: `api.json` (77 exports, extracted), `errors.json` (frozen registry), llms pipeline.
 
@@ -50,6 +52,7 @@ zipnative 1.0.0 — the zero-dependency TypeScript ZIP engine, frozen and publis
 | Build | `npm run build` | ESM + CJS + d.ts, main + worker entries |
 | Package | `npm run check:package` | attw (node16 profile) + publint: clean |
 | Pack | `npm pack --dry-run` | 21 files, ~484 kB tarball — dist + LICENSE/README/CHANGELOG/SECURITY/THIRD-PARTY-NOTICES only |
+| ISO 21320-1 | `npm run test:generate && npm run validate:zip` | 29 conformant + 4 declared non-conformant (all as declared), canary green, foreign integrity 28/28 (1 documented exclusion) |
 | Interop | `npm run test:interop` | 2 producer reads + 17 write validations (Expand-Archive, bsdtar) — OK |
 | Docs | `npm run verify:docs` | 22 rules, 0 problems, 0 warnings |
 | Audit | `npm audit --audit-level=high` | 0 vulnerabilities |

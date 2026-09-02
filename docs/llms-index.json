@@ -6,14 +6,20 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 6805,
-      "approxTokens": 1701
+      "bytes": 7479,
+      "approxTokens": 1870
+    },
+    {
+      "url": "agent-brief.md",
+      "description": "A compact briefing for AI agents writing code with zipnative — paste it into a coding agent's context.",
+      "bytes": 3869,
+      "approxTokens": 967
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 51230,
-      "approxTokens": 12808
+      "bytes": 59711,
+      "approxTokens": 14928
     },
     {
       "url": "llms-recipes.txt",
@@ -28,13 +34,35 @@
       "approxTokens": 5666
     },
     {
+      "url": "data/errors.json",
+      "description": "The frozen error-code and diagnostic registry — code, class, cause, remedy.",
+      "bytes": 17241,
+      "approxTokens": 4310
+    },
+    {
       "url": "assets/ecosystem.json",
       "description": "Versions, counts and milestones — the single source of truth.",
-      "bytes": 972,
-      "approxTokens": 243
+      "bytes": 1413,
+      "approxTokens": 353
     }
   ],
   "guides": [
+    {
+      "title": "Conformance and validation",
+      "summary": "ZIP has no veraPDF — so zipnative ships the closest thing: the first open clause-by-clause ISO/IEC 21320-1:2015 validator, layered over a six-parser differential extraction matrix. This page is the authority story: what \"valid\" means for a ZIP archive, who checks it, and what a pass actually proves.",
+      "html": "guides/conformance.html",
+      "markdown": "guides/conformance.md",
+      "anchors": [
+        "why-there-was-no-verapdf-for-zip",
+        "level-0--the-isoiec-21320-12015-validator",
+        "level-1--foreign-integrity-pass",
+        "level-2--the-differential-extraction-matrix",
+        "running-it-locally",
+        "where-it-blocks"
+      ],
+      "bytes": 6095,
+      "approxTokens": 1524
+    },
     {
       "title": "The zipnative determinism contract",
       "summary": "Reproducible output is a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what `compression: { deterministic: true }` pins bit-for-bit on every runtime.",
@@ -79,8 +107,8 @@
         "verify-in-one-call",
         "going-further"
       ],
-      "bytes": 3430,
-      "approxTokens": 858
+      "bytes": 3549,
+      "approxTokens": 887
     },
     {
       "title": "Security model",
