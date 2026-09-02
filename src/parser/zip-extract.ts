@@ -18,7 +18,7 @@ import {
     type ZipEntry,
 } from '../types/zip-types.js';
 import { ZipSecurityError } from '../types/zip-errors.js';
-import { UNIX_TYPE_MASK, UNIX_TYPE_SYMLINK } from '../core/zip-constants.js';
+import { isSymlinkEntry } from '../core/zip-attributes.js';
 import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import { openZip } from './zip-reader.js';
 
@@ -93,10 +93,8 @@ export function sanitizeEntryPath(name: string): string | null {
     return segments.join('/');
 }
 
-/** Is this entry a Unix symlink (external-attribute file type S_IFLNK)? */
-function isSymlinkEntry(entry: ZipEntry): boolean {
-    return ((entry.externalAttributes >>> 16) & UNIX_TYPE_MASK) === UNIX_TYPE_SYMLINK;
-}
+// isSymlinkEntry moved to core/zip-attributes.ts (public since 0.9) —
+// the extractor applies the exact test external sinks are told to apply.
 
 interface PlannedEntry {
     readonly path: string;

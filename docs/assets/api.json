@@ -5,7 +5,7 @@
     "src/index.ts",
     "src/worker/index.ts"
   ],
-  "exportCount": 69,
+  "exportCount": 77,
   "exports": [
     {
       "name": "AddEntryOptions",
@@ -14,6 +14,14 @@
       "module": "src/core/zip-builder.ts",
       "signature": "export interface AddEntryOptions",
       "summary": "Per-entry options for `add`/`addDirectory`/`addStream`."
+    },
+    {
+      "name": "ByteSource",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-source.ts",
+      "signature": "export type ByteSource = AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>;",
+      "summary": "Any byte producer zipnative's streaming entry points accept."
     },
     {
       "name": "CodecCompressOptions",
@@ -190,6 +198,22 @@
       "module": "src/index.ts",
       "signature": "export const VERSION = '0.8.2';",
       "summary": "Library version — kept in sync with package.json by verify:docs."
+    },
+    {
+      "name": "VerifiedEntry",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-verify.ts",
+      "signature": "export interface VerifiedEntry extends EntryVerification",
+      "summary": "One entry's verification outcome inside a ZipVerificationReport."
+    },
+    {
+      "name": "VerifyZipOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-verify.ts",
+      "signature": "export interface VerifyZipOptions",
+      "summary": "Options for verifyZip."
     },
     {
       "name": "ZipBaseErrorCode",
@@ -400,6 +424,14 @@
       "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compression method."
     },
     {
+      "name": "ZipVerificationReport",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-verify.ts",
+      "signature": "export interface ZipVerificationReport",
+      "summary": "The machine-readable result of verifyZip."
+    },
+    {
       "name": "ZipWriter",
       "kind": "type",
       "subpath": ".",
@@ -472,6 +504,14 @@
       "summary": "Look up the codec for a compression-method id, or `null` if unregistered."
     },
     {
+      "name": "getUnixMode",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export function getUnixMode(entry: ZipEntry): number | null",
+      "summary": "The entry's Unix mode bits (type + permissions, e.g."
+    },
+    {
       "name": "initNodeZipCodecs",
       "kind": "value",
       "subpath": ".",
@@ -480,12 +520,20 @@
       "summary": "Resolve node:zlib in ESM contexts — both directions (inflate here, deflate via codecs/deflate.ts)."
     },
     {
+      "name": "isSymlinkEntry",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export function isSymlinkEntry(entry: ZipEntry): boolean",
+      "summary": "Is this entry a Unix symlink (external-attribute file type `S_IFLNK`)?"
+    },
+    {
       "name": "iterateZipEntries",
       "kind": "value",
       "subpath": ".",
       "module": "src/parser/zip-iterate.ts",
-      "signature": "export async function* iterateZipEntries( source: AsyncIterable<Uint8Array>, options?: IterateZipOptions, )",
-      "summary": "Iterate an archive's local entries off an async byte stream."
+      "signature": "export async function* iterateZipEntries( source: ByteSource, options?: IterateZipOptions, )",
+      "summary": "Iterate an archive's local entries off an async byte stream — an `AsyncIterable<Uint8Array>` or a Web `ReadableStream<Uint8Array>` (a `fetch` body, `File.stream()`, …) since 0.9."
     },
     {
       "name": "openZip",
@@ -526,6 +574,22 @@
       "module": "src/codecs/inflate.ts",
       "signature": "export function setInflateImpl(fn: ((data: Uint8Array, maxOutput: number) => Uint8Array) | null): void",
       "summary": "Inject a custom raw-deflate decompressor (tier 1), or `null` to remove it."
+    },
+    {
+      "name": "verifyZip",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/parser/zip-verify.ts",
+      "signature": "export function verifyZip(data: Uint8Array, options?: VerifyZipOptions): ZipVerificationReport",
+      "summary": "Deep-verify an archive in one call: eager structural validation, per-entry CRC-32/size/local-header checks, diagnostics collected."
+    },
+    {
+      "name": "ByteSource",
+      "kind": "type",
+      "subpath": "./worker",
+      "module": "src/core/zip-source.ts",
+      "signature": "export type ByteSource = AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>;",
+      "summary": "Any byte producer zipnative's streaming entry points accept."
     },
     {
       "name": "ParallelZipOptions",

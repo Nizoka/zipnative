@@ -38,4 +38,18 @@ export async function generate(ctx: GenerateContext): Promise<void> {
     write('incremental-updated.zip', `incremental-updated.zip (prefix intact: ${String(prefixIntact)})`, updated);
 
     write('incremental-compacted.zip', 'incremental-compacted.zip (true deletion)', applyEdits(base).saveCompact());
+
+    // Dead-bytes demo: replacing the dominant entry strands >50% of the
+    // original bytes, so save() fires ZIP_DEAD_BYTES_RATIO (the signal
+    // that saveCompact() is overdue). The diagnostic is asserted here —
+    // a silent sample would prove nothing.
+    let deadBytesFired = false;
+    const heavy = createZipModifier(openZip(base), {
+        onDiagnostic: (d) => { if (d.code === 'ZIP_DEAD_BYTES_RATIO') deadBytesFired = true; },
+    });
+    heavy.replaceEntry('data/large.txt', 'slim replacement\n');
+    heavy.removeEntry('obsolete.log');
+    const deadBytes = heavy.save();
+    if (!deadBytesFired) throw new Error('dead-bytes sample: ZIP_DEAD_BYTES_RATIO did not fire');
+    write('incremental-dead-bytes.zip', 'incremental-dead-bytes.zip (ZIP_DEAD_BYTES_RATIO fired)', deadBytes);
 }

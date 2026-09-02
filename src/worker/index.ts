@@ -48,9 +48,11 @@ import {
 } from '../core/zip-segments.js';
 import { streamArchive, type StreamOptions } from '../core/zip-stream-writer.js';
 
-// Re-exported so subpath consumers can name the type `stream()` accepts
-// without importing from the main entry.
+// Re-exported so subpath consumers can name the types `stream()` and
+// `addStream()` accept without importing from the main entry.
 export { type StreamOptions } from '../core/zip-stream-writer.js';
+export { type ByteSource } from '../core/zip-source.js';
+import { type ByteSource } from '../core/zip-source.js';
 import { detectConcurrency } from './worker-adapter.js';
 import { createDeflatePool, type WorkerSpawnSeam } from './worker-pool.js';
 
@@ -81,7 +83,7 @@ export interface ParallelZipOptions extends CreateZipOptions {
 export interface ParallelZipWriter {
     add(name: string, data: Uint8Array | string, options?: AddEntryOptions): void;
     addDirectory(name: string, options?: AddEntryOptions): void;
-    addStream(name: string, source: AsyncIterable<Uint8Array>, options?: AddEntryOptions): void;
+    addStream(name: string, source: ByteSource, options?: AddEntryOptions): void;
     setComment(comment: string | Uint8Array): void;
 
     /** Assemble the archive (async — workers). Throws if addStream() was used. */

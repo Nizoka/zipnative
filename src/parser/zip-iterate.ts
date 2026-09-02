@@ -62,6 +62,7 @@ import { decodeCp437, decodeUtf8Strict } from '../core/zip-encoding.js';
 import { dosDateTimeToDate } from '../core/zip-dos-time.js';
 import { parseExtraFields, resolveUtMtime, resolveZip64 } from '../core/zip-extra-fields.js';
 import { matchDataDescriptor, parseLocalFileHeader } from '../core/zip-structs.js';
+import { toByteIterable, type ByteSource } from '../core/zip-source.js';
 import { createChunkCursor, type ChunkCursor } from './zip-chunk-cursor.js';
 
 /**
@@ -107,17 +108,22 @@ const DRAIN_REMEDY = "consume the previous entry's data() fully or call skip() b
     + 'forward iteration cannot seek backwards';
 
 /**
- * Iterate an archive's local entries off an async byte stream. See the
- * module header for the trust caveat and the v0.5 data-descriptor scope.
+ * Iterate an archive's local entries off an async byte stream — an
+ * `AsyncIterable<Uint8Array>` or a Web `ReadableStream<Uint8Array>`
+ * (a `fetch` body, `File.stream()`, …) since 0.9. See the module header
+ * for the trust caveat and the v0.5 data-descriptor scope. When the
+ * iteration stops at the central directory, a ReadableStream source is
+ * left unread with its lock released — cancelling it stays the owner's
+ * decision.
  */
 export async function* iterateZipEntries(
-    source: AsyncIterable<Uint8Array>,
+    source: ByteSource,
     options?: IterateZipOptions,
 ): AsyncGenerator<StreamedZipEntry, void, undefined> {
     // Validate early, before any read.
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
-    const cursor = createChunkCursor(source);
+    const cursor = createChunkCursor(toByteIterable(source));
 
     let entryCount = 0;
     let totalProduced = 0;

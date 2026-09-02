@@ -49,6 +49,41 @@
       "surface": ["iterateZipEntries"],
       "since": "0.5.0",
       "expects": ["entries=data/log.txt,manifest.json", "manifest={\"name\":\"streamed\"}"]
+    },
+    {
+      "file": "parallel-create.ts",
+      "task": "Create an archive across worker threads, byte-identical to the sequential writer",
+      "surface": ["createParallelZip"],
+      "since": "0.5.0",
+      "expects": ["identical=true", "entries=3"]
+    },
+    {
+      "file": "resumable-inflate.ts",
+      "task": "Inflate a raw deflate stream chunk by chunk with exact consumed-byte reporting",
+      "surface": ["createInflator"],
+      "since": "0.8.0",
+      "expects": ["consumed-exact=true"]
+    },
+    {
+      "file": "custom-codec.ts",
+      "task": "Register a custom compression codec and read a foreign-method archive",
+      "surface": ["registerCodec", "crc32"],
+      "since": "0.8.0",
+      "expects": ["before-code=ZIP_UNSUPPORTED_METHOD", "after=exotic method payload"]
+    },
+    {
+      "file": "sanitize-external-sink.ts",
+      "task": "Apply zipnative's traversal gate to entry names in an external filesystem sink",
+      "surface": ["sanitizeEntryPath"],
+      "since": "0.8.1",
+      "expects": ["traversal=REFUSED", "device=REFUSED", "clean=docs/readme.md"]
+    },
+    {
+      "file": "verify-archive.ts",
+      "task": "Deep-verify an archive in one non-throwing, machine-readable call",
+      "surface": ["verifyZip"],
+      "since": "0.9.0",
+      "expects": ["good-ok=true", "bad-ok=false", "not-zip-code=ZIP_EOCD_NOT_FOUND"]
     }
   ]
 }

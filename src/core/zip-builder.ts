@@ -28,6 +28,7 @@ import { compareNames, validateEntryName } from './zip-encoding.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from './zip-dos-time.js';
 import { resolveLimits } from './zip-limits.js';
 import { assembleArchive, planArchive, type EntrySpec, type ZipCtx } from './zip-segments.js';
+import { toByteIterable, type ByteSource } from './zip-source.js';
 import { streamArchive, type StreamOptions } from './zip-stream-writer.js';
 
 /** Per-entry / archive-default compression settings. */
@@ -82,12 +83,13 @@ export interface ZipWriter {
     /** Add an explicit directory entry (a trailing `/` is appended if absent). */
     addDirectory(name: string, options?: AddEntryOptions): void;
     /**
-     * Add one file from an async chunk source. Forces the data-descriptor
+     * Add one file from an async chunk source — an `AsyncIterable` or a
+     * Web `ReadableStream<Uint8Array>` (0.9+). Forces the data-descriptor
      * layout for this entry and makes `toBytes()` unavailable — use
      * `stream()`. Sources are consumed once; the writer becomes
      * single-shot. Entries beyond 4 GiB are rejected (Known Limitations).
      */
-    addStream(name: string, source: AsyncIterable<Uint8Array>, options?: AddEntryOptions): void;
+    addStream(name: string, source: ByteSource, options?: AddEntryOptions): void;
     setComment(comment: string | Uint8Array): void;
 
     /** Assemble the archive synchronously. Throws if addStream() was used. */
@@ -211,9 +213,11 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
         addDirectory(name: string, entryOptions?: AddEntryOptions): void {
             makeSpec(name, true, null, null, entryOptions);
         },
-        addStream(name: string, source: AsyncIterable<Uint8Array>, entryOptions?: AddEntryOptions): void {
+        addStream(name: string, source: ByteSource, entryOptions?: AddEntryOptions): void {
             hasStreamEntries = true;
-            makeSpec(name, false, null, source, entryOptions);
+            // Normalise once at the boundary — everything downstream (the
+            // stream writer, the parallel writer) sees an AsyncIterable.
+            makeSpec(name, false, null, toByteIterable(source), entryOptions);
         },
         setComment(comment: string | Uint8Array): void {
             archiveComment = typeof comment === 'string' ? te.encode(comment) : comment;

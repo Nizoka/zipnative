@@ -12,6 +12,7 @@ export default defineConfig({
     resolve: {
         alias: [
             { find: /^zipnative$/, replacement: rootUrl('./src/index.ts') },
+            { find: /^zipnative\/worker$/, replacement: rootUrl('./src/worker/index.ts') },
         ],
     },
     test: {

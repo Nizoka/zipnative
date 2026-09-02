@@ -43,12 +43,29 @@ export {
 } from './core/zip-builder.js';
 export { type StreamOptions } from './core/zip-stream-writer.js';
 
+// ── 3c. Verifying: one-call deep validation (0.9) ────────────────────
+export {
+    verifyZip,
+    type VerifiedEntry,
+    type VerifyZipOptions,
+    type ZipVerificationReport,
+} from './parser/zip-verify.js';
+
 // ── 4. Modifying: incremental save / compact rewrite ─────────────────
 export {
     createZipModifier,
     type ZipModifier,
     type ZipModifierOptions,
 } from './parser/zip-modifier.js';
+
+// ── 4b. Entry attributes (0.9) ───────────────────────────────────────
+export {
+    getUnixMode,
+    isSymlinkEntry,
+} from './core/zip-attributes.js';
+
+// ── 4c. Byte sources for the streaming entry points (0.9) ────────────
+export { type ByteSource } from './core/zip-source.js';
 
 // ── 5. Entries and shared types ──────────────────────────────────────
 export type {

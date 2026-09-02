@@ -10,7 +10,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { openZip } from '../../src/index.ts';
+import { extractZip, openZip, ZipError } from '../../src/index.ts';
 
 export const OUTPUT_DIR = resolve(import.meta.dirname, '..', '..', 'test-output');
 
@@ -30,6 +30,21 @@ export interface GenerateContext {
      * other error aborts the run.
      */
     readonly writeSafe: (filepath: string, filename: string, bytes: Uint8Array) => void;
+    /**
+     * Write one DELIBERATELY-REFUSED sample (the refusals corpus). The
+     * inverse self-validation: the archive MUST fail the named operation
+     * with exactly `expectedCode`, or the generator aborts — a refusal
+     * sample that stopped being refused is a regression.
+     */
+    readonly writeRefusal: (
+        filepath: string,
+        filename: string,
+        bytes: Uint8Array,
+        via: 'openZip' | 'extractZip' | 'readEntry',
+        expectedCode: string,
+    ) => void;
+    /** Write a non-archive companion file (e.g. a JSON manifest) verbatim. */
+    readonly writeCompanion: (filepath: string, bytes: Uint8Array) => void;
 }
 
 export function createContext(): GenerateContext {
@@ -53,6 +68,31 @@ export function createContext(): GenerateContext {
                 throw err;
             }
             results.push({ file: filename, size: bytes.length, entries: reader.entryCount });
+        },
+        writeRefusal: (filepath: string, filename: string, bytes: Uint8Array, via, expectedCode): void => {
+            let observed: string | null = null;
+            try {
+                if (via === 'openZip') {
+                    openZip(bytes, { validate: 'eager', onDiagnostic: () => undefined });
+                } else if (via === 'extractZip') {
+                    extractZip(bytes, { onDiagnostic: () => undefined });
+                } else {
+                    const reader = openZip(bytes, { onDiagnostic: () => undefined });
+                    for (const entry of reader.entries()) reader.readEntry(entry);
+                }
+            } catch (err) {
+                observed = err instanceof ZipError ? err.code : `(non-ZipError: ${String(err)})`;
+            }
+            if (observed !== expectedCode) {
+                throw new Error(`refusal sample ${filename}: expected ${expectedCode} via ${via}, got ${observed ?? 'NO ERROR'}`);
+            }
+            mkdirSync(dirname(filepath), { recursive: true });
+            writeFileSync(filepath, bytes);
+            results.push({ file: `${filename} → ${expectedCode}`, size: bytes.length, entries: 0 });
+        },
+        writeCompanion: (filepath: string, bytes: Uint8Array): void => {
+            mkdirSync(dirname(filepath), { recursive: true });
+            writeFileSync(filepath, bytes);
         },
     };
 }

@@ -27,7 +27,7 @@
   "verifiedOn": "2026-09-01",
   "site": "https://zipnative.dev",
   "derived": {
-    "sampleZips": 22
+    "sampleZips": 33
   },
   "milestones": {
     "read": "0.1.0",

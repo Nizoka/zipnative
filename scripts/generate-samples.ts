@@ -19,6 +19,10 @@ import { generate as generateDeterministic } from './generators/deterministic.ts
 import { generate as generateComments } from './generators/comments.ts';
 import { generate as generateIncremental } from './generators/incremental.ts';
 import { generate as generateEdgeCases } from './generators/edge-cases.ts';
+import { generate as generateParallel } from './generators/parallel.ts';
+import { generate as generateRefusals } from './generators/refusals.ts';
+import { generate as generateForwardTrust } from './generators/forward-trust.ts';
+import { generate as generateAttributes } from './generators/attributes.ts';
 
 async function generateAll(): Promise<void> {
     const ctx = createContext();
@@ -46,6 +50,18 @@ async function generateAll(): Promise<void> {
 
     // ── Odd-but-legal edge cases (v0.4.0) ────────────────────────────
     await generateEdgeCases(ctx);
+
+    // ── Worker parallelism byte-identity (v0.5.0) ────────────────────
+    await generateParallel(ctx);
+
+    // ── Deliberate refusals + machine-readable manifest (v0.9.0) ─────
+    await generateRefusals(ctx);
+
+    // ── The forward reader's trust differential (v0.9.0) ─────────────
+    await generateForwardTrust(ctx);
+
+    // ── Unix attributes: modes + symlink (v0.9.0) ────────────────────
+    await generateAttributes(ctx);
 
     printSummary(ctx.results, ctx.outputDir);
 }
