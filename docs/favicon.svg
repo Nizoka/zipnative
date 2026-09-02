@@ -1,16 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <desc>zipnative — zero-dependency TypeScript ZIP engine</desc>
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <!-- Vertical gradient: keeps the mark readable at 16px tab size -->
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#3B82F6"/>
       <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
   </defs>
   <!-- Tile -->
   <rect x="2" y="2" width="28" height="28" rx="7" fill="url(#g)"/>
-  <!-- Folded corner — the family mark shared with pdfnative -->
-  <path d="M20.5 2h4.5a5 5 0 0 1 5 5v6L20.5 2z" fill="#93C5FD" opacity="0.35"/>
-  <path d="M20.5 2l9.5 11" stroke="#ffffff" stroke-width="0.7" opacity="0.35" fill="none"/>
-  <!-- Z monogram -->
-  <path d="M8.5 8.5h15v3.4H15.3l8.2 8.2v3.4h-15v-3.4h8.2L8.5 11.9z" fill="#ffffff"/>
+  <!-- Folded corner — the family mark, opacity raised for tiny sizes -->
+  <path d="M20.5 2h4.5a5 5 0 0 1 5 5v6L20.5 2z" fill="#93C5FD" opacity="0.5"/>
+  <!-- Zipper-cut Z monogram (fewer, larger teeth at favicon scale) -->
+  <path d="M8 8h16v3.8H16.3L24 19.6V24H8v-3.8h7.7L8 11.8z" fill="#ffffff"/>
+  <g fill="url(#g)">
+    <path d="M17.1 14.1l1.7-1.7 1.7 1.7-1.7 1.7z"/>
+    <path d="M11.5 17.9l1.7-1.7 1.7 1.7-1.7 1.7z"/>
+  </g>
 </svg>

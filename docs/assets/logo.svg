@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
-  <desc>zipnative logo</desc>
+  <desc>zipnative logo — the zipper-cut Z: a Z monogram whose diagonal carries interlocking zipper teeth in negative space</desc>
   <defs>
     <linearGradient id="logo-grad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#3B82F6"/>
@@ -12,7 +12,12 @@
   <path d="M25.5 3h5a6 6 0 0 1 6.5 6.5V16L25.5 3z" fill="#93C5FD" opacity="0.35"/>
   <path d="M25.5 3L37 16" stroke="#ffffff" stroke-width="0.8" opacity="0.35" fill="none"/>
   <!-- Z monogram -->
-  <path d="M10.5 10.5h19v4.2H19l10.5 10.6v4.2h-19v-4.2H21L10.5 14.7z" fill="#ffffff"/>
-  <!-- Zipper-pull eyelet punched through the diagonal -->
-  <circle cx="20" cy="20" r="2" fill="url(#logo-grad)"/>
+  <path d="M10 10h20v4.6H20.3L30 24.4V30H10v-4.6h9.7L10 15.6z" fill="#ffffff"/>
+  <!-- Zipper teeth biting the diagonal's edges, interlocking -->
+  <g fill="url(#logo-grad)">
+    <path d="M21.21 17.54l2-2 2 2-2 2z"/>
+    <path d="M25.09 21.46l2-2 2 2-2 2z"/>
+    <path d="M12.85 20.5l2-2 2 2-2 2z"/>
+    <path d="M16.73 24.42l2-2 2 2-2 2z"/>
+  </g>
 </svg>

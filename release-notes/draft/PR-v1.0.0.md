@@ -70,4 +70,5 @@ zipnative 1.0.0 — the zero-dependency TypeScript ZIP engine, frozen and publis
 - [ ] Verify CI is green on the pushed `main` (ci, conformance, docs, CodeQL).
 - [ ] Create the GitHub Release from tag `v1.0.0`, title `v1.0.0 — first stable npm release`, body = `release-notes/v1.0.0.md`.
 - [ ] The "Release published" event triggers `.github/workflows/publish.yml`: full gate re-run → CycloneDX SBOM attached to the Release → `npm publish --provenance --access public`.
+- [ ] GitHub repo Settings → Social preview: upload `docs/assets/social-preview.png` (1280×640).
 - [ ] Post-publish: `npm view zipnative version` → `1.0.0`; `npm audit signatures` in a consumer project confirms the provenance attestation; the playgrounds at zipnative.dev now load from the CDN (footer shows "CDN (host)").

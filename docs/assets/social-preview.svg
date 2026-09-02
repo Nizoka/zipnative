@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<!--
+  zipnative GitHub social preview (1280x640 — the repository "Social preview"
+  slot). Editable vector source. Rasterise to social-preview.png with headless
+  Chromium/Edge using a window size of 1280x640 and the screenshot flag:
+    msedge ++headless ++disable-gpu ++hide-scrollbars ++window-size=1280,640
+           ++screenshot=social-preview.png social-preview.svg
+  (replace ++ with double dashes). The committed PNG is the artefact of
+  record; text renders through the system font stack, so rasterise on a
+  machine with Segoe UI or equivalent.
+  Brand charter (shared with pdfnative): primary #2563eb, accent #1d4ed8,
+  primary-dim #3b82f6 on bg #0f172a / bg-alt #1e293b. All ids are sp-*
+  namespaced so the file can be inlined next to the og image without clashes.
+-->
+  <defs>
+    <linearGradient id="sp-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1326"/>
+      <stop offset="55%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="sp-glow" cx="50%" cy="8%" r="60%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sp-accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="sp-logo-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#sp-bg)"/>
+  <rect width="1280" height="640" fill="url(#sp-glow)"/>
+  <rect x="0.5" y="0.5" width="1279" height="639" fill="none" stroke="#1e293b"/>
+  <rect x="0" y="0" width="1280" height="6" fill="url(#sp-accent)"/>
+
+  <!-- Centred mark (logo geometry inlined, hairline dropped at raster sizes) -->
+  <g transform="translate(566, 96)">
+    <g transform="scale(3.7)">
+      <rect x="3" y="3" width="34" height="34" rx="8" fill="url(#sp-logo-grad)"/>
+      <path d="M25.5 3h5a6 6 0 0 1 6.5 6.5V16L25.5 3z" fill="#93C5FD" opacity="0.35"/>
+      <path d="M10 10h20v4.6H20.3L30 24.4V30H10v-4.6h9.7L10 15.6z" fill="#ffffff"/>
+      <g fill="url(#sp-logo-grad)">
+        <path d="M21.21 17.54l2-2 2 2-2 2z"/>
+        <path d="M25.09 21.46l2-2 2 2-2 2z"/>
+        <path d="M12.85 20.5l2-2 2 2-2 2z"/>
+        <path d="M16.73 24.42l2-2 2 2-2 2z"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="640" y="356" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="84" font-weight="800" fill="#f8fafc" letter-spacing="-2">zipnative</text>
+
+  <!-- Tagline -->
+  <text x="640" y="416" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="30" font-weight="500" fill="#e2e8f0">The safe, deterministic, streaming ZIP engine for TypeScript</text>
+  <text x="640" y="458" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="23" fill="#94a3b8">Zero runtime dependencies — Node, browsers, Deno, Bun and Workers</text>
+
+  <!-- Capability pills, centred -->
+  <g font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+     font-size="22" fill="#cbd5e1" text-anchor="middle">
+    <rect x="222" y="502" width="184" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="314" y="533">Deterministic</text>
+    <rect x="422" y="502" width="140" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="492" y="533">Zip-safe</text>
+    <rect x="578" y="502" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="654" y="533">Streaming</text>
+    <rect x="746" y="502" width="172" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="832" y="533">Incremental</text>
+    <rect x="934" y="502" width="136" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="1002" y="533">Workers</text>
+  </g>
+
+  <text x="640" y="600" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="20" fill="#475569">zipnative.dev · MIT · open source</text>
+</svg>
