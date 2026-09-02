@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-02
+
+**First stable release — the freeze is the feature.** No engine behavior changes vs 0.9.0. From 1.0.0 the public API surface (77 exports across `zipnative` and `zipnative/worker`), the 39-code error vocabulary and the `deterministic: true` output bytes are a semver commitment: removals, renames and byte changes are semver-major. First npm publication, via Trusted Publishing (OIDC) with provenance.
+
+### Added
+
+- **`.github/workflows/publish.yml`** — fires on "Release published" (+ manual dispatch); OIDC Trusted Publishing (no long-lived token), re-runs the entire gate (audit, typecheck, lint, coverage, build, dist smoke, worker integration, attw+publint, interop, verify:docs), generates a CycloneDX SBOM (90-day artifact + attached to the GitHub Release), then `npm publish --provenance --access public`. All actions SHA-pinned. `publishConfig.provenance: true` makes a laptop publish fail by design — CI is the only publish path.
+- **`tsdoc-complete`** — the 22nd verify-docs rule: every public export must carry a TSDoc summary (api.json `summary: null` fails the build); the five undocumented exports (`FLAG_*`, `METHOD_STORE`, `METHOD_DEFLATE`) got their docs — 77/77 documented.
+- **Visual identity** — the "zipper-cut Z" logo (three concepts rendered and compared at 28/40/74 px; the Z monogram's diagonal now carries interlocking zipper teeth in negative space), redesigned favicon (vertical gradient for 16 px legibility), regenerated og-image, and a new 1280×640 `social-preview.svg/png` for the GitHub social slot.
+- **`release-notes/draft/PR-v1.0.0.md`** — the release PR with the measured verification table and the human go-live runbook (push, npm Trusted Publisher configuration, GitHub Release, provenance check).
+
+### Changed
+
+- **Documentation flipped to its stable-era stance** — "through 1.0"/"pre-1.0" normalised to "in 1.x" everywhere (README, SECURITY, AGENTS, llms.txt, errors guide + registry, ai-governance); README status is now the semver freeze statement; satellites read "planned".
+- **SECURITY.md** — supported-versions table (`1.0.x` only), release-integrity section (Trusted Publishing, provenance verification via `npm audit signatures`, SBOM), and the explicit compatibility promise; `ecosystem.json` records the contracts (`deterministic_bytes_are_semver_major`, `error_codes_frozen_since: 0.8.0`).
+- **`package.json`** — `files` now ships `CHANGELOG.md`, `SECURITY.md` and `THIRD-PARTY-NOTICES.md` alongside `dist`/`LICENSE`/`README.md` (21-file tarball, `npm pack --dry-run` inspected). Sourcemaps are deliberately kept in the package. The `overrides.esbuild` pin is a build-time-only tool constraint — the published package has zero runtime dependencies.
+
 ## [0.9.0] - 2026-09-02
 
 **Final pre-freeze release candidate.** The last additive API wave before the 1.0 freeze — one-call verification, wider stream sources, entry-attribute helpers — plus full-project coverage hardening (tests, samples, recipes, playgrounds) and the Zip64-streaming decision record. No archive-byte changes; deterministic bytes unchanged.

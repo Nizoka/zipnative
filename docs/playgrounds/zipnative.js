@@ -3881,6 +3881,6 @@ function concatBytes(parts) {
 }
 
 // src/index.ts
-var VERSION = "0.9.0";
+var VERSION = "1.0.0";
 
 export { DEFAULT_ZIP_LIMITS, FLAG_DATA_DESCRIPTOR, FLAG_ENCRYPTED, FLAG_STRONG_ENCRYPTION, FLAG_UTF8, METHOD_DEFLATE, METHOD_STORE, VERSION, ZipDataError, ZipError, ZipFormatError, ZipLimitError, ZipSecurityError, ZipUnsupportedError, activeDeflateTier, crc32, createInflator, createZip, createZipModifier, extractZip, extractZipStream, getCodec, getUnixMode, initNodeZipCodecs, isSymlinkEntry, iterateZipEntries, openZip, registerCodec, sanitizeEntryPath, setDeflateImpl, setInflateImpl, verifyZip };

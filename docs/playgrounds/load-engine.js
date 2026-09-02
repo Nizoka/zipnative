@@ -11,7 +11,7 @@
    and checked by the playground-bundle verify-docs rule.
    ═══════════════════════════════════════════════════════════════ */
 
-const VERSION = '0.9.0';
+const VERSION = '1.0.0';
 
 const CDN_URLS = [
   `https://esm.sh/zipnative@${VERSION}`,

@@ -89,7 +89,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   CWE-67 refusal messages, documentation factuality sweep; verify-docs
   at 21 named rules.
 
-## 0.9 — Final pre-freeze release candidate ✅ *(shipped 2026-09-02, current)*
+## 0.9 — Final pre-freeze release candidate ✅ *(shipped 2026-09-02)*
 
 - `verifyZip(data, options?)` — one-call deep validation returning a
   stable machine-readable report (the agent-facing archive inventory);
@@ -122,10 +122,15 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - Deferred from the band, logged: a worker playground (the only page
   requiring build-tooling changes — post-1.0)
 
-## 1.0.0
+## 1.0.0 ✅ *(shipped 2026-09-02, current)*
 
-- Semver commitment; npm Trusted Publishing (OIDC) + provenance; the publish
-  workflow re-runs the entire gate
+- Semver commitment: the 77-export API surface, the 39-code error
+  vocabulary and the `deterministic: true` bytes are frozen (SECURITY.md
+  states the promise; `tsdoc-complete` polices 77/77 documented exports)
+- npm Trusted Publishing (OIDC) + provenance + CycloneDX SBOM; the
+  publish workflow re-runs the entire gate before `npm publish`
+- Visual identity: the zipper-cut Z (logo, favicon, og-image, GitHub
+  social preview)
 
 ## Post-1.0 satellites (separate repos)
 
