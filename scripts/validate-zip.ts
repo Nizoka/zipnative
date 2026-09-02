@@ -493,6 +493,8 @@ function main(): void {
         } else {
             unexpected += failed.length;
             console.error(`FAIL  integrity ${tool.id}: ${failed.length} archive(s) rejected — ${failed.join(', ')}`);
+            console.error(`      reproduce locally with the tool's own test command on the file(s) above; `
+                + `exit codes are read per tool contract (tests/helpers/interop-tools.ts, docs/guides/conformance.md)`);
         }
     }
 

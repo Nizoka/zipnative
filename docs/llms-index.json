@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 60339,
-      "approxTokens": 15085
+      "bytes": 60517,
+      "approxTokens": 15129
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
         "running-it-locally",
         "where-it-blocks"
       ],
-      "bytes": 6782,
-      "approxTokens": 1696
+      "bytes": 6960,
+      "approxTokens": 1740
     },
     {
       "title": "The zipnative determinism contract",

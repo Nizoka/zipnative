@@ -43,6 +43,14 @@ function run(
 // processed fine — so unzip alone accepts {0, 1}.
 const UNZIP_OK = [0, 1] as const;
 
+// 7-Zip's documented exit codes (man 7z, DIAGNOSTICS): 0 = no errors or
+// warnings; 1 = "Warning (Non fatal error(s))" — fires on prepended
+// data (SFX stubs: "there are some data before archive"), observed on
+// both CI runner images; 2 = fatal error, which is where CRC/format
+// failures land. Same policy as unzip: {0, 1} passes, 2+ fails. In
+// extract mode the byte-compare that follows remains the content gate.
+const SEVENZIP_OK = [0, 1] as const;
+
 function firstWorking(commands: string[], args: string[]): string | null {
     for (const command of commands) {
         if (run(command, args).ok) return command;
@@ -189,11 +197,11 @@ export const EXTRACTORS: InteropExtractor[] = [
         },
         test: (archivePath) => {
             const cmd = sevenZipCmd();
-            return cmd !== null && run(cmd, ['t', '-y', archivePath]).ok;
+            return cmd !== null && run(cmd, ['t', '-y', archivePath], undefined, SEVENZIP_OK).ok;
         },
         extract: (archivePath, destDir) => {
             const cmd = sevenZipCmd();
-            return cmd !== null && run(cmd, ['x', '-y', `-o${destDir}`, archivePath]).ok;
+            return cmd !== null && run(cmd, ['x', '-y', `-o${destDir}`, archivePath], undefined, SEVENZIP_OK).ok;
         },
     },
     {

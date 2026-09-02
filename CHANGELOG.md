@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`.github/prompts/quality-gate.prompt.md`** — the 7-step gate encoded as an agent prompt (vitest.config.ts as the threshold source of truth).
 - **Tree-shaking proof** ([tests/integration/treeshake.test.ts](tests/integration/treeshake.test.ts), dist-gated) — esbuild-bundles the published entry through package.json resolution and asserts: a crc32-only import carries none of the writer/codec subsystems (< 15% of the full surface, measured ~5%), a bare `import 'zipnative'` shakes to nothing (`"sideEffects": false` honoured — the test fails if the flag is removed, verified), and the entry is real ESM. Configuration was already conformant (type module, sideEffects false, types-first exports map, tsup treeshake); this pins it.
 
+### Fixed
+
+- **First-real-CI-run fixes** — (a) `tsconfig.test.json` now maps `zipnative/worker` in `paths`: without it, tsc fell back to package.json self-reference into `dist/`, which exists after a local build but not in CI where typecheck runs first (reproduced locally by hiding `dist/`, then proven fixed). (b) Foreign-tool exit codes are read per each tool's documented contract: Info-ZIP unzip and 7-Zip both use exit 1 for non-fatal warnings (empty zipfile, SFX-prefixed data) and exit 2+ for real format/CRC errors — the helpers treated any non-zero status as refusal, which broke `validate:zip`/`test:interop` on the CI runners; `{0, 1}` now passes for those two tools only, and a level-1 failure prints how to reproduce.
+
 ### Changed
 
 - **Documentation flipped to its stable-era stance** — "through 1.0"/"pre-1.0" normalised to "in 1.x" everywhere (README, SECURITY, AGENTS, llms.txt, errors guide + registry, ai-governance); README status is now the semver freeze statement; satellites read "planned".

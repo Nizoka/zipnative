@@ -21,8 +21,13 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "exactOptionalPropertyTypes": false,
+    // Every public subpath needs its own mapping: without one, tsc falls
+    // back to package.json self-reference into dist/ — which exists
+    // locally after a build but NOT in CI, where typecheck runs first
+    // (first real CI run failed exactly there on 'zipnative/worker').
     "paths": {
-      "zipnative": ["./src/index.ts"]
+      "zipnative": ["./src/index.ts"],
+      "zipnative/worker": ["./src/worker/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "recipes/**/*.ts", "bench/**/*.ts"],

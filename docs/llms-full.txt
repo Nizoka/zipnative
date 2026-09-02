@@ -483,9 +483,11 @@ checkers available on the machine (`unzip -t`, `7z t`,
 `python -m zipfile -t`, `tar -tf`, `jar tf`). Absent tools are reported as
 SKIP — never simulated. The Linux CI runner has all of them; the Windows
 runner contributes 7-Zip, bsdtar, Python and jar. Exit codes are read per
-each tool's own contract — Info-ZIP unzip's documented exit 1 ("warning
-errors … but processing completed successfully anyway") counts as a pass;
-2+ (format/CRC errors) fails.
+each tool's own contract: Info-ZIP unzip's documented exit 1 ("warning
+errors … but processing completed successfully anyway" — fires on an empty
+zipfile and on SFX prefixes) and 7-Zip's documented exit 1 ("Warning (Non
+fatal error(s))" — fires on prepended data) count as a pass; exit 2+ —
+where both tools put real format and CRC errors — fails.
 
 ## Level 2 — the differential extraction matrix
 
