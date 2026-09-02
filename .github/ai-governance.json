@@ -17,7 +17,7 @@
     "validator": "scripts/verify-issue.mjs",
     "pre_issue_checklist": [
       "no runtime dependency proposed",
-      "no anti-goal proposed (encryption pre-1.0, other formats, multi-disk, fs-in-engine, repair)",
+      "no anti-goal proposed (encryption in 1.x, other formats, multi-disk, fs-in-engine, repair)",
       "security-bound changes name the CWE and the SECURITY.md row",
       "reproduction archive or generator script attached for parser bugs"
     ]

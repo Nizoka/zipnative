@@ -150,6 +150,22 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
     }
 }
 
+// ── Rule: tsdoc-complete ─────────────────────────────────────────────
+// Every public export must carry a TSDoc summary — api.json's `summary`
+// is extracted, never guessed, so a null means the source has no doc
+// comment. Frozen surface (1.0): an undocumented export is a defect.
+{
+    const api = JSON.parse(read('docs/assets/api.json')) as {
+        exports?: ReadonlyArray<{ name?: string; subpath?: string; summary?: string | null }>;
+    };
+    for (const exp of api.exports ?? []) {
+        if (exp.summary === null || exp.summary === undefined || exp.summary === '') {
+            report('docs/assets/api.json', 1, 'tsdoc-complete',
+                `export '${exp.subpath ?? '.'}:${exp.name ?? '(unnamed)'}' has no TSDoc summary — document it at the declaration site`);
+        }
+    }
+}
+
 // ── Rule: llms-sync / llms-index-sync ────────────────────────────────
 {
     if (read('llms.txt') !== read('docs/llms.txt')) {

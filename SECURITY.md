@@ -8,7 +8,30 @@ issue for security reports. You should receive an initial response within 7 days
 
 ## Supported versions
 
-Only the latest published minor version receives security fixes before 1.0.
+| Version | Supported |
+|---|---|
+| 1.0.x | ✅ |
+| < 1.0 (git tags, never published to npm) | ❌ |
+
+Only the latest published minor version receives security fixes.
+
+## Release integrity
+
+Packages are published from CI via **npm Trusted Publishing (OIDC)** with
+**provenance attestations** — verify with `npm audit signatures`. A CycloneDX
+SBOM is attached to every GitHub Release. Nobody publishes from a laptop
+(`publishConfig.provenance` makes a local `npm publish` fail).
+
+## Compatibility promise (semver, 1.0+)
+
+- The public API surface ([docs/assets/api.json](docs/assets/api.json)) is
+  frozen: removals and behavioral breaks are semver-major.
+- The **39-code error vocabulary** ([docs/data/errors.json](docs/data/errors.json))
+  is frozen: removing or renaming a `err.code` is semver-major; additions are
+  semver-minor.
+- The `deterministic: true` **output bytes are part of the contract**:
+  changing them is semver-major
+  (`ecosystem.json → deterministic_bytes_are_semver_major`).
 
 ## Security model
 
@@ -54,7 +77,7 @@ Every refusal above is thrown with a **stable machine-readable error code**
 
 ### Known limitations
 
-- **Encrypted archives are not supported** (read or write) through 1.0.
+- **Encrypted archives are not supported** (read or write) in 1.x.
   ZipCrypto is cryptographically broken; supporting it would create false
   confidence. Encrypted entries are detected and fail with a typed error.
 - **`removeEntry` + incremental `save()` does not erase content** (v0.4+):

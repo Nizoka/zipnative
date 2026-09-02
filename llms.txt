@@ -30,7 +30,7 @@ library's own bundle.
   are rejected unless explicitly configured otherwise via `limits` /
   `rejectTraversal` / `rejectSymlinks` / `onDuplicate`.
 - Encrypted entries: detected (`entry.isEncrypted`), reads throw
-  `ZipUnsupportedError`. No encryption support pre-1.0.
+  `ZipUnsupportedError`. No encryption support in 1.x.
 - The engine never touches the filesystem — `extractZip` returns
   `{ path, data, entry }[]`; writing to disk is the caller's (or the future
   CLI's) job. `sanitizeEntryPath()` is exported for external sinks.
@@ -124,5 +124,5 @@ library's own bundle.
 - README.md: positioning, quick start, comparison, limitations
 - SECURITY.md: threat model and every bound with CWE tags
 - ROADMAP.md: 0.1 read → 0.2 deterministic write → 0.4 incremental modify →
-  0.5 workers → 1.0
+  0.5 workers → 0.9 RC → 1.0 (frozen API, npm + provenance) → satellites
 - AGENTS.md: conventions and architecture for contributors and agents

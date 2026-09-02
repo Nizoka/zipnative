@@ -29,10 +29,14 @@ export const MAX_EOCD_SCAN = EOCD_SIZE + 0xFFFF;
 
 // ── General-purpose flag bits ────────────────────────────────────────
 
-export const FLAG_ENCRYPTED = 0x0001;          // bit 0 — ZipCrypto/AES marker
-export const FLAG_DATA_DESCRIPTOR = 0x0008;    // bit 3 — sizes/CRC trail the data
-export const FLAG_STRONG_ENCRYPTION = 0x0040;  // bit 6
-export const FLAG_UTF8 = 0x0800;               // bit 11 — EFS: name/comment are UTF-8
+/** General-purpose bit 0 — the entry is encrypted (ZipCrypto/AES marker). */
+export const FLAG_ENCRYPTED = 0x0001;
+/** General-purpose bit 3 — sizes/CRC trail the data in a data descriptor. */
+export const FLAG_DATA_DESCRIPTOR = 0x0008;
+/** General-purpose bit 6 — strong encryption (always refused, like bit 0). */
+export const FLAG_STRONG_ENCRYPTION = 0x0040;
+/** General-purpose bit 11 (EFS) — the name and comment bytes are UTF-8. */
+export const FLAG_UTF8 = 0x0800;
 
 // ── Zip64 sentinels ──────────────────────────────────────────────────
 

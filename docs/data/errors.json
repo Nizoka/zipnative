@@ -105,7 +105,7 @@
       "raisedWhen": "The limits override itself is invalid: an unknown key, or a non-positive/NaN value.",
       "remedy": "Fix the limits object at the call site — valid keys are listed in the message." },
     { "code": "ZIP_UNSUPPORTED_ENCRYPTION", "class": "ZipUnsupportedError", "since": "0.8.0", "feature": "zipcrypto | strong-encryption",
-      "raisedWhen": "An entry is encrypted (ZipCrypto or strong encryption) — encryption is unsupported through 1.0 by policy.",
+      "raisedWhen": "An entry is encrypted (ZipCrypto or strong encryption) — encryption is unsupported in 1.x by policy.",
       "remedy": "Check entry.isEncrypted to route around such entries; encrypted entries remain copyable by the modifier without decompression." },
     { "code": "ZIP_UNSUPPORTED_METHOD", "class": "ZipUnsupportedError", "since": "0.8.0", "feature": "method:<n>",
       "raisedWhen": "An entry uses a compression method with no registered codec.",

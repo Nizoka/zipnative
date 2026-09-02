@@ -83,7 +83,7 @@ types/  ◄─ codecs/ ◄─ core/ ◄─ parser/ ◄─ worker/
 
 ## What zipnative will NOT do
 
-No encryption through 1.0 (detect + typed error only). No other archive
+No encryption in 1.x (detect + typed error only). No other archive
 formats or built-in exotic codecs. No multi-disk. No filesystem I/O in the
 engine. No archive repair. No sockets, no eval — ever. No runtime
 dependencies — a PR or AI draft proposing one fails review mechanically
@@ -91,7 +91,7 @@ dependencies — a PR or AI draft proposing one fails review mechanically
 
 ## Ecosystem context
 
-`zipnative` (this repo, core) → satellites post-1.0: `zipnative-cli`,
+`zipnative` (this repo, core) → planned satellites: `zipnative-cli`,
 `zipnative-mcp`, each in its own repo pinning `zipnative ^x.y.0`. The core
 stays dependency-free by exiling integrations there. Cross-repo version
 facts live in `docs/assets/ecosystem.json` (single source of truth).

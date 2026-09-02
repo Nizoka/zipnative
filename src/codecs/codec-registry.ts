@@ -41,8 +41,9 @@ export interface CodecCompressOptions {
     readonly deterministic: boolean;
 }
 
-/** ZIP compression-method ids for the built-in codecs. */
+/** ZIP compression-method id 0 — stored, no compression. */
 export const METHOD_STORE = 0;
+/** ZIP compression-method id 8 — raw DEFLATE (RFC 1951). */
 export const METHOD_DEFLATE = 8;
 
 let _registry: Map<number, ZipCodec> | undefined;

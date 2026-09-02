@@ -92,32 +92,32 @@
       "kind": "value",
       "subpath": ".",
       "module": "src/core/zip-constants.ts",
-      "signature": "export const FLAG_DATA_DESCRIPTOR = 0x0008; // bit 3 — sizes/CRC trail the data",
-      "summary": null
+      "signature": "export const FLAG_DATA_DESCRIPTOR = 0x0008;",
+      "summary": "General-purpose bit 3 — sizes/CRC trail the data in a data descriptor."
     },
     {
       "name": "FLAG_ENCRYPTED",
       "kind": "value",
       "subpath": ".",
       "module": "src/core/zip-constants.ts",
-      "signature": "export const FLAG_ENCRYPTED = 0x0001; // bit 0 — ZipCrypto/AES marker",
-      "summary": null
+      "signature": "export const FLAG_ENCRYPTED = 0x0001;",
+      "summary": "General-purpose bit 0 — the entry is encrypted (ZipCrypto/AES marker)."
     },
     {
       "name": "FLAG_STRONG_ENCRYPTION",
       "kind": "value",
       "subpath": ".",
       "module": "src/core/zip-constants.ts",
-      "signature": "export const FLAG_STRONG_ENCRYPTION = 0x0040; // bit 6",
-      "summary": null
+      "signature": "export const FLAG_STRONG_ENCRYPTION = 0x0040;",
+      "summary": "General-purpose bit 6 — strong encryption (always refused, like bit 0)."
     },
     {
       "name": "FLAG_UTF8",
       "kind": "value",
       "subpath": ".",
       "module": "src/core/zip-constants.ts",
-      "signature": "export const FLAG_UTF8 = 0x0800; // bit 11 — EFS: name/comment are UTF-8",
-      "summary": null
+      "signature": "export const FLAG_UTF8 = 0x0800;",
+      "summary": "General-purpose bit 11 (EFS) — the name and comment bytes are UTF-8."
     },
     {
       "name": "Inflator",
@@ -141,7 +141,7 @@
       "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export const METHOD_DEFLATE = 8;",
-      "summary": null
+      "summary": "ZIP compression-method id 8 — raw DEFLATE (RFC 1951)."
     },
     {
       "name": "METHOD_STORE",
@@ -149,7 +149,7 @@
       "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export const METHOD_STORE = 0;",
-      "summary": "ZIP compression-method ids for the built-in codecs."
+      "summary": "ZIP compression-method id 0 — stored, no compression."
     },
     {
       "name": "OpenZipOptions",

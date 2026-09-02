@@ -10,7 +10,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** The engine is feature-complete — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), resumable inflater (v0.6), the expanded interop gate and guide renderer (v0.7), the **frozen machine-readable error-code vocabulary** (v0.8), and one-call verification, `ReadableStream` sources and entry-attribute helpers (v0.9). The [roadmap](ROADMAP.md) continues with the final API-freeze release candidate toward 1.0. Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
+> **Status: 1.0 — stable.** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
 
 ## Why zipnative?
 
@@ -190,7 +190,7 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 
 ## What zipnative will NOT do
 
-- **No encryption, read or write, through 1.0.** ZipCrypto is cryptographically broken (Biham–Kocher); writing it would be harm dressed as a feature. AES (AE-2) may come post-1.0 behind an injected crypto provider. Encrypted entries are *detected* (`entry.isEncrypted`) and reads fail with a typed `ZipUnsupportedError`.
+- **No encryption, read or write, in 1.x.** ZipCrypto is cryptographically broken (Biham–Kocher); writing it would be harm dressed as a feature. AES (AE-2) may come in a later major behind an injected crypto provider. Encrypted entries are *detected* (`entry.isEncrypted`) and reads fail with a typed `ZipUnsupportedError`.
 - **No other archive formats.** No 7z, RAR, tar, gzip; no zstd/bzip2/LZMA codecs built in (the codec registry is the extension point).
 - **No multi-disk/spanned archives** — detected and refused cleanly.
 - **No filesystem I/O in the engine.** Extraction returns data plus sanitized paths; writing files to disk is the CLI's job.
@@ -202,8 +202,8 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 | Package | Purpose | Status |
 |---|---|---|
 | `zipnative` | core engine (this repo) | active |
-| `zipnative-cli` | command-line tool, agent-grade JSON contract | planned post-1.0 |
-| `zipnative-mcp` | MCP server for AI agents | planned post-1.0 |
+| `zipnative-cli` | command-line tool, agent-grade JSON contract | planned |
+| `zipnative-mcp` | MCP server for AI agents | planned |
 
 The core stays dependency-free by exiling every dependency-bearing integration to a satellite repo — the pdfnative ecosystem pattern.
 

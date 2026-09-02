@@ -26,6 +26,10 @@
   },
   "verifiedOn": "2026-09-02",
   "site": "https://zipnative.dev",
+  "contracts": {
+    "deterministic_bytes_are_semver_major": true,
+    "error_codes_frozen_since": "0.8.0"
+  },
   "derived": {
     "sampleZips": 33
   },

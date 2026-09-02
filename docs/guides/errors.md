@@ -121,7 +121,7 @@ Carries `feature` from the closed `ZipUnsupportedFeature` vocabulary:
 
 | Code | Raised when |
 |---|---|
-| `ZIP_UNSUPPORTED_ENCRYPTION` | An entry is encrypted — unsupported through 1.0 by policy; check `entry.isEncrypted` to route around it. |
+| `ZIP_UNSUPPORTED_ENCRYPTION` | An entry is encrypted — unsupported in 1.x by policy; check `entry.isEncrypted` to route around it. |
 | `ZIP_UNSUPPORTED_METHOD` | A compression method has no registered codec — `registerCodec()` one. |
 | `ZIP_UNSUPPORTED_MULTI_DISK` | The archive is multi-disk/spanned — an explicit anti-goal. |
 | `ZIP_UNSUPPORTED_ZIP64_STREAMING` | An `addStream()` entry exceeds 4 GiB — buffer via `add()` or split. |
