@@ -130,7 +130,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.4.0",
     "@vitest/coverage-v8": "^4.1.8",
     "adm-zip": "^0.6.0",
     "eslint": "^9.0.0",
