@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Playgrounds — zipnative</title>
-  <meta name="description" content="Run zipnative in your browser: build deterministic archives, inspect any .zip's central directory, and watch the secure-extraction guards reject hostile archives — all on a local zero-dependency bundle.">
+  <meta name="description" content="Run zipnative in your browser: build deterministic archives, inspect any .zip's central directory, edit without recompressing, stream forward, and watch the secure-extraction guards reject hostile archives.">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:locale" content="en_US">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
@@ -30,11 +30,13 @@
         "isPartOf": { "@id": "https://zipnative.dev/#website" },
         "mainEntity": {
           "@type": "ItemList",
-          "numberOfItems": 3,
+          "numberOfItems": 5,
           "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Archive toolkit", "url": "https://zipnative.dev/playgrounds/toolkit.html" },
             { "@type": "ListItem", "position": 2, "name": "Archive inspector", "url": "https://zipnative.dev/playgrounds/inspect.html" },
-            { "@type": "ListItem", "position": 3, "name": "Secure extraction", "url": "https://zipnative.dev/playgrounds/secure-extract.html" }
+            { "@type": "ListItem", "position": 3, "name": "Secure extraction", "url": "https://zipnative.dev/playgrounds/secure-extract.html" },
+            { "@type": "ListItem", "position": 4, "name": "Incremental modify", "url": "https://zipnative.dev/playgrounds/modify.html" },
+            { "@type": "ListItem", "position": 5, "name": "Forward streaming", "url": "https://zipnative.dev/playgrounds/stream.html" }
           ]
         }
       },
@@ -73,12 +75,14 @@
     <article class="guide-content">
       <h1>Playgrounds</h1>
       <blockquote>
-        <p>Every playground runs the <strong>real engine</strong> in your browser — a committed
-        copy of zipnative's own zero-dependency <code>dist/index.js</code>, loaded locally
-        (no CDN, no npm, nothing to install). What you see is exactly what the library does.</p>
+        <p>Every playground runs the <strong>real engine</strong> in your browser — the published
+        zipnative package from a CDN pinned to this site's version, with a committed local copy of
+        <code>dist/index.js</code> as fallback (each page's footer shows which source loaded).
+        What you see is exactly what the library does.</p>
       </blockquote>
-      <p>These pages use the synchronous APIs, so they run the pure-TS tier —
-      <code>initNodeZipCodecs()</code> is a Node-only optimisation and is never called here.</p>
+      <p>The synchronous APIs on these pages run the pure-TS tier (<code>initNodeZipCodecs()</code>
+      is a Node-only optimisation and is never called here); the forward-streaming page's async
+      iteration may additionally use the browser's own <code>DecompressionStream</code>.</p>
       <div class="pg-grid">
         <a class="pg-card" href="toolkit.html">
           <div class="pg-icon" aria-hidden="true">🧰</div>
@@ -104,6 +108,24 @@
           <div class="pg-tags"><span class="pg-tag">extractZip</span><span class="pg-tag">err.code</span><span class="pg-tag">zip-slip</span></div>
           <span class="pg-cta">Open demo →</span>
         </a>
+        <a class="pg-card" href="modify.html">
+          <div class="pg-icon" aria-hidden="true">✏️</div>
+          <h3>Incremental modify</h3>
+          <p>Edit an archive without recompressing a single entry — compare the append-only
+          <code>save()</code> against <code>saveCompact()</code>, byte for byte, and watch the
+          dead-bytes diagnostic fire.</p>
+          <div class="pg-tags"><span class="pg-tag">createZipModifier</span><span class="pg-tag">saveCompact</span><span class="pg-tag">diagnostics</span></div>
+          <span class="pg-cta">Open modifier →</span>
+        </a>
+        <a class="pg-card" href="stream.html">
+          <div class="pg-icon" aria-hidden="true">🌊</div>
+          <h3>Forward streaming</h3>
+          <p>Read a ZIP you cannot seek: forward iteration off a chunked
+          <code>ReadableStream</code>, the resumable inflater's live byte counters, and the trust
+          caveat versus <code>openZip</code>.</p>
+          <div class="pg-tags"><span class="pg-tag">iterateZipEntries</span><span class="pg-tag">createInflator</span><span class="pg-tag">ReadableStream</span></div>
+          <span class="pg-cta">Open streaming →</span>
+        </a>
       </div>
     </article>
   </main>
@@ -117,6 +139,8 @@
             <li><a href="toolkit.html">Archive toolkit</a></li>
             <li><a href="inspect.html">Archive inspector</a></li>
             <li><a href="secure-extract.html">Secure extraction</a></li>
+            <li><a href="modify.html">Incremental modify</a></li>
+            <li><a href="stream.html">Forward streaming</a></li>
           </ul>
         </div>
         <div class="footer-col">

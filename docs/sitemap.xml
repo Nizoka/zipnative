@@ -45,6 +45,22 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://zipnative.dev/playgrounds/modify.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/modify.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/modify.html"/>
+    <lastmod>2026-09-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/playgrounds/stream.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/stream.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/stream.html"/>
+    <lastmod>2026-09-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://zipnative.dev/guides/</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/"/>

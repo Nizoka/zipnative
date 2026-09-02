@@ -57,6 +57,8 @@
       <a href="./toolkit.html" aria-current="page">Archive toolkit</a>
       <a href="./inspect.html">Archive inspector</a>
       <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html">Incremental modify</a>
+      <a href="./stream.html">Forward streaming</a>
       <a href="./" style="margin-left:auto;">All →</a>
     </nav>
     <article class="guide-content">
@@ -100,7 +102,7 @@ Built entirely in the browser.</textarea>
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-meta">
-        <span>MIT License · © 2026 Nizoka · runs the committed dist bundle, locally</span>
+        <span>MIT License · © 2026 Nizoka · engine: <span id="engine-source">…</span></span>
         <span><a href="./">← All playgrounds</a></span>
       </div>
     </div>
@@ -108,7 +110,9 @@ Built entirely in the browser.</textarea>
 
   <script src="playground.js" defer></script>
   <script type="module">
-    import { createZip, openZip, METHOD_STORE, ZipError } from './zipnative.js';
+    import { loadEngine } from './load-engine.js';
+    const { mod: { createZip, openZip, METHOD_STORE, ZipError }, source: engineSource } = await loadEngine();
+    const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
 
     const $ = (id) => document.getElementById(id);
     const te = new TextEncoder();

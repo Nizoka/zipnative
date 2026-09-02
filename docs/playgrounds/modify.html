@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incremental modify — zipnative playground</title>
+  <meta name="description" content="Edit a ZIP archive without recompressing a single entry: createZipModifier's append-only save() versus the compacting saveCompact(), with live byte counts and the ZIP_DEAD_BYTES_RATIO diagnostic — in your browser.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/modify.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/modify.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/modify.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative Incremental modify",
+    "url": "https://zipnative.dev/playgrounds/modify.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › Incremental modify</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html" aria-current="page">Incremental modify</a>
+      <a href="./stream.html">Forward streaming</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>Edit without recompressing</h1>
+      <p><code>createZipModifier()</code> edits an archive without touching the entries you keep:
+      <code>save()</code> appends the changes after the original bytes (fast, but replaced data
+      lingers as <em>dead bytes</em>), while <code>saveCompact()</code> rewrites canonically and
+      truly deletes — still <strong>without recompressing anything</strong>. Pick edits, apply, and
+      compare the two outputs byte for byte.</p>
+
+      <p>The demo archive holds a dominant <code>report.csv</code> (~24&nbsp;KB), a small
+      <code>logo.svg</code> and a <code>readme.txt</code>.</p>
+
+      <div class="pg-toolbar">
+        <label><input type="checkbox" id="edit-replace" checked> replace <code>report.csv</code> (smaller)</label>
+        <label><input type="checkbox" id="edit-add" checked> add <code>changelog.txt</code></label>
+        <label><input type="checkbox" id="edit-remove"> remove <code>logo.svg</code></label>
+        <button id="apply" class="btn btn-primary" type="button">Apply edits &amp; save →</button>
+      </div>
+
+      <div id="status" class="pg-status" role="status" aria-live="polite"></div>
+      <div id="report" hidden>
+        <div class="pg-table-wrap">
+          <table class="pg-table">
+            <thead><tr><th>Output</th><th>Bytes</th><th>Entries</th><th>Notes</th></tr></thead>
+            <tbody id="entry-rows"></tbody>
+          </table>
+        </div>
+        <div class="pg-output" id="summary"></div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · engine: <span id="engine-source">…</span></span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { loadEngine } from './load-engine.js';
+    const { mod: { createZip, openZip, createZipModifier, ZipError }, source: engineSource } = await loadEngine();
+    const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
+
+    const $ = (id) => document.getElementById(id);
+    const te = new TextEncoder();
+    const status = $('status');
+
+    function setStatus(msg, kind) { status.className = 'pg-status ' + kind; status.textContent = msg; }
+    function fmtBytes(n) {
+      if (n < 1024) return n + ' B';
+      return (n / 1024).toFixed(1) + ' KB';
+    }
+
+    // Deterministic pseudo-random hex rows — compressible, but not so
+    // compressible that report.csv stops dominating the archive.
+    function makeCsv(rows) {
+      let seed = 0x2F6E2B1 >>> 0;
+      const lines = ['id,checksum,size'];
+      for (let i = 0; i < rows; i++) {
+        seed = (Math.imul(seed, 48271) >>> 0) % 0x7fffffff;
+        lines.push(`${i},${seed.toString(16).padStart(8, '0')},${seed % 65536}`);
+      }
+      return lines.join('\n');
+    }
+
+    function buildBase() {
+      const zip = createZip({ compression: { deterministic: true } });
+      zip.add('report.csv', te.encode(makeCsv(1200)));
+      zip.add('logo.svg', te.encode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#1D4ED8"/></svg>'));
+      zip.add('readme.txt', te.encode('demo archive for the incremental modifier\n'));
+      return zip.toBytes();
+    }
+
+    function row(label, bytes, entries, note) {
+      const tr = document.createElement('tr');
+      for (const c of [label, fmtBytes(bytes), String(entries), note]) {
+        const td = document.createElement('td'); td.textContent = c; tr.appendChild(td);
+      }
+      $('entry-rows').appendChild(tr);
+    }
+
+    function apply() {
+      try {
+        const base = buildBase();
+        const reader = openZip(base);
+        const diagnostics = [];
+        const mod = createZipModifier(reader, { onDiagnostic: (d) => diagnostics.push(d.code) });
+
+        const edits = [];
+        if ($('edit-replace').checked) { mod.replaceEntry('report.csv', te.encode(makeCsv(60))); edits.push('replace report.csv'); }
+        if ($('edit-add').checked) { mod.addEntry('changelog.txt', te.encode('1.0.0 — edited in the browser without recompression\n')); edits.push('add changelog.txt'); }
+        if ($('edit-remove').checked) { mod.removeEntry('logo.svg'); edits.push('remove logo.svg'); }
+
+        const t0 = performance.now();
+        const appended = mod.save();          // append-only: original bytes verbatim + edits
+        const tSave = performance.now();
+        const compacted = mod.saveCompact();  // canonical rewrite, no recompression
+        const tCompact = performance.now();
+
+        // Both outputs must re-open — the archive is its own proof.
+        const ra = openZip(appended, { validate: 'eager' });
+        const rc = openZip(compacted, { validate: 'eager' });
+
+        $('entry-rows').innerHTML = '';
+        row('original', base.length, reader.entryCount, 'untouched — the modifier never mutates it');
+        row('save()', appended.length, ra.entryCount,
+          edits.length === 0 ? 'no edits → returns the SAME buffer reference'
+            : `appended in ${(tSave - t0).toFixed(1)} ms — replaced/removed data lingers as dead bytes`);
+        row('saveCompact()', compacted.length, rc.entryCount,
+          `rewritten in ${(tCompact - tSave).toFixed(1)} ms — removed data is truly gone`);
+
+        const dead = appended.length - compacted.length;
+        const deadFired = diagnostics.includes('ZIP_DEAD_BYTES_RATIO');
+        $('summary').textContent =
+          (edits.length ? `edits: ${edits.join(', ')}` : 'no edits selected') + '\n' +
+          `dead bytes carried by save(): ${fmtBytes(Math.max(dead, 0))} (${appended.length > 0 ? ((dead / appended.length) * 100).toFixed(0) : 0}% of the output)\n` +
+          `diagnostics: ${diagnostics.length ? [...new Set(diagnostics)].join(', ') : '(none)'}` +
+          (deadFired
+            ? '\n\n⚠ ZIP_DEAD_BYTES_RATIO — more than half of save()’s output is dead weight. The remedy is in the diagnostic: use saveCompact().'
+            : (edits.length ? '\n\nNo dead-bytes diagnostic — the appended zone stays a minor share of the output.' : ''));
+        $('report').hidden = false;
+        setStatus(`Applied ${edits.length} edit${edits.length === 1 ? '' : 's'} — both outputs re-opened with eager validation.`, 'ok');
+      } catch (err) {
+        $('report').hidden = true;
+        if (err instanceof ZipError) setStatus(`${err.code}\n${err.message}`, 'error');
+        else setStatus(String(err && err.stack ? err.stack : err), 'error');
+      }
+    }
+
+    $('apply').addEventListener('click', apply);
+    apply();
+  </script>
+</body>
+</html>

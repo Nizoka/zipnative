@@ -130,6 +130,15 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
                 report(bundlePath, 1, 'playground-bundle', 'differs from dist/index.js — run `npm run docs:playground`');
             }
         }
+        // The CDN loader's version pin must track the manifest too.
+        const loaderPath = 'docs/playgrounds/load-engine.js';
+        if (existsSync(resolve(ROOT, loaderPath))) {
+            const pin = read(loaderPath).match(/const VERSION = '([^']+)';/);
+            if (pin === null || pin[1] !== pkg.version) {
+                report(loaderPath, 1, 'playground-bundle',
+                    `CDN pin ${pin?.[1] ?? '(missing)'} != package.json ${pkg.version} — run \`npm run docs:playground\``);
+            }
+        }
     }
 }
 

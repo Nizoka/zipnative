@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forward streaming — zipnative playground</title>
+  <meta name="description" content="Read a ZIP you cannot seek: iterateZipEntries over a chunked ReadableStream, the resumable inflater's live bytesConsumed/bytesProduced counters, and the trust caveat versus openZip — in your browser.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/stream.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/stream.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/stream.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative Forward streaming",
+    "url": "https://zipnative.dev/playgrounds/stream.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › Forward streaming</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html">Incremental modify</a>
+      <a href="./stream.html" aria-current="page">Forward streaming</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>Read a ZIP you cannot seek</h1>
+      <p>A <code>fetch</code> body or a pipe has no end to seek to, so there is no central
+      directory to read first. <code>iterateZipEntries()</code> walks the local records forward
+      off a <code>ReadableStream</code>, and the resumable inflater underneath reports exactly
+      how many compressed bytes it consumed. Run all three demos below.</p>
+
+      <h2>1 · Forward iteration over a chunked stream</h2>
+      <div class="pg-toolbar">
+        <label>chunk size
+          <select id="chunk-size" class="pg-picker" style="flex:0 0 auto;min-width:120px">
+            <option value="7">7 bytes</option>
+            <option value="64" selected>64 bytes</option>
+            <option value="1024">1024 bytes</option>
+          </select>
+        </label>
+        <button id="run-iterate" class="btn btn-primary" type="button">Stream the archive →</button>
+      </div>
+      <div id="iterate-status" class="pg-status" role="status" aria-live="polite"></div>
+      <div id="iterate-report" hidden>
+        <div class="pg-table-wrap">
+          <table class="pg-table">
+            <thead><tr><th>#</th><th>Name</th><th>Method</th><th>Size</th><th>Read as</th></tr></thead>
+            <tbody id="iterate-rows"></tbody>
+          </table>
+        </div>
+        <div class="pg-output" id="iterate-summary"></div>
+      </div>
+
+      <h2>2 · The resumable inflater, byte by byte</h2>
+      <p><code>createInflator()</code> is the only decompression tier that can suspend mid-block
+      and report its exact consumption — watch <code>bytesConsumed</code> and
+      <code>bytesProduced</code> advance as a real deflate payload is fed in 13-byte pushes.</p>
+      <div class="pg-toolbar">
+        <button id="run-inflate" class="btn btn-primary" type="button">Feed the inflater →</button>
+      </div>
+      <div id="inflate-status" class="pg-status" role="status" aria-live="polite"></div>
+      <div class="pg-output" id="inflate-progress" hidden></div>
+
+      <h2>3 · The trust caveat, made visible</h2>
+      <p>Without a central directory, a forward reader can only trust each <em>local</em> header.
+      This crafted archive names its entry <code>local-name.txt</code> locally but
+      <code>trusted-name.txt</code> in the central directory — <code>openZip()</code> believes the
+      CD and diagnoses the mismatch; the forward reader cannot see it at all.</p>
+      <div class="pg-toolbar">
+        <button id="run-trust" class="btn btn-secondary" type="button">Compare both readers →</button>
+      </div>
+      <div id="trust-status" class="pg-status" role="status" aria-live="polite"></div>
+      <div class="pg-output" id="trust-summary" hidden></div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · engine: <span id="engine-source">…</span></span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { loadEngine } from './load-engine.js';
+    const { mod: { createZip, openZip, iterateZipEntries, createInflator, METHOD_STORE, ZipError }, source: engineSource } = await loadEngine();
+    const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
+
+    const $ = (id) => document.getElementById(id);
+    const te = new TextEncoder();
+
+    function setStatus(el, msg, kind) { el.className = 'pg-status ' + kind; el.textContent = msg; }
+    function fmtBytes(n) { return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB'; }
+
+    function makeText(label, repeats) {
+      return te.encode((`${label}: streamed forward without a central directory.\n`).repeat(repeats));
+    }
+
+    function buildDemoArchive() {
+      const zip = createZip({ compression: { deterministic: true } });
+      zip.add('logs/app.log', makeText('log line', 120));
+      zip.add('data/metrics.json', te.encode(JSON.stringify({ forward: true, seekable: false, entries: 4 })));
+      zip.addDirectory('assets/');
+      zip.add('assets/banner.txt', makeText('banner', 40));
+      return zip.toBytes();
+    }
+
+    // Wrap a byte buffer as an unseekable ReadableStream in fixed chunks.
+    function chunkStream(bytes, size, onPull) {
+      let offset = 0;
+      return new ReadableStream({
+        pull(controller) {
+          if (offset >= bytes.length) { controller.close(); return; }
+          controller.enqueue(bytes.subarray(offset, Math.min(offset + size, bytes.length)));
+          offset += size;
+          onPull();
+        },
+      });
+    }
+
+    // ── 1. Forward iteration ────────────────────────────────────────────
+    async function runIterate() {
+      const st = $('iterate-status');
+      try {
+        const archive = buildDemoArchive();
+        const size = Number($('chunk-size').value);
+        let pulls = 0;
+        const stream = chunkStream(archive, size, () => { pulls++; });
+
+        const rows = $('iterate-rows');
+        rows.innerHTML = '';
+        let n = 0, produced = 0;
+        const t0 = performance.now();
+        for await (const entry of iterateZipEntries(stream)) {
+          n++;
+          let entryBytes = 0;
+          if (entry.header.isDirectory) { await entry.skip(); }
+          else { for await (const piece of entry.data()) entryBytes += piece.length; }
+          produced += entryBytes;
+          const tr = document.createElement('tr');
+          const cells = [
+            String(n),
+            entry.header.name,
+            entry.header.isDirectory ? 'dir' : (entry.header.compressionMethod === METHOD_STORE ? 'store' : 'deflate'),
+            fmtBytes(entry.header.uncompressedSize),
+            entry.header.isDirectory ? 'skipped' : `decompressed ${fmtBytes(entryBytes)}, CRC verified`,
+          ];
+          for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+          rows.appendChild(tr);
+        }
+        const ms = (performance.now() - t0).toFixed(1);
+        $('iterate-summary').textContent =
+          `${fmtBytes(archive.length)} archive delivered as ${pulls} chunks of ≤ ${size} bytes\n` +
+          `${n} entries walked forward in ${ms} ms · ${fmtBytes(produced)} decompressed\n` +
+          `the iteration stopped cleanly when the central directory began — no seeking, ever`;
+        $('iterate-report').hidden = false;
+        setStatus(st, `Streamed ${n} entries off an unseekable ReadableStream.`, 'ok');
+      } catch (err) {
+        $('iterate-report').hidden = true;
+        if (err instanceof ZipError) setStatus(st, `${err.code}\n${err.message}`, 'error');
+        else setStatus(st, String(err && err.stack ? err.stack : err), 'error');
+      }
+    }
+
+    // ── 2. Resumable inflater ───────────────────────────────────────────
+    async function runInflate() {
+      const st = $('inflate-status');
+      const progress = $('inflate-progress');
+      try {
+        // A real deflate payload: the compressed bytes of a deflated entry,
+        // lifted straight out of an archive with readEntryRaw().
+        const archive = buildDemoArchive();
+        const reader = openZip(archive);
+        const payload = reader.readEntryRaw('logs/app.log');
+        const expected = reader.getEntry('logs/app.log').uncompressedSize;
+
+        const inflator = createInflator(1024 * 1024);
+        progress.hidden = false;
+        const lines = [`deflate payload: ${payload.length} bytes · feeding 13 bytes per push`, ''];
+        let pushes = 0;
+        for (let off = 0; off < payload.length; off += 13) {
+          inflator.push(payload.subarray(off, Math.min(off + 13, payload.length)));
+          pushes++;
+          lines[1] = `push ${String(pushes).padStart(3)} · bytesConsumed ${String(inflator.bytesConsumed).padStart(5)} / ${payload.length} · bytesProduced ${String(inflator.bytesProduced).padStart(5)} · finished: ${inflator.finished}`;
+          progress.textContent = lines.join('\n');
+          if (pushes % 8 === 0) await new Promise((r) => setTimeout(r, 16)); // let the counters paint
+        }
+        inflator.end(); // throws if the stream was truncated
+        lines.push('', `done — bytesConsumed ${inflator.bytesConsumed} === payload length ${payload.length}: exact.`,
+          `bytesProduced ${inflator.bytesProduced} === entry's uncompressed size ${expected}: ${inflator.bytesProduced === expected ? 'verified' : 'MISMATCH'}.`,
+          'this exact accounting is what lets the forward reader find the next record after a data descriptor.');
+        progress.textContent = lines.join('\n');
+        setStatus(st, `Inflated ${inflator.bytesProduced} bytes across ${pushes} suspensions.`, 'ok');
+      } catch (err) {
+        if (err instanceof ZipError) setStatus(st, `${err.code}\n${err.message}`, 'error');
+        else setStatus(st, String(err && err.stack ? err.stack : err), 'error');
+      }
+    }
+
+    // ── 3. Trust caveat ─────────────────────────────────────────────────
+    // Crafted by tests/helpers/raw-zip-builder.ts: LFH says 'local-name.txt',
+    // the central directory says 'trusted-name.txt' (CD is authoritative).
+    const MISMATCH_ZIP = 'UEsDBBQAAAAAAAAAIQD4Z51lGAAAABgAAAAOAAAAbG9jYWwtbmFtZS50eHRzYW1lIHBheWxvYWQsIHR3byBuYW1lcwpQSwECHgMUAAAAAAAAACEA+GedZRgAAAAYAAAAEAAAAAAAAAAAAAAAAAAAAAAAdHJ1c3RlZC1uYW1lLnR4dFBLBQYAAAAAAQABAD4AAABEAAAAAAA=';
+
+    async function runTrust() {
+      const st = $('trust-status');
+      try {
+        const bin = atob(MISMATCH_ZIP);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+        // Authoritative path: openZip reads the CD, then validates the LFH on read.
+        const diagnostics = [];
+        const reader = openZip(bytes, { onDiagnostic: (d) => diagnostics.push(d.code) });
+        const cdName = [...reader.entries()][0].name;
+        reader.readEntry(cdName); // LFH cross-check happens here → ZIP_NAME_MISMATCH
+
+        // Forward path: only the local header exists.
+        const forwardNames = [];
+        for await (const entry of iterateZipEntries(chunkStream(bytes, 64, () => {}))) {
+          forwardNames.push(entry.header.name);
+          await entry.skip();
+        }
+
+        $('trust-summary').textContent =
+          `openZip (central directory, authoritative): '${cdName}'\n` +
+          `  diagnostics: ${diagnostics.join(', ') || '(none)'}\n\n` +
+          `iterateZipEntries (forward, local headers only): '${forwardNames.join("', '")}'\n\n` +
+          'Same bytes, two names. The forward reader cannot know the archive lies —\n' +
+          'prefer openZip whenever the archive is complete and seekable.';
+        $('trust-summary').hidden = false;
+        setStatus(st, 'Compared — openZip flagged the mismatch, the forward reader could not.', 'ok');
+      } catch (err) {
+        if (err instanceof ZipError) setStatus(st, `${err.code}\n${err.message}`, 'error');
+        else setStatus(st, String(err && err.stack ? err.stack : err), 'error');
+      }
+    }
+
+    $('run-iterate').addEventListener('click', runIterate);
+    $('run-inflate').addEventListener('click', runInflate);
+    $('run-trust').addEventListener('click', runTrust);
+    runIterate();
+  </script>
+</body>
+</html>

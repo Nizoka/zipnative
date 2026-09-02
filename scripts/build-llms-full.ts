@@ -149,7 +149,7 @@ export function buildLlmsIndex(root: string): string {
             + 'Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. '
             + 'approxTokens = bytes/4, approximate by construction.',
         site: 'https://zipnative.dev',
-        verifiedOn: '2026-09-01',
+        verifiedOn: '2026-09-02',
         artefacts,
         guides,
     }, null, 2)}\n`;

@@ -57,6 +57,8 @@
       <a href="./toolkit.html">Archive toolkit</a>
       <a href="./inspect.html" aria-current="page">Archive inspector</a>
       <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html">Incremental modify</a>
+      <a href="./stream.html">Forward streaming</a>
       <a href="./" style="margin-left:auto;">All →</a>
     </nav>
     <article class="guide-content">
@@ -87,7 +89,7 @@
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-meta">
-        <span>MIT License · © 2026 Nizoka · your file never leaves the browser</span>
+        <span>MIT License · © 2026 Nizoka · your file never leaves the browser · engine: <span id="engine-source">…</span></span>
         <span><a href="./">← All playgrounds</a></span>
       </div>
     </div>
@@ -95,7 +97,9 @@
 
   <script src="playground.js" defer></script>
   <script type="module">
-    import { openZip, METHOD_STORE, FLAG_ENCRYPTED, FLAG_DATA_DESCRIPTOR, FLAG_UTF8, ZipError } from './zipnative.js';
+    import { loadEngine } from './load-engine.js';
+    const { mod: { openZip, METHOD_STORE, FLAG_ENCRYPTED, FLAG_DATA_DESCRIPTOR, FLAG_UTF8, ZipError }, source: engineSource } = await loadEngine();
+    const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
 
     const $ = (id) => document.getElementById(id);
     const status = $('status');

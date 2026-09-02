@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable registry of zipnative's stable error codes (ZipErrorCode in src/types/zip-errors.ts) and diagnostic codes (ZipDiagnosticCode in src/types/zip-types.ts). Codes are frozen from 0.8.0: removal or renaming is semver-major; additions are semver-minor. The error-parity rule of scripts/verify-docs.ts enforces bidirectional sync with the source unions and class membership.",
   "package": "zipnative",
-  "verifiedOn": "2026-09-01",
+  "verifiedOn": "2026-09-02",
   "errors": [
     { "code": "ZIP_INVALID_OPTION", "class": "ZipError", "since": "0.8.0",
       "raisedWhen": "An option value fails validation: compression.level outside 0-9, a non-positive chunkSize, or an argument shape the API forbids.",

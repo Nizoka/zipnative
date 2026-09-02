@@ -4,15 +4,17 @@
 > secure-by-default extraction, streaming, deterministic archives (v0.2+) and
 > incremental modification (v0.4+). Node ≥22, browsers, Deno, Bun, Workers.
 
-Verified on: 2026-09-01
+Verified on: 2026-09-02
 
 Machine-readable artefacts: docs/assets/api.json (the full export surface —
 mechanically extracted, never guessed), docs/data/errors.json (the frozen
 error-code and diagnostic registry — code, class, cause, remedy),
 docs/llms-full.txt (concatenated documentation), docs/llms-index.json
 (artefact/guide index with sizes). Interactive playgrounds (toolkit,
-inspector, secure-extraction demo) run the real engine in the browser at
-docs/playgrounds/ on a committed copy of the library's own bundle.
+inspector, secure-extraction demo, incremental modify, forward streaming)
+run the real engine in the browser at docs/playgrounds/ — the published
+package from a version-pinned CDN, falling back to a committed copy of the
+library's own bundle.
 
 ## Essentials
 

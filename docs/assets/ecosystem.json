@@ -24,7 +24,7 @@
   "engine": {
     "node": ">=22"
   },
-  "verifiedOn": "2026-09-01",
+  "verifiedOn": "2026-09-02",
   "site": "https://zipnative.dev",
   "derived": {
     "sampleZips": 33

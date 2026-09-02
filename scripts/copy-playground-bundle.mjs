@@ -19,3 +19,13 @@ const dest = resolve(root, 'docs/playgrounds/zipnative.js');
 writeFileSync(dest, out);
 const version = out.match(/VERSION = "([^"]+)"/)?.[1] ?? '(unknown)';
 console.error(`docs/playgrounds/zipnative.js: ${out.length} bytes, VERSION ${version}`);
+
+// Stamp the CDN loader's version pin so the playgrounds request the
+// matching published build (fallback to this local copy until then).
+const loaderPath = resolve(root, 'docs/playgrounds/load-engine.js');
+if (existsSync(loaderPath)) {
+    const loader = readFileSync(loaderPath, 'utf8')
+        .replace(/const VERSION = '[^']+';/, `const VERSION = '${version}';`);
+    writeFileSync(loaderPath, loader);
+    console.error(`docs/playgrounds/load-engine.js: CDN pin ${version}`);
+}

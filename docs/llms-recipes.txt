@@ -92,6 +92,86 @@ export default async function run(): Promise<Record<string, string>> {
 ```
 
 ---
+<!-- source: recipes/custom-codec.ts -->
+
+```ts
+/**
+ * Recipe: the codec registry — the extension point for compression
+ * methods zipnative deliberately does not ship (zstd, bzip2, …). A
+ * registered codec makes archives using that method readable through
+ * every read path; without one, the entry refuses with the typed
+ * `ZIP_UNSUPPORTED_METHOD` and the remedy names `registerCodec()`.
+ */
+import { crc32, openZip, registerCodec, ZipError } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    // A tiny archive whose single entry claims method 99 with a raw
+    // (identity-"compressed") payload — normally unreadable.
+    const payload = new TextEncoder().encode('exotic method payload');
+    const archive = buildMethod99Archive(payload);
+
+    let beforeCode = '(none)';
+    try {
+        openZip(archive).readEntry('x.bin');
+    } catch (err) {
+        if (err instanceof ZipError) beforeCode = err.code;
+    }
+
+    registerCodec({
+        method: 99,
+        name: 'identity-99',
+        decompressSync: (data) => data.slice(),
+    });
+    const after = new TextDecoder().decode(openZip(archive).readEntry('x.bin'));
+
+    return { 'before-code': beforeCode, after };
+}
+
+/** Hand-assembled single-entry archive declaring compression method 99. */
+function buildMethod99Archive(data: Uint8Array): Uint8Array {
+    const te = new TextEncoder();
+    const name = te.encode('x.bin');
+    const crc = crc32(data);
+    const lfh = new Uint8Array(30 + name.length);
+    const lv = new DataView(lfh.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(8, 99, true); // compression method
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, name.length, true);
+    lfh.set(name, 30);
+    const cfh = new Uint8Array(46 + name.length);
+    const cv = new DataView(cfh.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 0x031E, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(10, 99, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, name.length, true);
+    cv.setUint32(42, 0, true); // local header offset
+    cfh.set(name, 46);
+    const cdOffset = lfh.length + data.length;
+    const eocd = new Uint8Array(22);
+    const ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(8, 1, true);
+    ev.setUint16(10, 1, true);
+    ev.setUint32(12, cfh.length, true);
+    ev.setUint32(16, cdOffset, true);
+    const out = new Uint8Array(cdOffset + cfh.length + eocd.length);
+    out.set(lfh, 0);
+    out.set(data, lfh.length);
+    out.set(cfh, cdOffset);
+    out.set(eocd, cdOffset + cfh.length);
+    return out;
+}
+```
+
+---
 <!-- source: recipes/deterministic-build.ts -->
 
 ```ts
@@ -204,6 +284,41 @@ export default async function run(): Promise<Record<string, string>> {
 ```
 
 ---
+<!-- source: recipes/parallel-create.ts -->
+
+```ts
+/**
+ * Recipe: parallel archive creation (`zipnative/worker`, v0.5.0) — same
+ * surface as `createZip` with an async `toBytes()`; per-entry deflate
+ * fans out across a worker pool and the output is BYTE-IDENTICAL to the
+ * sequential writer (unconditionally so under `deterministic: true`).
+ * Worker spawn failures degrade gracefully to the calling thread — the
+ * bytes never change, only the scheduling.
+ */
+import { createZip } from 'zipnative';
+import { createParallelZip } from 'zipnative/worker';
+
+export default async function run(): Promise<Record<string, string>> {
+    const add = (writer: { add(name: string, data: string): void }): void => {
+        writer.add('a.txt', 'first entry '.repeat(3000));
+        writer.add('b.txt', 'second entry '.repeat(2000));
+        writer.add('c.bin', '0123456789'.repeat(4000));
+    };
+
+    const sequential = createZip({ compression: { deterministic: true } });
+    add(sequential);
+    const seq = sequential.toBytes();
+
+    const parallel = createParallelZip({ compression: { deterministic: true }, workers: 2 });
+    add(parallel);
+    const par = await parallel.toBytes();
+
+    const identical = seq.length === par.length && seq.every((b, i) => b === par[i]);
+    return { identical: String(identical), entries: '3' };
+}
+```
+
+---
 <!-- source: recipes/random-access-single-entry.ts -->
 
 ```ts
@@ -261,6 +376,79 @@ export default async function run(): Promise<Record<string, string>> {
 ```
 
 ---
+<!-- source: recipes/resumable-inflate.ts -->
+
+```ts
+/**
+ * Recipe: the resumable inflater (public since 0.8.0) — feed a raw
+ * deflate stream in arbitrary chunks and read back EXACTLY where it
+ * ended (`bytesConsumed`), the capability neither `DecompressionStream`
+ * nor `node:zlib` exposes and the reason zipnative can delimit
+ * data-descriptor entries in forward streaming.
+ */
+import { createInflator } from 'zipnative';
+import { deflateRawSync } from 'node:zlib';
+
+export default async function run(): Promise<Record<string, string>> {
+    const original = new TextEncoder().encode('resumable '.repeat(400));
+    const compressed = new Uint8Array(deflateRawSync(original));
+
+    // The stream is followed by trailing bytes the inflater must NOT eat.
+    const trailer = new TextEncoder().encode('TRAILING-RECORD');
+    const wire = new Uint8Array(compressed.length + trailer.length);
+    wire.set(compressed, 0);
+    wire.set(trailer, compressed.length);
+
+    const inflator = createInflator(1024 * 1024);
+    let produced = 0;
+    for (let i = 0; i < wire.length && !inflator.finished; i += 7) {
+        for (const piece of inflator.push(wire.subarray(i, Math.min(i + 7, wire.length)))) {
+            produced += piece.length;
+        }
+    }
+    inflator.end();
+
+    return {
+        'consumed-exact': String(inflator.bytesConsumed === compressed.length),
+        produced: String(produced),
+        'trailer-untouched': String(inflator.bytesConsumed + trailer.length <= wire.length + inflator.leftover.length),
+    };
+}
+```
+
+---
+<!-- source: recipes/sanitize-external-sink.ts -->
+
+```ts
+/**
+ * Recipe: `sanitizeEntryPath` — the single traversal gate, exported for
+ * external filesystem sinks (a future CLI, your own extractor). Join the
+ * RESULT under your root — never the raw name. `null` means the name
+ * cannot be made safe: traversal, absolute paths, drive letters, NTFS
+ * streams, Windows reserved device names.
+ */
+import { sanitizeEntryPath } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    const verdicts = [
+        'docs/readme.md',        // clean relative path → passes unchanged
+        './a/./b.txt',           // dot segments collapse
+        '../escape.txt',         // traversal → null
+        'C:/windows/system32',   // drive letter → null
+        'aux.txt',               // reserved device name (CWE-67) → null
+    ].map((name) => `${name}=${sanitizeEntryPath(name) ?? 'REFUSED'}`);
+
+    return {
+        clean: sanitizeEntryPath('docs/readme.md') ?? 'REFUSED',
+        collapsed: sanitizeEntryPath('./a/./b.txt') ?? 'REFUSED',
+        traversal: sanitizeEntryPath('../escape.txt') ?? 'REFUSED',
+        device: sanitizeEntryPath('aux.txt') ?? 'REFUSED',
+        summary: String(verdicts.length),
+    };
+}
+```
+
+---
 <!-- source: recipes/update-entry-in-place.ts -->
 
 ```ts
@@ -292,6 +480,44 @@ export default async function run(): Promise<Record<string, string>> {
     return {
         'prefix-intact': String(prefixIntact),
         config,
+    };
+}
+```
+
+---
+<!-- source: recipes/verify-archive.ts -->
+
+```ts
+/**
+ * Recipe: deep-verify an archive in one call (v0.9.0). `verifyZip` never
+ * throws for archive problems — structural refusals become
+ * `report.error` with the frozen err.code, per-entry CRC/size checks
+ * land in `report.entries`, diagnostics are collected. The
+ * machine-readable answer to "can I trust these bytes?".
+ */
+import { createZip, verifyZip } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    const zip = createZip();
+    zip.add('manifest.json', '{"ok":true}');
+    zip.add('data/payload.bin', 'payload '.repeat(1000));
+    const bytes = zip.toBytes();
+
+    const good = verifyZip(bytes);
+
+    // Corrupt one byte inside the first entry's compressed payload and
+    // verify again — same call, no try/catch anywhere.
+    const corrupted = bytes.slice();
+    corrupted[60] ^= 0xff;
+    const bad = verifyZip(corrupted);
+
+    const notZip = verifyZip(new TextEncoder().encode('not an archive at all'.repeat(4)));
+
+    return {
+        'good-ok': String(good.ok),
+        'good-entries': String(good.entries.filter((e) => e.ok).length),
+        'bad-ok': String(bad.ok),
+        'not-zip-code': notZip.error?.code ?? '(none)',
     };
 }
 ```
