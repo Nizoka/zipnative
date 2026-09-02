@@ -95,6 +95,11 @@ library's own bundle.
 - IMPORTANT for agents: `removeEntry` + `save()` does NOT erase content —
   removed/replaced payloads remain recoverable in the output (data
   remanence). Use `saveCompact()` when deletion matters.
+- Interop caveat (measured 2026-09-03): 7-Zip's CLI mis-reads
+  append-only `save()` output — it extracts the stale replaced payload
+  and misses appended entries (it does not honour the final central
+  directory; unzip/bsdtar/python/jar/Expand-Archive all do). When the
+  output must interoperate with 7-Zip, ship `saveCompact()` instead.
 - Renames never overwrite implicitly; duplicate-name archives are refused
   with a typed error; encrypted entries can be kept/renamed/copied but
   never read.

@@ -97,12 +97,22 @@ runner contributes 7-Zip, bsdtar, Python and jar. Exit codes are read per
 each tool's own contract: Info-ZIP unzip's documented exit 1 ("warning
 errors … but processing completed successfully anyway" — fires on an empty
 zipfile and on SFX prefixes) counts as a pass; codes where the tools put
-real format and CRC errors fail. Two tool asymmetries are carried as
+real format and CRC errors fail. Tool limitations are carried as
 documented per-file exclusions rather than loosened exit codes: bsdtar on
-Windows mangles non-ASCII names, and modern 7-Zip's `t` verb refuses
-archives it must open with an offset (SFX prefixes) even though its `x`
-verb extracts the very same archive — which the level-2 matrix does, with
-a byte-compare, so the content stays proven.
+Windows mangles non-ASCII names, and 7-Zip's CLI (23.01 and 26.02 alike)
+refuses archives it must open with an offset — SFX prefixes — in `t` and
+`x` both; unzip, bsdtar, Python and jar extract that same archive
+byte-identically in the level-2 matrix, so the content stays proven.
+
+One exclusion is a finding in its own right: on an **append-only updated
+archive** (the incremental `save()` layout, where the superseded central
+directory legitimately remains inside the file), 7-Zip extracts the
+**stale** replaced payload and misses the appended entry — it does not
+honour the authoritative final central directory the way the five other
+tools and zipnative's strict reader do. That is the multi-reader
+parser-differential this project's security model warns about, observed
+on a mainstream tool; consumers of incremental output that must
+interoperate with 7-Zip should ship `saveCompact()` output instead.
 
 ## Level 2 — the differential extraction matrix
 

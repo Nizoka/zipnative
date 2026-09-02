@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 7516,
-      "approxTokens": 1879
+      "bytes": 7858,
+      "approxTokens": 1965
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 60787,
-      "approxTokens": 15197
+      "bytes": 61777,
+      "approxTokens": 15444
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
         "running-it-locally",
         "where-it-blocks"
       ],
-      "bytes": 7230,
-      "approxTokens": 1808
+      "bytes": 7878,
+      "approxTokens": 1970
     },
     {
       "title": "The zipnative determinism contract",

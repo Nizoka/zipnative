@@ -192,12 +192,21 @@ runner contributes 7-Zip, bsdtar, Python and jar. Exit codes are read per
 each tool&#39;s own contract: Info-ZIP unzip&#39;s documented exit 1 (&quot;warning
 errors … but processing completed successfully anyway&quot; — fires on an empty
 zipfile and on SFX prefixes) counts as a pass; codes where the tools put
-real format and CRC errors fail. Two tool asymmetries are carried as
+real format and CRC errors fail. Tool limitations are carried as
 documented per-file exclusions rather than loosened exit codes: bsdtar on
-Windows mangles non-ASCII names, and modern 7-Zip&#39;s <code>t</code> verb refuses
-archives it must open with an offset (SFX prefixes) even though its <code>x</code>
-verb extracts the very same archive — which the level-2 matrix does, with
-a byte-compare, so the content stays proven.</p>
+Windows mangles non-ASCII names, and 7-Zip&#39;s CLI (23.01 and 26.02 alike)
+refuses archives it must open with an offset — SFX prefixes — in <code>t</code> and
+<code>x</code> both; unzip, bsdtar, Python and jar extract that same archive
+byte-identically in the level-2 matrix, so the content stays proven.</p>
+<p>One exclusion is a finding in its own right: on an <strong>append-only updated
+archive</strong> (the incremental <code>save()</code> layout, where the superseded central
+directory legitimately remains inside the file), 7-Zip extracts the
+<strong>stale</strong> replaced payload and misses the appended entry — it does not
+honour the authoritative final central directory the way the five other
+tools and zipnative&#39;s strict reader do. That is the multi-reader
+parser-differential this project&#39;s security model warns about, observed
+on a mainstream tool; consumers of incremental output that must
+interoperate with 7-Zip should ship <code>saveCompact()</code> output instead.</p>
 <h2 id="level-2--the-differential-extraction-matrix">Level 2 — the differential extraction matrix<a class="heading-anchor" href="#level-2--the-differential-extraction-matrix" aria-label="Link to this section">#</a></h2>
 <p><code>npm run test:interop</code> (<a href="https://github.com/Nizoka/zipnative/blob/main/scripts/run-interop.ts" target="_blank" rel="noopener">scripts/run-interop.ts</a>)
 is the empirical layer, blocking since v0.2.0: an 11-case archive matrix

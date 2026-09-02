@@ -170,8 +170,16 @@ function writeCases(): WriteCase[] {
             // Incremental save() output: dead bytes (the old CD + old EOCD +
             // replaced payloads) sit inside the file — foreign extractors
             // must still accept and extract it correctly.
+            // 7-Zip (23.01 and 26.02, both CI OSes, first exercised
+            // 2026-09-03) resolves the embedded ORIGINAL archive instead of
+            // the authoritative final central directory: it extracts the
+            // stale replaced payload and misses the appended entry — the
+            // multi-EOCD parser differential the v0.4 notes warned about,
+            // now demonstrated on a mainstream tool. The five other tools
+            // and zipnative's strict reader all honour the final CD.
             name: 'modified-incremental',
             mode: 'extract',
+            excludeTools: ['7z'],
             expected: [
                 { path: 'readme.txt', content: te.encode('written by zipnative\n') },
                 { path: 'data/compressible.txt', content: te.encode('REPLACED CONTENT\n'.repeat(100)) },
@@ -235,9 +243,12 @@ function writeCases(): WriteCase[] {
             ],
             // System.IO.Compression (Expand-Archive) does not apply the
             // prepended-data offset shift — a known .NET limitation with
-            // SFX-shaped archives, on every platform. The archive itself is
-            // valid: bsdtar extracts it and our eager reader verifies it.
-            excludeTools: ['powershell-expand-archive'],
+            // SFX-shaped archives, on every platform. 7-Zip's CLI (23.01
+            // and 26.02, both CI OSes) refuses offset-opened zips outright,
+            // in `x` as in `t` — a second documented tool limitation, NOT a
+            // corpus defect: the archive is valid, and unzip, bsdtar,
+            // python and jar all extract it byte-identically.
+            excludeTools: ['powershell-expand-archive', '7z'],
             build: async () => {
                 const zip = createZip();
                 zip.add('payload.txt', 'behind a stub\n');

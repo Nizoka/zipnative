@@ -81,12 +81,12 @@ const CONFORMANT_BUT_REFUSED = new Set([
  * excludeTools (bare tool id = every platform):
  * - bsdtar on Windows mangles non-ASCII names (the same documented
  *   limitation the interop gate carries for unicode-names).
- * - 7-Zip's `t` verb refuses archives it must open with an offset
- *   (prepended SFX data) with a fatal exit code — observed on both CI
- *   runner images (26.x Windows, Linux) — while its `x` verb extracts
- *   the very same archive successfully: the interop matrix extracts and
- *   byte-compares sfx-prefixed via 7z, so the content is proven there.
- *   A verb-level tool asymmetry, documented, not a corpus defect.
+ * - 7-Zip's CLI refuses archives it must open with an offset (prepended
+ *   SFX data) with a fatal exit code — in `t` AND `x`, observed with
+ *   both 23.01 (Linux) and 26.02 (Windows) on the CI runner images. A
+ *   documented tool limitation, not a corpus defect: unzip, bsdtar,
+ *   python and jar all extract the same archive byte-identically in the
+ *   interop matrix, and the level-0 raw parser validates it here.
  */
 const INTEGRITY_EXCLUDE: Readonly<Record<string, readonly string[]>> = {
     'names-encoding/unicode-utf8.zip': ['bsdtar@win32'],
