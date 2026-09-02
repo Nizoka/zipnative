@@ -68,7 +68,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - og:image shipped (the 0.6 deferral is closed), favicon/logo redesign,
   architecture diagrams, `docs:serve`
 
-## 0.8.x — Error-code stability + docs charter ✅ *(shipped 2026-09-01, current)*
+## 0.8.x — Error-code stability + docs charter ✅ *(shipped 2026-09-01)*
 
 - **0.8.0 — Stable machine-readable error codes**: every thrown error
   carries `err.code` from a closed 39-code union, frozen from 0.8.0
@@ -89,15 +89,38 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   CWE-67 refusal messages, documentation factuality sweep; verify-docs
   at 21 named rules.
 
-## 0.9 — Final pre-freeze release candidate
+## 0.9 — Final pre-freeze release candidate ✅ *(shipped 2026-09-02, current)*
 
 - `verifyZip(data, options?)` — one-call deep validation returning a
-  stable machine-readable report (the agent-facing archive inventory)
-- `iterateZipEntries` source widening (`ReadableStream<Uint8Array>`)
+  stable machine-readable report (the agent-facing archive inventory);
+  never throws for archive problems, `skipped` reasons for
+  encrypted/stream-only-codec entries
+- Source widening: `ByteSource` (`AsyncIterable<Uint8Array> |
+  ReadableStream<Uint8Array>`) accepted by `iterateZipEntries` AND
+  `addStream` (worker subpath included)
 - Entry attribute helpers (`isSymlinkEntry`, `getUnixMode`)
+- Coverage pass across the whole project: ~24 new tests for the
+  untested branches, samples 22 → 33 (hostile refusal corpus under
+  inverse validation), recipes 7 → 12, playgrounds 3 → 5 with
+  CDN-first engine loading (local-bundle fallback pre-publication)
 - Zip64-streaming decision record (per-entry opt-in design; the typed
-  refusal lifts additively, implementation may land post-1.0)
-- Freeze checklist + last-chance taxonomy renames, RC tag
+  refusal lifts additively, implementation may land post-1.0).
+  **Decision (0.9.0, ADR):** the design retained is
+  `AddEntryOptions.zip64?: boolean` — a per-entry opt-in on `addStream`.
+  When set, the writer emits a speculative Zip64 extra in the local
+  header with both size fields present-but-zero (APPNOTE §4.5.3) and a
+  64-bit data descriptor (`writeDataDescriptor` already supports the
+  form); the reader side already accepts all four descriptor shapes, so
+  the change is writer-only and additive. The hard part — and the reason
+  implementation is deferred post-1.0 — is the speculative LFH extra:
+  it must be reserved before sizes are known, and a wrong guess cannot
+  be patched in a forward-only stream. Until then the typed refusal
+  stays (`ZIP_UNSUPPORTED_ZIP64_STREAMING`), and since 0.9.0 it is
+  covered by a regression test instead of being an untested branch.
+- Freeze checklist run; no last-chance taxonomy renames were needed
+  (the 39-code vocabulary stands as frozen in 0.8.0); RC tagged
+- Deferred from the band, logged: a worker playground (the only page
+  requiring build-tooling changes — post-1.0)
 
 ## 1.0.0
 

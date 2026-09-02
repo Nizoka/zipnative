@@ -38,9 +38,11 @@ library's own bundle.
 ## Core writing API (v0.2)
 
 - `createZip(options?)` → `ZipWriter` with `add(name, data, opts?)`,
-  `addDirectory(name)`, `addStream(name, asyncIterable)` (data-descriptor
-  layout; ≤ 4 GiB), `setComment`, `toBytes()` (sync) and
-  `stream({ chunkSize? })` (async, byte-identical to toBytes).
+  `addDirectory(name)`, `addStream(name, source)` (a `ByteSource` — any
+  `AsyncIterable<Uint8Array>` or a Web `ReadableStream<Uint8Array>`
+  since 0.9; data-descriptor layout; ≤ 4 GiB), `setComment`,
+  `toBytes()` (sync) and `stream({ chunkSize? })` (async,
+  byte-identical to toBytes).
 - Reproducible archives: `createZip({ compression: { deterministic: true } })`
   → identical inputs give identical SHA-256 on every runtime (contract:
   docs/guides/determinism.md). Default timestamps are the DOS epoch — already
@@ -62,10 +64,12 @@ library's own bundle.
 
 ## Forward streaming read (v0.5)
 
-- `iterateZipEntries(asyncIterable)` — read a ZIP off an UNSEEKABLE
-  stream: yields `{ header, data(), skip() }` per local entry; consume
-  or skip each before advancing. Bounded memory; CRC verified; stops
-  cleanly at the central directory.
+- `iterateZipEntries(source)` — read a ZIP off an UNSEEKABLE stream
+  (`ByteSource`: an `AsyncIterable<Uint8Array>` or, since 0.9, a Web
+  `ReadableStream<Uint8Array>` — a `fetch` body, `File.stream()`, …):
+  yields `{ header, data(), skip() }` per local entry; consume or skip
+  each before advancing. Bounded memory; CRC verified; stops cleanly at
+  the central directory.
 - TRUST CAVEAT for agents: forward iteration reads local headers ALONE
   (no central-directory cross-check) — prefer openZip() whenever the
   complete archive is available; it is the authoritative path.
@@ -100,6 +104,20 @@ library's own bundle.
 - `extractZip(bytes, options?)` → `ExtractedEntry[]` (in memory).
 - Options embed `ZipCommonOptions`: `strict` (throw on first diagnostic),
   `onDiagnostic` (handler), `limits` (Partial<ZipLimits>).
+- Entry-attribute helpers (v0.9): `isSymlinkEntry(entry)` and
+  `getUnixMode(entry)` (`number | null` — null when the entry was not
+  authored on a Unix host; 0 is a real mode, never a "no data" marker).
+
+## One-call verification (v0.9)
+
+- `verifyZip(bytes, options?)` → `ZipVerificationReport` — the
+  agent-facing archive inventory: `{ ok, error, entryCount, entries,
+  diagnostics }`. NEVER throws for archive problems: a structural
+  refusal lands in `report.error` (`{ code, message }` — the same
+  frozen err.code vocabulary), per-entry results carry
+  `crcMatch`/`sizeMatch`/`localHeaderMatch`, and encrypted or
+  stream-only-codec entries are reported as `skipped` with a reason —
+  never faked as corruption. Only caller bugs (invalid limits) throw.
 
 ## Docs
 

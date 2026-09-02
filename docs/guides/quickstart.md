@@ -80,6 +80,19 @@ const compact = mod.saveCompact();   // true deletion, still no recompression
 Note: `save()` keeps every original byte — removed content remains
 recoverable; `saveCompact()` is the deletion path.
 
+## Verify in one call
+
+```ts
+import { verifyZip } from 'zipnative';
+
+const report = verifyZip(bytes); // never throws for archive problems
+console.log(report.ok, report.entryCount);
+// Structural refusals land in report.error ({ code, message });
+// per-entry results carry crcMatch / sizeMatch / localHeaderMatch;
+// encrypted and stream-only-codec entries are reported as skipped
+// with a reason — never faked as corruption.
+```
+
 ## Going further
 
 - Parallel creation across worker threads: `import { createParallelZip } from 'zipnative/worker'`.

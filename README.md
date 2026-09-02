@@ -4,13 +4,13 @@
 
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
-![92.2 percent statement coverage](https://img.shields.io/badge/coverage-92.2%25-brightgreen)
+![93.9 percent statement coverage](https://img.shields.io/badge/coverage-93.9%25-brightgreen)
 ![Node 22 or newer](https://img.shields.io/badge/node-%E2%89%A522-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-blue)
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: pre-1.0.** The engine is feature-complete — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), resumable inflater (v0.6), the expanded interop gate and guide renderer (v0.7), and the **frozen machine-readable error-code vocabulary** (v0.8). The [roadmap](ROADMAP.md) continues with the final API-freeze release candidate toward 1.0. Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
+> **Status: pre-1.0.** The engine is feature-complete — read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), resumable inflater (v0.6), the expanded interop gate and guide renderer (v0.7), the **frozen machine-readable error-code vocabulary** (v0.8), and one-call verification, `ReadableStream` sources and entry-attribute helpers (v0.9). The [roadmap](ROADMAP.md) continues with the final API-freeze release candidate toward 1.0. Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
 
 ## Why zipnative?
 
@@ -21,7 +21,7 @@ Most ZIP libraries make you choose between speed, safety and capability. zipnati
 - **Streaming.** Iterate entries and decompress through async iterables with bounded memory. Designed for serverless and Cloudflare Workers, not just long-lived servers.
 - **Deterministic.** Reproducible-build mode with a [written determinism contract](docs/guides/determinism.md): same inputs, same SHA-256 on every runtime via the pinned pure-TS deflate encoder. Canonical entry ordering, pinned timestamps, no environment leakage.
 - **Incremental modification.** Replace, remove, add or rename entries and `save()` without recompressing the untouched 99% of the archive — the append-only overlay model proven in pdfnative's PDF incremental updates. `saveCompact()` is the true-deletion path (removed content is otherwise still recoverable — [documented loudly](SECURITY.md)).
-- **Agent-pilotable.** Every thrown error carries a **stable machine-readable `err.code`** from a frozen 39-code vocabulary (v0.8+ — registry in [docs/data/errors.json](docs/data/errors.json), guide in [docs/guides/errors.md](docs/guides/errors.md)): branch on the code, never on message text. Plus remedy-bearing messages, a structured diagnostics channel, executable recipes, four documented [production use cases](docs/guides/use-cases.md), `llms.txt`, and a human-in-the-loop AI governance policy.
+- **Agent-pilotable.** Every thrown error carries a **stable machine-readable `err.code`** from a frozen 39-code vocabulary (v0.8+ — registry in [docs/data/errors.json](docs/data/errors.json), guide in [docs/guides/errors.md](docs/guides/errors.md)): branch on the code, never on message text. Plus `verifyZip()` — one call, a machine-readable verification report that never throws for archive problems (v0.9), remedy-bearing messages, a structured diagnostics channel, executable recipes, four documented [production use cases](docs/guides/use-cases.md), `llms.txt`, and a human-in-the-loop AI governance policy.
 
 ### Comparison (honest version)
 
@@ -129,7 +129,7 @@ const bytes = await zip.toBytes(); // async — the one signature difference
 // infrastructure reasons.
 ```
 
-Reading an unseekable stream (v0.5 — pipes, uploads, serverless bodies):
+Reading an unseekable stream (v0.5 — pipes, uploads, serverless bodies; a web `ReadableStream<Uint8Array>` or any `AsyncIterable<Uint8Array>` is accepted since v0.9):
 
 ```ts
 import { iterateZipEntries } from 'zipnative';
@@ -145,6 +145,21 @@ for await (const entry of iterateZipEntries(request.body)) {
 // TRUST CAVEAT: forward iteration reads local headers alone — no central
 // directory cross-check. Use openZip() whenever the full archive is
 // available; it is the authoritative path.
+```
+
+Verifying an archive in one call (v0.9):
+
+```ts
+import { verifyZip } from 'zipnative';
+
+const report = verifyZip(bytes); // never throws for archive problems
+if (!report.ok) {
+    // Structural refusal (report.error.code) or a failed entry —
+    // machine-readable either way, built on the frozen err.code vocabulary.
+    console.log(report.error?.code, report.entries.filter((e) => !e.crcMatch));
+}
+// Encrypted / stream-only-codec entries are reported as skipped with a
+// reason — never faked as corruption.
 ```
 
 **Bundler notes for `zipnative/worker`**: the worker script is resolved as `new URL('./zip-worker.js', import.meta.url)`, which Vite and webpack 5 detect and bundle automatically. If your bundler cannot (or your CSP restricts worker sources), pass `workerUrl` explicitly — e.g. `createParallelZip({ workerUrl: new URL('zip-worker.js', yourAssetBase) })` — pointing at a copy of the script served from your origin (locate it with `import.meta.resolve('zipnative/worker/zip-worker.js')` — a dedicated subpath export since 0.8). On runtimes without workers the same code runs entirely on the calling thread.
@@ -167,7 +182,7 @@ zipnative treats every archive as untrusted input. The guards, their defaults an
 - `iterateZipEntries` reads data-descriptor entries (flag bit 3) for plain deflate since v0.6 — including zipnative's own `addStream()` output and bsdtar-style archives. Still refused: store+bit3 (not self-delimiting), encrypted+bit3, and custom-codec+bit3; `skip()` on a bit-3 entry costs a full decompress-and-discard.
 - Codec injection (`setDeflateImpl`, `registerCodec`) on the main entry does not propagate to the `zipnative/worker` bundle (separate module state); parallel/sequential byte-identity is promised for the built-in tiers.
 - `save()` keeps every original byte: removed/replaced content remains recoverable in the output (use `saveCompact()` for true deletion); `saveCompact()` drops SFX prefixes; archives with duplicate entry names cannot be modified incrementally.
-- `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; the Zip64-streaming opt-in design is a 0.9 roadmap item. Buffered entries, entry counts and archive offsets are fully Zip64.
+- `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; the per-entry Zip64-streaming opt-in is designed (0.9 decision record in [ROADMAP.md](ROADMAP.md)) and lands post-1.0. Buffered entries, entry counts and archive offsets are fully Zip64.
 - Since v0.8.1, default extraction also refuses entries whose names are **Windows reserved device names** (`CON`, `NUL`, `COM1`…`LPT9` — CWE-67) or that collapse to nothing (`.`, `./`). Archives authored on POSIX systems containing files like `aux.h` therefore throw by default on **every** platform; pass `rejectTraversal: false` to skip such entries instead.
 - Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.
 - Number fields above `Number.MAX_SAFE_INTEGER` (≈ 9 PB) are rejected; the public API uses `number`, not `bigint`.

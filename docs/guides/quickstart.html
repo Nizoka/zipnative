@@ -138,6 +138,16 @@ const compact = mod.saveCompact();   // true deletion, still no recompression
 </code></pre>
 <p>Note: <code>save()</code> keeps every original byte — removed content remains
 recoverable; <code>saveCompact()</code> is the deletion path.</p>
+<h2 id="verify-in-one-call">Verify in one call<a class="heading-anchor" href="#verify-in-one-call" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-ts">import { verifyZip } from &#39;zipnative&#39;;
+
+const report = verifyZip(bytes); // never throws for archive problems
+console.log(report.ok, report.entryCount);
+// Structural refusals land in report.error ({ code, message });
+// per-entry results carry crcMatch / sizeMatch / localHeaderMatch;
+// encrypted and stream-only-codec entries are reported as skipped
+// with a reason — never faked as corruption.
+</code></pre>
 <h2 id="going-further">Going further<a class="heading-anchor" href="#going-further" aria-label="Link to this section">#</a></h2>
 <ul>
 <li>Parallel creation across worker threads: <code>import { createParallelZip } from &#39;zipnative/worker&#39;</code>.</li>

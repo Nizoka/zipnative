@@ -6,14 +6,14 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 5748,
-      "approxTokens": 1437
+      "bytes": 6749,
+      "approxTokens": 1687
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 48859,
-      "approxTokens": 12215
+      "bytes": 51170,
+      "approxTokens": 12793
     },
     {
       "url": "llms-recipes.txt",
@@ -76,10 +76,11 @@
         "extract-securely",
         "create--reproducibly",
         "modify-without-recompressing",
+        "verify-in-one-call",
         "going-further"
       ],
-      "bytes": 2995,
-      "approxTokens": 749
+      "bytes": 3430,
+      "approxTokens": 858
     },
     {
       "title": "Security model",
