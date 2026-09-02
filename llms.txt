@@ -125,10 +125,11 @@ library's own bundle.
 ## Conformance (v1.0)
 
 - Every archive zipnative writes conforms to ISO/IEC 21320-1:2015 (the
-  ISO-standardised ZIP profile) — validated clause by clause in CI by
+  ISO-standardised ZIP profile) — validated clause by clause by
   `npm run validate:zip`, the first open ISO 21320-1 validator (raw
-  parser, independent of the engine), plus a six-parser differential
-  extraction matrix (`npm run test:interop`). Guide:
+  parser, independent of the engine), blocking in CI and before every
+  publish, plus a six-parser differential extraction matrix
+  (`npm run test:interop`). Guide:
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 

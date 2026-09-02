@@ -59,9 +59,16 @@ Two families of checks:
 | 4.4.5 | Compression method 0 (stored) or 8 (deflated) only |
 | Note 1 | Volume labels, Deflate64, DCL Implode and patched data are excluded |
 
-**Every archive zipnative writes conforms to this profile** — verified over
-the full sample corpus (29 conformant archives) on Linux and Windows in CI,
-and again before every npm publish.
+The rows group the standard's clauses; the emitted tags name the closest
+structural clause (entry encryption fires as `APPNOTE-4.3.8`,
+archive-decryption structures as `APPNOTE-4.3.10`, masked headers under
+the forbidden bits of `APPNOTE-4.4.4`). The standard's remaining Table-1
+rows disregard whole APPNOTE sections (manifest files, the encryption
+chapters) and need no byte-level check.
+
+**Every archive zipnative writes conforms to this profile** — validated
+over the full sample corpus (29 conformant archives), enforced by blocking
+gates on Linux and Windows CI and re-run before every npm publish.
 
 The expectations are two-sided: the corpus also carries **4 deliberately
 non-conformant archives** (from the [refusals corpus](security.html) and the
@@ -85,7 +92,11 @@ profile catches what it does not.
 The same run re-tests every conformant sample with the independent integrity
 checkers available on the machine (`unzip -t`, `7z t`,
 `python -m zipfile -t`, `tar -tf`, `jar tf`). Absent tools are reported as
-SKIP — never simulated. On CI runners all of them exist.
+SKIP — never simulated. The Linux CI runner has all of them; the Windows
+runner contributes 7-Zip, bsdtar, Python and jar. Exit codes are read per
+each tool's own contract — Info-ZIP unzip's documented exit 1 ("warning
+errors … but processing completed successfully anyway") counts as a pass;
+2+ (format/CRC errors) fails.
 
 ## Level 2 — the differential extraction matrix
 

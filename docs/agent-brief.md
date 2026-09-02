@@ -59,8 +59,9 @@ for await (const e of iterateZipEntries(stream)) { /* unseekable sources */ }
 
 Round-trip what you build: `openZip(bytes, { validate: 'eager' })` or one
 call to `verifyZip(bytes)` gives a machine-readable verdict. Every archive
-zipnative writes conforms to ISO/IEC 21320-1:2015 (validated clause by
-clause in CI — see the [conformance guide](guides/conformance.html)).
+zipnative writes conforms to ISO/IEC 21320-1:2015, validated clause by
+clause by the blocking `npm run validate:zip` gate — see the
+[conformance guide](guides/conformance.html).
 
 ## Where to read more
 

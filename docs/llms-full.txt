@@ -125,10 +125,11 @@ library's own bundle.
 ## Conformance (v1.0)
 
 - Every archive zipnative writes conforms to ISO/IEC 21320-1:2015 (the
-  ISO-standardised ZIP profile) — validated clause by clause in CI by
+  ISO-standardised ZIP profile) — validated clause by clause by
   `npm run validate:zip`, the first open ISO 21320-1 validator (raw
-  parser, independent of the engine), plus a six-parser differential
-  extraction matrix (`npm run test:interop`). Guide:
+  parser, independent of the engine), blocking in CI and before every
+  publish, plus a six-parser differential extraction matrix
+  (`npm run test:interop`). Guide:
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 
@@ -315,7 +316,7 @@ if (!report.ok) {
 
 **Bundler notes for `zipnative/worker`**: the worker script is resolved as `new URL('./zip-worker.js', import.meta.url)`, which Vite and webpack 5 detect and bundle automatically. If your bundler cannot (or your CSP restricts worker sources), pass `workerUrl` explicitly — e.g. `createParallelZip({ workerUrl: new URL('zip-worker.js', yourAssetBase) })` — pointing at a copy of the script served from your origin (locate it with `import.meta.resolve('zipnative/worker/zip-worker.js')` — a dedicated subpath export since 0.8). On runtimes without workers the same code runs entirely on the calling thread.
 
-Everything public is exported from the single entry point; if it is not in `zipnative`'s root import, it is private.
+Everything public is exported from the two entry points — `zipnative` and `zipnative/worker`; if it is not exported there, it is private.
 
 ## Security model
 
@@ -447,9 +448,16 @@ Two families of checks:
 | 4.4.5 | Compression method 0 (stored) or 8 (deflated) only |
 | Note 1 | Volume labels, Deflate64, DCL Implode and patched data are excluded |
 
-**Every archive zipnative writes conforms to this profile** — verified over
-the full sample corpus (29 conformant archives) on Linux and Windows in CI,
-and again before every npm publish.
+The rows group the standard's clauses; the emitted tags name the closest
+structural clause (entry encryption fires as `APPNOTE-4.3.8`,
+archive-decryption structures as `APPNOTE-4.3.10`, masked headers under
+the forbidden bits of `APPNOTE-4.4.4`). The standard's remaining Table-1
+rows disregard whole APPNOTE sections (manifest files, the encryption
+chapters) and need no byte-level check.
+
+**Every archive zipnative writes conforms to this profile** — validated
+over the full sample corpus (29 conformant archives), enforced by blocking
+gates on Linux and Windows CI and re-run before every npm publish.
 
 The expectations are two-sided: the corpus also carries **4 deliberately
 non-conformant archives** (from the [refusals corpus](security.html) and the
@@ -473,7 +481,11 @@ profile catches what it does not.
 The same run re-tests every conformant sample with the independent integrity
 checkers available on the machine (`unzip -t`, `7z t`,
 `python -m zipfile -t`, `tar -tf`, `jar tf`). Absent tools are reported as
-SKIP — never simulated. On CI runners all of them exist.
+SKIP — never simulated. The Linux CI runner has all of them; the Windows
+runner contributes 7-Zip, bsdtar, Python and jar. Exit codes are read per
+each tool's own contract — Info-ZIP unzip's documented exit 1 ("warning
+errors … but processing completed successfully anyway") counts as a pass;
+2+ (format/CRC errors) fails.
 
 ## Level 2 — the differential extraction matrix
 

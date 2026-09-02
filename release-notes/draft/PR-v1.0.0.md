@@ -48,12 +48,12 @@ zipnative 1.0.0 — the zero-dependency TypeScript ZIP engine, frozen and publis
 |---|---|---|
 | Types | `npm run typecheck:all` | clean (src + tests + scripts) |
 | Lint | `npm run lint` | clean |
-| Tests | `npm run test:coverage` | 38 files, 386 passed + 4 skipped; statements 93.89%, branches 86.56%, functions 94.68%, lines 94.73% — thresholds met |
+| Tests | `npm run test:coverage` | 38 files, 390 tests (385+ passed; interop-producer skips are environment-dependent); statements 93.89%, branches 86.56%, functions 94.68%, lines 94.73% — thresholds met |
 | Build | `npm run build` | ESM + CJS + d.ts, main + worker entries |
 | Package | `npm run check:package` | attw (node16 profile) + publint: clean |
-| Pack | `npm pack --dry-run` | 21 files, ~484 kB tarball — dist + LICENSE/README/CHANGELOG/SECURITY/THIRD-PARTY-NOTICES only |
+| Pack | `npm pack --dry-run` | 21 files, ~487 kB tarball — dist + LICENSE/README/CHANGELOG/SECURITY/THIRD-PARTY-NOTICES only |
 | ISO 21320-1 | `npm run test:generate && npm run validate:zip` | 29 conformant + 4 declared non-conformant (all as declared), canary green, foreign integrity 28/28 (1 documented exclusion) |
-| Interop | `npm run test:interop` | 2 producer reads + 17 write validations (Expand-Archive, bsdtar) — OK |
+| Interop | `npm run test:interop` | OK in both local tool environments (17–18 write validations; the tool set is machine-dependent — CI runs the full six-tool matrix) |
 | Docs | `npm run verify:docs` | 22 rules, 0 problems, 0 warnings |
 | Audit | `npm audit --audit-level=high` | 0 vulnerabilities |
 | Attribution | `git log --format=%B \| grep -ic claude` | 0 |

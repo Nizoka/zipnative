@@ -10,7 +10,7 @@ zipnative is a **zero-runtime-dependency, pure-TypeScript ZIP engine**:
 random access, secure-by-default extraction, streaming, deterministic output,
 incremental modification. Sibling of pdfnative — same doctrine, same shape.
 
-Quality bar: GAFAM-grade. 386 tests, 93.9% statement coverage measured at
+Quality bar: GAFAM-grade. 385+ tests (390 total; interop-producer skips vary by machine), 93.9% statement coverage measured at
 v1.0.0, blocking ISO/IEC 21320-1 + six-parser interop conformance gates in
 CI, SLSA provenance on npm.
 

@@ -21,14 +21,27 @@ export interface InteropProducer {
     readonly produce: (sourceDir: string, archivePath: string) => boolean;
 }
 
-function run(command: string, args: string[], cwd?: string): { ok: boolean; stdout: string } {
+function run(
+    command: string, args: string[], cwd?: string, okStatuses: readonly number[] = [0],
+): { ok: boolean; stdout: string } {
     try {
         const result = spawnSync(command, args, { cwd, encoding: 'utf8', timeout: 60_000, windowsHide: true });
-        return { ok: result.status === 0, stdout: (result.stdout ?? '') + (result.stderr ?? '') };
+        return {
+            ok: result.status !== null && okStatuses.includes(result.status),
+            stdout: (result.stdout ?? '') + (result.stderr ?? ''),
+        };
     } catch {
         return { ok: false, stdout: '' };
     }
 }
+
+// Info-ZIP unzip's documented exit codes (man unzip, DIAGNOSTICS): 0 =
+// no errors or warnings; 1 = "one or more warning errors were
+// encountered, but processing completed successfully anyway" (fires on
+// an empty zipfile and on SFX-prefixed archives); 2+ = real format/CRC
+// errors. Treating 1 as failure would reject archives unzip itself
+// processed fine — so unzip alone accepts {0, 1}.
+const UNZIP_OK = [0, 1] as const;
 
 function firstWorking(commands: string[], args: string[]): string | null {
     for (const command of commands) {
@@ -165,8 +178,8 @@ export const EXTRACTORS: InteropExtractor[] = [
             const probe = run('unzip', ['-v']);
             return probe.ok ? (probe.stdout.split('\n').find((l) => l.includes('UnZip'))?.trim() ?? 'Info-ZIP unzip') : null;
         },
-        test: (archivePath) => run('unzip', ['-t', '-qq', archivePath]).ok,
-        extract: (archivePath, destDir) => run('unzip', ['-o', '-qq', archivePath, '-d', destDir]).ok,
+        test: (archivePath) => run('unzip', ['-t', '-qq', archivePath], undefined, UNZIP_OK).ok,
+        extract: (archivePath, destDir) => run('unzip', ['-o', '-qq', archivePath, '-d', destDir], undefined, UNZIP_OK).ok,
     },
     {
         id: '7z',
