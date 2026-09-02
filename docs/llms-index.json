@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 60458,
-      "approxTokens": 15115
+      "bytes": 60339,
+      "approxTokens": 15085
     },
     {
       "url": "llms-recipes.txt",
@@ -107,8 +107,8 @@
         "verify-in-one-call",
         "going-further"
       ],
-      "bytes": 3549,
-      "approxTokens": 887
+      "bytes": 3430,
+      "approxTokens": 858
     },
     {
       "title": "Security model",

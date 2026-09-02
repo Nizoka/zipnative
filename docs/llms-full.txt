@@ -870,8 +870,6 @@ console.log(report.ok, report.entryCount);
 - Four production architectures, with diagrams and honest limits:
   [Use cases](use-cases.html). Try the engine live in your browser:
   [Playgrounds](../playgrounds/).
-- Working from a clone? `npm run docs:serve` previews this site at
-  `http://localhost:5000` (same port as pdfnative).
 
 ---
 <!-- source: docs/guides/security.md -->
