@@ -1,0 +1,113 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Trusted Publishing (npmjs.com OIDC):
+#   This workflow uses npm Trusted Publishing — no long-lived NPM_TOKEN secret.
+#   The OIDC id-token permission mints a short-lived token that:
+#     1. Authorises the `npm publish` HTTP request
+#     2. Signs the provenance attestation (SLSA Level 2+ via Sigstore)
+#   Configure at npmjs.com → package settings → "Configure Trusted Publishing".
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # `id-token: write` mints the OIDC token for Trusted Publishing + provenance.
+    # `contents: write` lets the workflow attach the generated SBOM to the release.
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          # A range resolves to the NEWEST available Node (currently 24.x),
+          # whose bundled npm >= 11.5.1 is required by npm Trusted Publishing
+          # (token-less OIDC). A '22.x' pin would ship npm 10.9 and break the
+          # publish. The floor mirrors the engines >= 22 support policy.
+          node-version: '>=22.14.0'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      # The publish re-runs the ENTIRE gate — a release that skips a check
+      # is a release that can ship a regression. Same steps as ci.yml.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Type check
+        run: npm run typecheck:all
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify dist output
+        run: |
+          test -f dist/index.js
+          test -f dist/index.cjs
+          test -f dist/index.d.ts
+          test -f dist/index.d.cts
+          test -f dist/worker/index.js
+          test -f dist/worker/zip-worker.js
+
+      # Real node:worker_threads against the built worker bundle — this
+      # suite self-skips when dist/ is absent, so it must run post-build.
+      - name: Worker integration (real threads, post-build)
+        run: npx vitest run tests/worker/worker-integration.test.ts
+
+      # --profile node16: legacy node10 (pre-"exports") resolution cannot
+      # see subpath exports like ./worker; engines require Node >= 22.
+      # --ignore-rules cjs-resolves-to-esm: ./worker/zip-worker.js is the
+      # ESM-only worker SCRIPT — loaded by URL, never require()d.
+      - name: Check package exports (attw + publint)
+        run: |
+          npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm
+          npx publint
+
+      # Interop gate: the domain conformance check (the analogue of a PDF
+      # library's veraPDF gate) — foreign extractors must accept and
+      # byte-compare zipnative's archive matrix. BLOCKING.
+      - name: Interop conformance (blocking)
+        run: npm run test:interop
+
+      - name: Verify documentation integrity
+        run: npm run verify:docs
+
+      - name: Generate SBOM (CycloneDX)
+        # Software Bill of Materials for supply-chain transparency. Uses the
+        # CycloneDX generator via npx (build-time only — adds ZERO runtime
+        # dependencies to the published package).
+        run: npx --yes @cyclonedx/cyclonedx-npm@^1 --output-format JSON --output-file sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90
+
+      - name: Attach SBOM to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sbom.cdx.json --clobber
+
+      - name: Publish
+        run: npm publish --provenance --access public
