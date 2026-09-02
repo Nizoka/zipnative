@@ -253,6 +253,35 @@ describe('0.9 — ByteSource: ReadableStream sources', () => {
         const reader = openZip(bytes, { validate: 'eager' });
         expect(collectSyncEqual(reader.readEntry('p.bin'), payload)).toBe(true);
     });
+
+    it('drives getReader() when Symbol.asyncIterator is absent (Safari path), releasing the lock', async () => {
+        // Node's ReadableStream carries Symbol.asyncIterator, so the manual
+        // reader loop in zip-source never runs here naturally. Model the
+        // Safari-shaped stream: getReader() only.
+        const zip = createZip();
+        zip.add('s.txt', te.encode('safari-shaped source'));
+        const bytes = zip.toBytes();
+        let released = false;
+        let offset = 0;
+        const safariLike = {
+            getReader: () => ({
+                read: () => {
+                    if (offset >= bytes.length) return Promise.resolve({ done: true as const, value: undefined });
+                    const value = bytes.subarray(offset, Math.min(offset + 64, bytes.length));
+                    offset += 64;
+                    return Promise.resolve({ done: false as const, value });
+                },
+                releaseLock: () => { released = true; },
+            }),
+        } as unknown as ReadableStream<Uint8Array>;
+        const names: string[] = [];
+        for await (const entry of iterateZipEntries(safariLike)) {
+            names.push(entry.header.name);
+            expect(td.decode(await collect(entry.data()))).toBe('safari-shaped source');
+        }
+        expect(names).toEqual(['s.txt']);
+        expect(released).toBe(true); // the finally clause released the lock
+    });
 });
 
 describe('0.9 — entry attribute helpers', () => {

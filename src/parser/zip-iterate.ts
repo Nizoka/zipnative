@@ -129,275 +129,288 @@ export async function* iterateZipEntries(
     let totalProduced = 0;
     let previous: { done: boolean } | null = null;
 
-    for (;;) {
-        if (previous !== null && !previous.done) {
-            throw new ZipError('ZIP_API_MISUSE', `zipnative: ${DRAIN_REMEDY}`);
-        }
+    // The walk itself, delegated so every exit path — the clean stop at the
+    // central directory, EOF, a thrown refusal, or the caller abandoning the
+    // iteration — funnels through one finally that closes the source
+    // (releasing a ReadableStream reader's lock without cancelling the
+    // stream — the owner keeps it).
+    async function* walk(): AsyncGenerator<StreamedZipEntry, void, undefined> {
+        for (;;) {
+            if (previous !== null && !previous.done) {
+                throw new ZipError('ZIP_API_MISUSE', `zipnative: ${DRAIN_REMEDY}`);
+            }
 
-        const sig = await cursor.peek4();
-        if (sig === null) return; // clean EOF at a record boundary
-        const sigValue = sig[0] | (sig[1] << 8) | (sig[2] << 16) | (sig[3] << 24);
-        const sigU32 = sigValue >>> 0;
-        if (sigU32 === SIG_CENTRAL_FILE_HEADER || sigU32 === SIG_EOCD || sigU32 === SIG_ZIP64_EOCD) {
-            // The central directory (or an empty archive's trailer) begins:
-            // no local entries remain. The rest of the stream is left
-            // unconsumed for the caller.
-            return;
-        }
-        if (sigU32 !== SIG_LOCAL_FILE_HEADER) {
-            throw new ZipFormatError('ZIP_SIGNATURE_MISMATCH',
-                `zipnative: expected a local file header at byte ${cursor.bytesRead} — `
-                + 'not a ZIP stream, or corrupt');
-        }
+            const sig = await cursor.peek4();
+            if (sig === null) return; // clean EOF at a record boundary
+            const sigValue = sig[0] | (sig[1] << 8) | (sig[2] << 16) | (sig[3] << 24);
+            const sigU32 = sigValue >>> 0;
+            if (sigU32 === SIG_CENTRAL_FILE_HEADER || sigU32 === SIG_EOCD || sigU32 === SIG_ZIP64_EOCD) {
+                // The central directory (or an empty archive's trailer) begins:
+                // no local entries remain. The rest of the stream is left
+                // unconsumed for the caller.
+                return;
+            }
+            if (sigU32 !== SIG_LOCAL_FILE_HEADER) {
+                throw new ZipFormatError('ZIP_SIGNATURE_MISMATCH',
+                    `zipnative: expected a local file header at byte ${cursor.bytesRead} — `
+                    + 'not a ZIP stream, or corrupt');
+            }
 
-        entryCount++;
-        enforceLimit(limits, 'maxEntries', entryCount, 'streamed entry count');
+            entryCount++;
+            enforceLimit(limits, 'maxEntries', entryCount, 'streamed entry count');
 
-        // Fixed region first; variable lengths are capped BEFORE reading.
-        const fixed = await cursor.readExact(30);
-        const view = new DataView(fixed.buffer, fixed.byteOffset, fixed.byteLength);
-        const nameLength = view.getUint16(26, true);
-        const extraLength = view.getUint16(28, true);
-        enforceLimit(limits, 'maxNameBytes', nameLength, 'entry name length');
-        enforceLimit(limits, 'maxExtraFieldBytes', extraLength, 'entry extra-field length');
-        const tail = await cursor.readExact(nameLength + extraLength);
-        const window = new Uint8Array(30 + tail.length);
-        window.set(fixed, 0);
-        window.set(tail, 30);
-        const lfh = parseLocalFileHeader(window, 0);
+            // Fixed region first; variable lengths are capped BEFORE reading.
+            const fixed = await cursor.readExact(30);
+            const view = new DataView(fixed.buffer, fixed.byteOffset, fixed.byteLength);
+            const nameLength = view.getUint16(26, true);
+            const extraLength = view.getUint16(28, true);
+            enforceLimit(limits, 'maxNameBytes', nameLength, 'entry name length');
+            enforceLimit(limits, 'maxExtraFieldBytes', extraLength, 'entry extra-field length');
+            const tail = await cursor.readExact(nameLength + extraLength);
+            const window = new Uint8Array(30 + tail.length);
+            window.set(fixed, 0);
+            window.set(tail, 30);
+            const lfh = parseLocalFileHeader(window, 0);
 
-        // ── Header interpretation (reusing the reader's building blocks) ─
-        const { fields } = parseExtraFields(lfh.extra);
-        const z64 = resolveZip64(fields, {
-            uncompressedSize: lfh.uncompressedSize,
-            compressedSize: lfh.compressedSize,
-            localHeaderOffset: 0,
-            diskNumberStart: 0,
-        });
+            // ── Header interpretation (reusing the reader's building blocks) ─
+            const { fields } = parseExtraFields(lfh.extra);
+            const z64 = resolveZip64(fields, {
+                uncompressedSize: lfh.uncompressedSize,
+                compressedSize: lfh.compressedSize,
+                localHeaderOffset: 0,
+                diskNumberStart: 0,
+            });
 
-        const utf8Flagged = (lfh.flags & FLAG_UTF8) !== 0;
-        let name: string;
-        let nameEncoding: 'utf-8' | 'cp437';
-        if (utf8Flagged) {
-            const decoded = decodeUtf8Strict(lfh.name);
-            if (decoded === null) {
+            const utf8Flagged = (lfh.flags & FLAG_UTF8) !== 0;
+            let name: string;
+            let nameEncoding: 'utf-8' | 'cp437';
+            if (utf8Flagged) {
+                const decoded = decodeUtf8Strict(lfh.name);
+                if (decoded === null) {
+                    name = decodeCp437(lfh.name);
+                    nameEncoding = 'cp437';
+                    emit(invalidUtf8NameDiagnostic(name));
+                } else {
+                    name = decoded;
+                    nameEncoding = 'utf-8';
+                }
+            } else {
                 name = decodeCp437(lfh.name);
                 nameEncoding = 'cp437';
-                emit(invalidUtf8NameDiagnostic(name));
-            } else {
-                name = decoded;
-                nameEncoding = 'utf-8';
             }
-        } else {
-            name = decodeCp437(lfh.name);
-            nameEncoding = 'cp437';
-        }
 
-        const usesDescriptor = (lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0;
-        const isEncrypted = (lfh.flags & (FLAG_ENCRYPTED | FLAG_STRONG_ENCRYPTION)) !== 0;
-        // Bit-3 entries are readable since 0.6 via the resumable inflater —
-        // but ONLY for plain deflate: stored data is not self-delimiting
-        // (the descriptor signature is legal inside it), encrypted payloads
-        // are undelimitable AND unreadable, and registered custom codecs
-        // cannot report a consumed-byte position.
-        if (usesDescriptor && (isEncrypted || lfh.compressionMethod !== METHOD_DEFLATE)) {
-            throw new ZipUnsupportedError('ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR',
-                `zipnative: entry '${name}' combines a data descriptor (flag bit 3) with `
-                + `${isEncrypted ? 'encryption' : `method ${lfh.compressionMethod}`} — its payload cannot be `
-                + 'delimited without the central directory; use openZip() on the complete archive instead',
-                'cd-less-descriptor');
-        }
-
-        const compressedSize = z64.compressedSize;
-        const uncompressedSize = z64.uncompressedSize;
-
-        if (!usesDescriptor) {
-            // Declared-size bounds (untrusted values — output is ALSO counted).
-            // Bit-3 entries declare zeros; their protection is the output
-            // counting plus the incremental ratio guard in the reader below.
-            enforceLimit(limits, 'maxEntryUncompressedSize', uncompressedSize, `entry '${name}' declared size`);
-            if (compressedSize >= 1024 && compressedSize > 0) {
-                enforceLimit(limits, 'maxCompressionRatio', uncompressedSize / compressedSize,
-                    `entry '${name}' compression ratio`);
+            const usesDescriptor = (lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0;
+            const isEncrypted = (lfh.flags & (FLAG_ENCRYPTED | FLAG_STRONG_ENCRYPTION)) !== 0;
+            // Bit-3 entries are readable since 0.6 via the resumable inflater —
+            // but ONLY for plain deflate: stored data is not self-delimiting
+            // (the descriptor signature is legal inside it), encrypted payloads
+            // are undelimitable AND unreadable, and registered custom codecs
+            // cannot report a consumed-byte position.
+            if (usesDescriptor && (isEncrypted || lfh.compressionMethod !== METHOD_DEFLATE)) {
+                throw new ZipUnsupportedError('ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR',
+                    `zipnative: entry '${name}' combines a data descriptor (flag bit 3) with `
+                    + `${isEncrypted ? 'encryption' : `method ${lfh.compressionMethod}`} — its payload cannot be `
+                    + 'delimited without the central directory; use openZip() on the complete archive instead',
+                    'cd-less-descriptor');
             }
-        }
 
-        const header: StreamedZipHeader = {
-            name,
-            rawName: lfh.name,
-            nameEncoding,
-            isDirectory: name.endsWith('/'),
-            compressionMethod: lfh.compressionMethod,
-            compressedSize,
-            uncompressedSize,
-            crc32: lfh.crc32,
-            flags: lfh.flags,
-            versionNeeded: lfh.versionNeeded,
-            dosDate: lfh.dosDate,
-            dosTime: lfh.dosTime,
-            lastModified: resolveUtMtime(fields) ?? dosDateTimeToDate(lfh.dosDate, lfh.dosTime),
-            isEncrypted,
-            extraFields: fields,
-        };
+            const compressedSize = z64.compressedSize;
+            const uncompressedSize = z64.uncompressedSize;
 
-        // Zero-payload entries (directories, empty files) are auto-drained:
-        // there is nothing to consume, so the outer iterator may advance
-        // immediately — data()/skip() remain callable once regardless.
-        // Bit-3 entries declare 0 but DO carry a payload — never auto-drain.
-        const state = { done: compressedSize === 0 && !usesDescriptor, consumed: false };
-        previous = state;
-
-        const guardConsume = (): void => {
-            if (state.consumed) {
-                throw new ZipError('ZIP_API_MISUSE', `zipnative: data()/skip() for entry '${name}' was already used — it is single-shot`);
-            }
-            state.consumed = true;
-        };
-
-        const entry: StreamedZipEntry = {
-            header,
-
-            data: (): AsyncGenerator<Uint8Array, void, undefined> => {
-                if (isEncrypted) {
-                    const feature = (lfh.flags & FLAG_STRONG_ENCRYPTION) !== 0 ? 'strong-encryption' : 'zipcrypto';
-                    throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
-                        `zipnative: entry '${name}' is encrypted (${feature}) — encryption is not supported; `
-                        + 'skip() it to continue',
-                        feature);
-                }
-                const codec = getCodec(lfh.compressionMethod);
-                if (codec === null) {
-                    throw new ZipUnsupportedError('ZIP_UNSUPPORTED_METHOD',
-                        `zipnative: entry '${name}' uses compression method ${lfh.compressionMethod}, which has no `
-                        + 'registered codec — skip() it, or registerCodec() one',
-                        `method:${lfh.compressionMethod}`);
-                }
-                guardConsume();
-                return usesDescriptor ? streamDescriptorEntry() : streamEntryData(entry);
-            },
-
-            skip: async (): Promise<void> => {
-                guardConsume();
-                if (usesDescriptor) {
-                    // A bit-3 payload has no known length: skipping requires
-                    // finding the deflate stream's end — a full
-                    // decompress-and-discard (documented cost; the limits
-                    // still apply, so a bomb cannot hide behind skip()).
-                    const drain = streamDescriptorEntry();
-                    for (let res = await drain.next(); !res.done; res = await drain.next()) { /* discard */ }
-                    return;
-                }
-                const discard = cursor.take(compressedSize);
-                for (let res = await discard.next(); !res.done; res = await discard.next()) { /* discard */ }
-                state.done = true;
-            },
-        };
-
-        /** Bit-3 path: resumable inflater + validated data descriptor. */
-        async function* streamDescriptorEntry(): AsyncGenerator<Uint8Array, void, undefined> {
-            const inflator = createInflator(limits.maxEntryUncompressedSize);
-            let crc = 0;
-            let fed = 0;
-            while (!inflator.finished) {
-                const chunk = await cursor.nextChunk();
-                if (chunk === null) {
-                    throw new ZipFormatError('ZIP_STREAM_TRUNCATED',
-                        `zipnative: stream truncated inside entry '${name}' — the deflate stream never completed`);
-                }
-                fed += chunk.length;
-                let pieces: Uint8Array[];
-                try {
-                    pieces = inflator.push(chunk);
-                } catch (err) {
-                    throw err instanceof ZipError ? err : new ZipDataError('ZIP_DECOMPRESSION_FAILED',
-                        `zipnative: entry '${name}' failed to decompress (${err instanceof Error ? err.message : String(err)})`,
-                        name);
-                }
-                for (const piece of pieces) {
-                    totalProduced += piece.length;
-                    enforceLimit(limits, 'maxTotalUncompressedSize', totalProduced, 'total streamed output');
-                    crc = crc32(piece, crc);
-                    yield piece;
-                }
-                // Incremental ratio guard: fed ≥ consumed, so produced/fed
-                // under-reports the true ratio — the safe direction.
-                if (fed >= 1024) {
-                    enforceLimit(limits, 'maxCompressionRatio', inflator.bytesProduced / fed,
+            if (!usesDescriptor) {
+                // Declared-size bounds (untrusted values — output is ALSO counted).
+                // Bit-3 entries declare zeros; their protection is the output
+                // counting plus the incremental ratio guard in the reader below.
+                enforceLimit(limits, 'maxEntryUncompressedSize', uncompressedSize, `entry '${name}' declared size`);
+                if (compressedSize >= 1024 && compressedSize > 0) {
+                    enforceLimit(limits, 'maxCompressionRatio', uncompressedSize / compressedSize,
                         `entry '${name}' compression ratio`);
                 }
             }
-            inflator.end();
-            if (inflator.leftover.length > 0) {
-                cursor.unread(inflator.leftover);
-            }
 
-            const measured = {
-                crc32: crc,
-                compressedSize: inflator.bytesConsumed,
-                uncompressedSize: inflator.bytesProduced,
+            const header: StreamedZipHeader = {
+                name,
+                rawName: lfh.name,
+                nameEncoding,
+                isDirectory: name.endsWith('/'),
+                compressionMethod: lfh.compressionMethod,
+                compressedSize,
+                uncompressedSize,
+                crc32: lfh.crc32,
+                flags: lfh.flags,
+                versionNeeded: lfh.versionNeeded,
+                dosDate: lfh.dosDate,
+                dosTime: lfh.dosTime,
+                lastModified: resolveUtMtime(fields) ?? dosDateTimeToDate(lfh.dosDate, lfh.dosTime),
+                isEncrypted,
+                extraFields: fields,
             };
-            if (measured.compressedSize >= 1024) {
-                enforceLimit(limits, 'maxCompressionRatio', measured.uncompressedSize / measured.compressedSize,
-                    `entry '${name}' compression ratio`);
-            }
-            const head = await cursor.peekUpTo(24);
-            const match = matchDataDescriptor(head, measured);
-            if (!match.ok) {
-                throw match.crcMismatch !== null
-                    ? new ZipDataError('ZIP_CRC_MISMATCH',
-                        `zipnative: entry '${name}' data-descriptor CRC-32 mismatch — the data is corrupt`,
-                        name, match.crcMismatch.expected, match.crcMismatch.actual)
-                    : new ZipDataError('ZIP_DESCRIPTOR_MISMATCH',
-                        `zipnative: entry '${name}' has no data descriptor matching the decompressed payload `
-                        + '(corrupt or hostile stream)',
-                        name);
-            }
-            await cursor.readExact(match.byteLength);
-            state.done = true;
-        }
 
-        async function* streamEntryData(_self: StreamedZipEntry): AsyncGenerator<Uint8Array, void, undefined> {
-            let produced = 0;
-            let crc = 0;
-            const outputCap = Math.min(uncompressedSize, limits.maxEntryUncompressedSize);
+            // Zero-payload entries (directories, empty files) are auto-drained:
+            // there is nothing to consume, so the outer iterator may advance
+            // immediately — data()/skip() remain callable once regardless.
+            // Bit-3 entries declare 0 but DO carry a payload — never auto-drain.
+            const state = { done: compressedSize === 0 && !usesDescriptor, consumed: false };
+            previous = state;
 
-            const account = (chunk: Uint8Array): void => {
-                produced += chunk.length;
-                totalProduced += chunk.length;
-                if (produced > outputCap) {
+            const guardConsume = (): void => {
+                if (state.consumed) {
+                    throw new ZipError('ZIP_API_MISUSE', `zipnative: data()/skip() for entry '${name}' was already used — it is single-shot`);
+                }
+                state.consumed = true;
+            };
+
+            const entry: StreamedZipEntry = {
+                header,
+
+                data: (): AsyncGenerator<Uint8Array, void, undefined> => {
+                    if (isEncrypted) {
+                        const feature = (lfh.flags & FLAG_STRONG_ENCRYPTION) !== 0 ? 'strong-encryption' : 'zipcrypto';
+                        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
+                            `zipnative: entry '${name}' is encrypted (${feature}) — encryption is not supported; `
+                            + 'skip() it to continue',
+                            feature);
+                    }
+                    const codec = getCodec(lfh.compressionMethod);
+                    if (codec === null) {
+                        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_METHOD',
+                            `zipnative: entry '${name}' uses compression method ${lfh.compressionMethod}, which has no `
+                            + 'registered codec — skip() it, or registerCodec() one',
+                            `method:${lfh.compressionMethod}`);
+                    }
+                    guardConsume();
+                    return usesDescriptor ? streamDescriptorEntry() : streamEntryData(entry);
+                },
+
+                skip: async (): Promise<void> => {
+                    guardConsume();
+                    if (usesDescriptor) {
+                        // A bit-3 payload has no known length: skipping requires
+                        // finding the deflate stream's end — a full
+                        // decompress-and-discard (documented cost; the limits
+                        // still apply, so a bomb cannot hide behind skip()).
+                        const drain = streamDescriptorEntry();
+                        for (let res = await drain.next(); !res.done; res = await drain.next()) { /* discard */ }
+                        return;
+                    }
+                    const discard = cursor.take(compressedSize);
+                    for (let res = await discard.next(); !res.done; res = await discard.next()) { /* discard */ }
+                    state.done = true;
+                },
+            };
+
+            /** Bit-3 path: resumable inflater + validated data descriptor. */
+            async function* streamDescriptorEntry(): AsyncGenerator<Uint8Array, void, undefined> {
+                const inflator = createInflator(limits.maxEntryUncompressedSize);
+                let crc = 0;
+                let fed = 0;
+                while (!inflator.finished) {
+                    const chunk = await cursor.nextChunk();
+                    if (chunk === null) {
+                        throw new ZipFormatError('ZIP_STREAM_TRUNCATED',
+                            `zipnative: stream truncated inside entry '${name}' — the deflate stream never completed`);
+                    }
+                    fed += chunk.length;
+                    let pieces: Uint8Array[];
+                    try {
+                        pieces = inflator.push(chunk);
+                    } catch (err) {
+                        throw err instanceof ZipError ? err : new ZipDataError('ZIP_DECOMPRESSION_FAILED',
+                            `zipnative: entry '${name}' failed to decompress (${err instanceof Error ? err.message : String(err)})`,
+                            name);
+                    }
+                    for (const piece of pieces) {
+                        totalProduced += piece.length;
+                        enforceLimit(limits, 'maxTotalUncompressedSize', totalProduced, 'total streamed output');
+                        crc = crc32(piece, crc);
+                        yield piece;
+                    }
+                    // Incremental ratio guard: fed ≥ consumed, so produced/fed
+                    // under-reports the true ratio — the safe direction.
+                    if (fed >= 1024) {
+                        enforceLimit(limits, 'maxCompressionRatio', inflator.bytesProduced / fed,
+                            `entry '${name}' compression ratio`);
+                    }
+                }
+                inflator.end();
+                if (inflator.leftover.length > 0) {
+                    cursor.unread(inflator.leftover);
+                }
+
+                const measured = {
+                    crc32: crc,
+                    compressedSize: inflator.bytesConsumed,
+                    uncompressedSize: inflator.bytesProduced,
+                };
+                if (measured.compressedSize >= 1024) {
+                    enforceLimit(limits, 'maxCompressionRatio', measured.uncompressedSize / measured.compressedSize,
+                        `entry '${name}' compression ratio`);
+                }
+                const head = await cursor.peekUpTo(24);
+                const match = matchDataDescriptor(head, measured);
+                if (!match.ok) {
+                    throw match.crcMismatch !== null
+                        ? new ZipDataError('ZIP_CRC_MISMATCH',
+                            `zipnative: entry '${name}' data-descriptor CRC-32 mismatch — the data is corrupt`,
+                            name, match.crcMismatch.expected, match.crcMismatch.actual)
+                        : new ZipDataError('ZIP_DESCRIPTOR_MISMATCH',
+                            `zipnative: entry '${name}' has no data descriptor matching the decompressed payload `
+                            + '(corrupt or hostile stream)',
+                            name);
+                }
+                await cursor.readExact(match.byteLength);
+                state.done = true;
+            }
+
+            async function* streamEntryData(_self: StreamedZipEntry): AsyncGenerator<Uint8Array, void, undefined> {
+                let produced = 0;
+                let crc = 0;
+                const outputCap = Math.min(uncompressedSize, limits.maxEntryUncompressedSize);
+
+                const account = (chunk: Uint8Array): void => {
+                    produced += chunk.length;
+                    totalProduced += chunk.length;
+                    if (produced > outputCap) {
+                        throw new ZipDataError('ZIP_SIZE_MISMATCH',
+                            `zipnative: entry '${name}' produced more than its declared ${uncompressedSize} bytes `
+                            + '(the local header lies — corrupt or hostile stream)',
+                            name);
+                    }
+                    enforceLimit(limits, 'maxTotalUncompressedSize', totalProduced, 'total streamed output');
+                    crc = crc32(chunk, crc);
+                };
+
+                if (lfh.compressionMethod === METHOD_STORE) {
+                    for await (const piece of cursor.take(compressedSize)) {
+                        account(piece);
+                        yield piece;
+                    }
+                } else {
+                    yield* pumpInflate(cursor, compressedSize, account);
+                }
+
+                if (produced !== uncompressedSize) {
                     throw new ZipDataError('ZIP_SIZE_MISMATCH',
-                        `zipnative: entry '${name}' produced more than its declared ${uncompressedSize} bytes `
-                        + '(the local header lies — corrupt or hostile stream)',
+                        `zipnative: entry '${name}' produced ${produced} bytes but its header declares `
+                        + `${uncompressedSize} (corrupt or hostile stream)`,
                         name);
                 }
-                enforceLimit(limits, 'maxTotalUncompressedSize', totalProduced, 'total streamed output');
-                crc = crc32(chunk, crc);
-            };
-
-            if (lfh.compressionMethod === METHOD_STORE) {
-                for await (const piece of cursor.take(compressedSize)) {
-                    account(piece);
-                    yield piece;
+                if (crc !== lfh.crc32) {
+                    throw new ZipDataError('ZIP_CRC_MISMATCH',
+                        `zipnative: entry '${name}' CRC-32 mismatch — the data is corrupt`,
+                        name, lfh.crc32, crc);
                 }
-            } else {
-                yield* pumpInflate(cursor, compressedSize, account);
+                state.done = true;
             }
 
-            if (produced !== uncompressedSize) {
-                throw new ZipDataError('ZIP_SIZE_MISMATCH',
-                    `zipnative: entry '${name}' produced ${produced} bytes but its header declares `
-                    + `${uncompressedSize} (corrupt or hostile stream)`,
-                    name);
-            }
-            if (crc !== lfh.crc32) {
-                throw new ZipDataError('ZIP_CRC_MISMATCH',
-                    `zipnative: entry '${name}' CRC-32 mismatch — the data is corrupt`,
-                    name, lfh.crc32, crc);
-            }
-            state.done = true;
+            yield entry;
         }
+    }
 
-        yield entry;
+    try {
+        yield* walk();
+    } finally {
+        await cursor.close();
     }
 }
 

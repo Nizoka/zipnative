@@ -35,6 +35,12 @@ export interface ChunkCursor {
     peekUpTo(n: number): Promise<Uint8Array>;
     /** Total bytes consumed so far (for error offsets). */
     readonly bytesRead: number;
+    /**
+     * Close the underlying source iterator (runs its cleanup — e.g. a
+     * ReadableStream reader's lock release). Idempotent; close errors are
+     * swallowed so they never mask the error that ended the iteration.
+     */
+    close(): Promise<void>;
 }
 
 export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCursor {
@@ -73,9 +79,21 @@ export function createChunkCursor(source: AsyncIterable<Uint8Array>): ChunkCurso
         return piece;
     };
 
+    let closed = false;
+
     return {
         get bytesRead(): number {
             return bytesRead;
+        },
+
+        async close(): Promise<void> {
+            if (closed) return;
+            closed = true;
+            try {
+                await iterator.return?.();
+            } catch {
+                // Cleanup must never mask the error that ended the iteration.
+            }
         },
 
         async readExact(n: number): Promise<Uint8Array> {

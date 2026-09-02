@@ -6,12 +6,14 @@
  * — the shape a `fetch` body or `File.stream()` hands you. This module
  * normalises the union to an async iterable exactly once.
  *
- * Feature-detected: `ReadableStream[Symbol.asyncIterator]` is present in
- * Node ≥ 18 and current Chromium/Firefox, but Safari lagged — when it is
- * absent the stream is driven through `getReader()` with the lock
- * released in `finally`, which also gives correct cancellation semantics
- * when a consumer stops early (the forward reader deliberately leaves
- * the central directory unconsumed).
+ * A `ReadableStream` is ALWAYS driven through `getReader()` — even on
+ * runtimes where `ReadableStream[Symbol.asyncIterator]` exists — because
+ * the native async iterator CANCELS the stream when the consumer stops
+ * early, while zipnative's documented contract is release-without-cancel:
+ * the forward reader deliberately leaves the central directory unread,
+ * and cancelling the rest stays the stream owner's decision. The lock is
+ * released in `finally`, which runs when the consumer closes the iterable
+ * (the forward reader does so on every exit path).
  *
  * @module core/zip-source
  */
@@ -21,12 +23,9 @@ export type ByteSource = AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>;
 
 /** Normalise a {@link ByteSource} to an async iterable (no copying). */
 export function toByteIterable(source: ByteSource): AsyncIterable<Uint8Array> {
-    if (Symbol.asyncIterator in source) {
+    if (typeof (source as ReadableStream<Uint8Array>).getReader !== 'function') {
         return source as AsyncIterable<Uint8Array>;
     }
-    // A ReadableStream on a runtime without Symbol.asyncIterator support:
-    // drive the reader manually and always release the lock, so an early
-    // consumer exit leaves the stream cancellable by its owner.
     const stream = source as ReadableStream<Uint8Array>;
     return {
         async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array, void, undefined> {
@@ -38,6 +37,7 @@ export function toByteIterable(source: ByteSource): AsyncIterable<Uint8Array> {
                     yield value;
                 }
             } finally {
+                // Release, never cancel: the owner keeps the stream.
                 reader.releaseLock();
             }
         },
