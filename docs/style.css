@@ -249,6 +249,54 @@ img, svg { max-width: 100%; height: auto; }
 .fi-mcp { background: #eef2ff; color: #4338ca; }
 .fi-cli { background: #ecfeff; color: #0e7490; }
 
+/* ── Ecosystem: pick your surface ──────────────────────────── */
+.eco-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 40px; }
+.eco-card { display: flex; flex-direction: column; }
+.eco-card .eco-pkg { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; color: var(--c-text-muted); margin-bottom: 6px; }
+.eco-card .eco-pkg strong { color: var(--c-primary); font-weight: 700; }
+.eco-card ul { list-style: none; padding: 0; margin: 14px 0 0; font-size: 14px; }
+.eco-card li { margin: 4px 0; }
+.eco-card .eco-install {
+  margin-top: auto; padding-top: 16px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px;
+  color: var(--c-code-text); background: var(--c-code-bg); border-radius: var(--radius-sm);
+  padding: 10px 14px; margin-top: 16px; overflow-x: auto; white-space: nowrap;
+}
+.eco-card .eco-install code { color: #93c5fd; }
+
+/* ── Install switcher (hero) — its own classes on purpose: app.js's
+      code-tab handler owns every .tab-panel on the page ─────── */
+.install-tabs { display: inline-flex; flex-direction: column; align-items: stretch; margin-top: 28px; max-width: 100%; }
+.install-bar { display: flex; gap: 4px; justify-content: center; margin-bottom: 8px; }
+.install-btn {
+  padding: 5px 12px; border-radius: 999px; border: 1px solid var(--c-border);
+  background: var(--c-bg-card); color: var(--c-text-dim); font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: background .15s, color .15s;
+}
+.install-btn.active { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
+.install-panel { display: none; }
+.install-panel.active { display: block; }
+.install-panel .install-cmd { margin-top: 0; max-width: 100%; }
+
+/* ── Live version strip (under the nav; assets/versions.js) ─── */
+.zn-version-strip {
+  font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--c-surface); border-bottom: 1px solid var(--c-border); color: var(--c-text-dim);
+  padding: 6px 16px; letter-spacing: 0.01em; min-height: 12px;
+}
+.zn-version-strip-inner { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.zn-version-strip-label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; margin-right: 4px; }
+.zn-version-strip-pkg { color: var(--c-text); text-decoration: none; white-space: nowrap; }
+.zn-version-strip-pkg strong { color: var(--c-primary); font-weight: 700; }
+.zn-version-strip-pkg:hover strong { text-decoration: underline; }
+.zn-version-strip-sep { color: var(--c-border); user-select: none; }
+.zn-version-strip-pin { color: var(--c-text-muted); font-weight: 400; }
+.zn-versions-list { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+.zn-versions-list li { display: flex; gap: 10px; align-items: baseline; margin: 4px 0; }
+.zn-versions-ver { font-weight: 700; color: var(--c-primary); }
+.zn-versions-pin, .zn-versions-foot { color: var(--c-text-muted); font-size: 12px; }
+@media (max-width: 600px) { .zn-version-strip { padding: 5px 12px; font-size: 10px; } .zn-version-strip-label { display: none; } }
+
 /* ── Code Tabs ─────────────────────────────────────────────── */
 .code-tabs { max-width: 780px; margin: 0 auto; }
 .tab-bar {

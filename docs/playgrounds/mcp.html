@@ -480,7 +480,7 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         purpose: "Walk LOCAL headers in stream order with bounded memory (iterateZipEntries) — the only tool that works on a truncated download, and the only one whose result is NOT authoritative.",
         prompt: 'This download was cut off. Scan what survived, without trusting it.',
         args: { zipBase64: '<base64 of a truncated download>', tolerateTruncation: true, data: 'verify', verbosity: 'summary' },
-        variants: [{ label: 'Run on a copy truncated at 60 %', truncate: 0.6, args: { zipBase64: '<truncated>', tolerateTruncation: true, data: 'verify' } }],
+        variants: [{ label: 'Run on a copy truncated at 40 %', truncate: 0.4, args: { zipBase64: '<truncated>', tolerateTruncation: true, data: 'verify' } }],
         note: 'The browser feeds the bytes as an unseekable <code>ReadableStream</code> in 512-byte chunks — the same code path a <code>fetch</code> body takes. <code>stoppedAt</code> is derived exactly as the server derives it: from byte accounting, never from reading a signature.',
         async run(a, bytes, opt) {
           const src = opt && opt.truncate ? bytes.subarray(0, Math.floor(bytes.length * opt.truncate)) : bytes;

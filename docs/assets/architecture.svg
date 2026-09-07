@@ -1,8 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" role="img" aria-labelledby="arch-title arch-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
-  <title id="arch-title">zipnative — module architecture</title>
-  <desc id="arch-desc">Layered dependency diagram for the zipnative library. Top band: five strict layers left to right — types (errors and limits), codecs (deflate, inflate, crc32, registry), core (segments, builder, stream writer, structs), parser (reader, modifier, extract, forward iterate) and worker (parallel deflate pool, the ./worker subpath). Arrows point from each layer to the one it imports; reverse edges are forbidden by policy and cross-layer needs travel by parameter injection. Bottom band: the write path — planArchive validates, compresses and orders entries, feeding archiveSegments, the ONE segment generator with exact offsets; both toBytes (sync, buffered) and stream (chunked, bounded memory) drain that same generator, so their output is byte-identical by construction. A header badge notes the repository's AI-agent governance with a human-in-the-loop contribution gate. A legend explains the three edge types: imports, the shared generator path, and the forbidden reverse edge.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 740" role="img" aria-labelledby="arch-title arch-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="arch-title">zipnative — ecosystem and module architecture</title>
+  <desc id="arch-desc">Ecosystem and layered dependency diagram for zipnative. Top band, the ecosystem consumers published on npm: zipnative-cli 1.0.0 (15 commands, binary zipnative, the filesystem trust boundary, a --json envelope, --dry-run, schemas and completion) and zipnative-mcp 1.0.0 (13 tools, 7 prompts, sandboxed resources, stdio and Streamable HTTP, no network), each consuming the library through npm with a ^1.0.0 pin. Middle band, the library: five strict layers left to right — types (errors and limits), codecs (deflate, inflate, crc32, registry), core (segments, builder, stream writer, structs), parser (reader, modifier, extract, forward iterate) and worker (parallel deflate pool, the ./worker subpath). Arrows point from each layer to the one it imports; reverse edges are forbidden by policy and cross-layer needs travel by parameter injection. Bottom band: the write path — planArchive validates, compresses and orders entries, feeding archiveSegments, the ONE segment generator with exact offsets; both toBytes (sync, buffered) and stream (chunked, bounded memory) drain that same generator, so their output is byte-identical by construction. A header badge notes the repository's AI-agent governance with a human-in-the-loop contribution gate. A legend explains the four edge types: consumes via npm, imports, the shared generator path, and the forbidden reverse edge.</desc>
 
   <defs>
+    <marker id="ah-npm" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 4 L0 8 Z" fill="#7C3AED"/>
+    </marker>
     <marker id="ah-import" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
       <path d="M0 0 L10 4 L0 8 Z" fill="#94A3B8"/>
     </marker>
@@ -36,6 +39,9 @@
     <linearGradient id="g-seg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F3F8FF"/><stop offset="100%" stop-color="#DBEAFE"/></linearGradient>
 
     <linearGradient id="g-accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient>
+    <linearGradient id="g-eco" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FBFAFF"/><stop offset="100%" stop-color="#F3F0FF"/></linearGradient>
+    <linearGradient id="g-cli" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F2FDFF"/><stop offset="100%" stop-color="#DDF6FA"/></linearGradient>
+    <linearGradient id="g-mcp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F6F6FF"/><stop offset="100%" stop-color="#E6E7FF"/></linearGradient>
 
     <filter id="soft" x="-20%" y="-20%" width="140%" height="150%">
       <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1E293B" flood-opacity="0.08"/>
@@ -46,12 +52,39 @@
   </defs>
 
   <!-- Canvas -->
-  <rect x="0" y="0" width="960" height="600" fill="url(#g-canvas)"/>
+  <rect x="0" y="0" width="960" height="740" fill="url(#g-canvas)"/>
 
   <!-- ── Header ─────────────────────────────────────────────────── -->
-  <text x="480" y="38" text-anchor="middle" font-size="20" font-weight="800" fill="#0F172A" letter-spacing="-0.3">zipnative — Module Architecture</text>
+  <text x="480" y="38" text-anchor="middle" font-size="20" font-weight="800" fill="#0F172A" letter-spacing="-0.3">zipnative — Ecosystem &amp; Module Architecture</text>
   <rect x="446" y="48" width="68" height="4" rx="2" fill="url(#g-accent)"/>
-  <text x="480" y="72" text-anchor="middle" font-size="12" font-weight="500" fill="#64748B">Strict unidirectional flow · zero runtime dependencies · types ← codecs ← core ← parser ← worker</text>
+  <text x="480" y="72" text-anchor="middle" font-size="12" font-weight="500" fill="#64748B">Two satellites over one zero-dependency engine · strict unidirectional flow · types ← codecs ← core ← parser ← worker</text>
+
+  <!-- ════════════ ECOSYSTEM CONSUMERS BAND ════════════ -->
+  <rect x="28" y="92" width="904" height="126" rx="16" fill="url(#g-eco)" stroke="#DDD6FE" stroke-width="1.25"/>
+  <rect x="44" y="83" width="288" height="20" rx="10" fill="#FFFFFF" stroke="#DDD6FE" stroke-width="1"/>
+  <circle cx="58" cy="93" r="3" fill="#7C3AED"/>
+  <text x="68" y="97" font-size="10.5" font-weight="700" fill="#5B21B6" letter-spacing="0.6">ECOSYSTEM CONSUMERS · PUBLISHED ON NPM</text>
+
+  <!-- zipnative-cli -->
+  <g filter="url(#soft-sm)"><rect x="96" y="118" width="330" height="82" rx="13" fill="url(#g-cli)" stroke="#5EBECF" stroke-width="1.25"/></g>
+  <rect x="96" y="118" width="5" height="82" rx="2.5" fill="#0E7490"/>
+  <text x="116" y="144" font-size="15" font-weight="700" fill="#155E75">zipnative-cli <tspan font-size="11" font-weight="600" fill="#0E7490">1.0.0</tspan></text>
+  <text x="116" y="163" font-size="10" font-weight="600" fill="#0E7490">15 commands · binary zipnative · the filesystem trust boundary</text>
+  <text x="116" y="178" font-size="9.5" fill="#0891B2">--json envelope · --dry-run · schemas · completion · govern</text>
+  <text x="116" y="191" font-size="9.5" fill="#0891B2">offline, always · pins zipnative ^1.0.0</text>
+
+  <!-- zipnative-mcp -->
+  <g filter="url(#soft-sm)"><rect x="534" y="118" width="330" height="82" rx="13" fill="url(#g-mcp)" stroke="#A5B4FC" stroke-width="1.25"/></g>
+  <rect x="534" y="118" width="5" height="82" rx="2.5" fill="#6366F1"/>
+  <text x="554" y="144" font-size="15" font-weight="700" fill="#4338CA">zipnative-mcp <tspan font-size="11" font-weight="600" fill="#6366F1">1.0.0</tspan></text>
+  <text x="554" y="163" font-size="10" font-weight="600" fill="#6366F1">13 tools · 7 prompts · sandboxed zipnative://output/ resources</text>
+  <text x="554" y="178" font-size="9.5" fill="#818CF8">stdio + Streamable HTTP · MCP 2026-07-28 · no network, ever</text>
+  <text x="554" y="191" font-size="9.5" fill="#818CF8">for Claude, Cursor, VS Code, … · pins zipnative ^1.0.0</text>
+
+  <!-- consumes-via-npm edges, down into the library band -->
+  <line x1="261" y1="202" x2="261" y2="228" stroke="#7C3AED" stroke-width="1.8" marker-end="url(#ah-npm)"/>
+  <line x1="699" y1="202" x2="699" y2="228" stroke="#7C3AED" stroke-width="1.8" marker-end="url(#ah-npm)"/>
+  <text x="480" y="214" text-anchor="middle" font-size="10" font-weight="600" fill="#6D28D9">consume via npm · nothing added to the engine, nothing reaching into it</text>
 
   <!-- AI-governance badge -->
   <g filter="url(#soft-sm)">
@@ -61,6 +94,8 @@
   <path d="M706.5 33 l2 2 l4 -4" fill="none" stroke="#4F46E5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="724" y="37" font-size="9.5" font-weight="700" fill="#4338CA" letter-spacing="0.1">AI Governance · Human-in-the-loop</text>
 
+  <!-- Everything below is the pre-1.0 module diagram, shifted down under the consumers band. -->
+  <g transform="translate(0 140)">
   <!-- ════════════ LAYERS BAND ════════════ -->
   <rect x="28" y="92" width="904" height="196" rx="16" fill="url(#g-lib)" stroke="#E2E8F0" stroke-width="1.25"/>
   <rect x="44" y="83" width="156" height="20" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
@@ -168,14 +203,18 @@
   <!-- ── Legend ─────────────────────────────────────────────────── -->
   <line x1="28" y1="548" x2="932" y2="548" stroke="#E2E8F0" stroke-width="1"/>
   <g font-size="10.5" fill="#475569">
-    <line x1="150" y1="572" x2="180" y2="572" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
-    <text x="188" y="576">imports</text>
+    <line x1="60" y1="572" x2="90" y2="572" stroke="#7C3AED" stroke-width="1.8" marker-end="url(#ah-npm)"/>
+    <text x="98" y="576">consumes via npm (^1.0.0)</text>
 
-    <line x1="300" y1="572" x2="330" y2="572" stroke="#6366F1" stroke-width="1.8" marker-end="url(#ah-gen)"/>
-    <text x="338" y="576">shared segment generator</text>
+    <line x1="270" y1="572" x2="300" y2="572" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#ah-import)"/>
+    <text x="308" y="576">imports</text>
 
-    <line x1="540" y1="572" x2="570" y2="572" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="4,3"/>
-    <path d="M578 566 l8 8 M586 566 l-8 8" stroke="#DC2626" stroke-width="1.8" stroke-linecap="round"/>
-    <text x="596" y="576">reverse edge — forbidden by policy</text>
+    <line x1="400" y1="572" x2="430" y2="572" stroke="#6366F1" stroke-width="1.8" marker-end="url(#ah-gen)"/>
+    <text x="438" y="576">shared segment generator</text>
+
+    <line x1="620" y1="572" x2="650" y2="572" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="4,3"/>
+    <path d="M658 566 l8 8 M666 566 l-8 8" stroke="#DC2626" stroke-width="1.8" stroke-linecap="round"/>
+    <text x="676" y="576">reverse edge — forbidden by policy</text>
+  </g>
   </g>
 </svg>

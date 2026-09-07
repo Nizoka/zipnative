@@ -158,6 +158,20 @@
     });
   });
 
+  // ── Install switcher (hero) — deliberately separate from the code
+  //    tabs above: activateTab() clears every .tab-panel on the page.
+  var installBtns = document.querySelectorAll('.install-bar .install-btn');
+  var installPanels = document.querySelectorAll('.install-panel');
+  installBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-install');
+      installBtns.forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+      installPanels.forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-install') === id); });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+    });
+  });
+
   // ── GitHub stars ──────────────────────────────────────────
   var starsEl = document.getElementById('stars-count');
   if (starsEl) {

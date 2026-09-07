@@ -203,6 +203,24 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
     }
 }
 
+// ── Rule: versions-widget ────────────────────────────────────────────
+// assets/versions.js renders live npm versions and falls back to a
+// hard-coded map when the registry is unreachable; that map must equal
+// the manifest, or an offline visitor reads a stale version.
+{
+    const path = 'docs/assets/versions.js';
+    if (existsSync(resolve(ROOT, path))) {
+        const js = read(path);
+        for (const [name, entry] of Object.entries(ecosystem.packages)) {
+            const m = js.match(new RegExp(`'${name}':\\s*\\{\\s*version:\\s*'([^']+)',\\s*pin:\\s*(null|'([^']+)')`));
+            if (m === null) { report(path, 1, 'versions-widget', `FALLBACK lacks an entry for ${name}`); continue; }
+            if (m[1] !== entry.version) report(path, 1, 'versions-widget', `FALLBACK ${name} version ${m[1]} != manifest ${String(entry.version)}`);
+            const pin = m[3] ?? null;
+            if (pin !== (entry.pin ?? null)) report(path, 1, 'versions-widget', `FALLBACK ${name} pin ${String(pin)} != manifest ${String(entry.pin ?? null)}`);
+        }
+    }
+}
+
 // ── Rule: satellite-counts ───────────────────────────────────────────
 // "15 commands", "13 tools", "7 prompts": every such literal anywhere in
 // the prose (HTML, Markdown, SVG <desc>, root docs) must equal the
