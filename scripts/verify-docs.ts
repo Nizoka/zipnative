@@ -56,8 +56,25 @@ function walk(dir: string): string[] {
 }
 
 // ── Source of truth ──────────────────────────────────────────────────
+interface EcosystemPackage {
+    version: string | null;
+    repo?: string | null;
+    status?: string;
+    binary?: string;
+    pinField?: string | null;
+    pin?: string | null;
+    commandCount?: number;
+    commandGroups?: Record<string, readonly string[]>;
+    toolCount?: number;
+    tools?: readonly string[];
+    promptCount?: number;
+    prompts?: readonly string[];
+    resourceTemplates?: readonly string[];
+    transports?: readonly string[];
+    envVars?: readonly string[];
+}
 interface Ecosystem {
-    packages: Record<string, { version: string | null }>;
+    packages: Record<string, EcosystemPackage>;
     verifiedOn?: string;
     site?: string;
     derived?: { sampleZips?: number };
@@ -67,20 +84,72 @@ const truthVersion = ecosystem.packages['zipnative']?.version ?? null;
 const verifiedOn = ecosystem.verifiedOn ?? null;
 const site = ecosystem.site ?? null;
 const pkg = JSON.parse(read('package.json')) as { version: string; name: string };
+const MANIFEST = 'docs/assets/ecosystem.json';
+const cliPkg = ecosystem.packages['zipnative-cli'];
+const mcpPkg = ecosystem.packages['zipnative-mcp'];
 
 // ── Rule: manifest-shape ─────────────────────────────────────────────
+// Every package (engine + satellites) carries a coherent record; the
+// satellites additionally declare the inventories every count in the
+// prose is checked against (satellite-counts, *-surface-parity).
 if (typeof truthVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(truthVersion)) {
-    report('docs/assets/ecosystem.json', 1, 'manifest-shape', 'packages.zipnative.version must be a semver triple');
+    report(MANIFEST, 1, 'manifest-shape', 'packages.zipnative.version must be a semver triple');
 }
 if (verifiedOn === null || !/^\d{4}-\d{2}-\d{2}$/.test(verifiedOn)) {
-    report('docs/assets/ecosystem.json', 1, 'manifest-shape', 'verifiedOn must be an ISO date (documentation-audit date)');
+    report(MANIFEST, 1, 'manifest-shape', 'verifiedOn must be an ISO date (documentation-audit date)');
 }
 if (ecosystem.derived !== undefined) {
     for (const key of Object.keys(ecosystem.derived)) {
         if (key !== 'sampleZips') {
-            report('docs/assets/ecosystem.json', 1, 'manifest-shape',
+            report(MANIFEST, 1, 'manifest-shape',
                 `unknown derived.${key} — a typo here silently disables its counter`);
         }
+    }
+}
+for (const [name, entry] of Object.entries(ecosystem.packages)) {
+    const status = entry.status ?? '(missing)';
+    if (!['active', 'published', 'planned'].includes(status)) {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}.status must be active | published | planned (got ${status})`);
+    }
+    if (status === 'planned') {
+        if (entry.version !== null) report(MANIFEST, 1, 'manifest-shape', `packages.${name} is planned but carries a version`);
+    } else {
+        if (typeof entry.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(entry.version)) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.version must be a semver triple`);
+        }
+        if (typeof entry.repo !== 'string' || !entry.repo.startsWith('https://github.com/Nizoka/')) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.repo must be a https://github.com/Nizoka/ URL`);
+        }
+    }
+    const pinField = entry.pinField ?? null;
+    if (pinField !== null && !['dependencies', 'peerDependencies'].includes(pinField)) {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}.pinField must be dependencies | peerDependencies | null`);
+    }
+    if ((pinField === null) !== ((entry.pin ?? null) === null)) {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}: pin and pinField must be both present or both null`);
+    }
+    if (name !== 'zipnative' && status !== 'planned' && typeof entry.binary !== 'string') {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}.binary (the bin name) is required once published`);
+    }
+    const dupes = (list: readonly string[]): string[] => list.filter((x, i) => list.indexOf(x) !== i);
+    if (entry.commandGroups !== undefined) {
+        const flat = Object.values(entry.commandGroups).flat();
+        if (entry.commandCount !== flat.length) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.commandCount ${String(entry.commandCount)} != ${flat.length} commands listed in commandGroups`);
+        }
+        for (const d of dupes(flat)) report(MANIFEST, 1, 'manifest-shape', `packages.${name}: duplicate command ${d}`);
+    }
+    if (entry.tools !== undefined) {
+        if (entry.toolCount !== entry.tools.length) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.toolCount ${String(entry.toolCount)} != ${entry.tools.length} tools listed`);
+        }
+        for (const d of dupes(entry.tools)) report(MANIFEST, 1, 'manifest-shape', `packages.${name}: duplicate tool ${d}`);
+    }
+    if (entry.prompts !== undefined) {
+        if (entry.promptCount !== entry.prompts.length) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.promptCount ${String(entry.promptCount)} != ${entry.prompts.length} prompts listed`);
+        }
+        for (const d of dupes(entry.prompts)) report(MANIFEST, 1, 'manifest-shape', `packages.${name}: duplicate prompt ${d}`);
     }
 }
 
@@ -109,34 +178,54 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
     }
 }
 
-// ── Rule: playground-bundle ──────────────────────────────────────────
-// The playgrounds run a committed copy of the engine's own dist bundle.
-// It must match dist/index.js byte-for-byte (minus the sourceMappingURL
-// line dropped by `docs:playground`) and carry the manifest version, or
-// the playgrounds silently run stale code. dist/ is gitignored, so this
-// only checks when a build is present (CI builds before verifying).
+// ── Rule: cdn-pin ────────────────────────────────────────────────────
+// The playgrounds run the PUBLISHED package from a version-pinned CDN
+// (esm.sh → jsDelivr) — the pdfnative pattern, no local bundle. The pin
+// in the shared loader must track the manifest, and the pre-1.0 fallback
+// (a committed copy of dist/index.js) must not creep back in.
 {
-    const bundlePath = 'docs/playgrounds/zipnative.js';
-    if (existsSync(resolve(ROOT, bundlePath))) {
-        const committed = read(bundlePath);
-        const versionMatch = committed.match(/VERSION = "([^"]+)"/);
-        if (versionMatch === null || versionMatch[1] !== pkg.version) {
-            report(bundlePath, 1, 'playground-bundle',
-                `bundle VERSION ${versionMatch?.[1] ?? '(missing)'} != package.json ${pkg.version} — run \`npm run docs:playground\``);
+    const loaderPath = 'docs/playgrounds/load-engine.js';
+    if (!existsSync(resolve(ROOT, loaderPath))) {
+        report(loaderPath, 1, 'cdn-pin', 'missing — every playground imports the shared CDN loader');
+    } else {
+        const loader = read(loaderPath);
+        const pin = loader.match(/const VERSION = '([^']+)';/);
+        if (pin === null || pin[1] !== truthVersion) {
+            report(loaderPath, 1, 'cdn-pin', `CDN pin ${pin?.[1] ?? '(missing)'} != manifest ${String(truthVersion)} — edit the VERSION constant`);
         }
-        if (existsSync(resolve(ROOT, 'dist/index.js'))) {
-            const dist = read('dist/index.js').split('\n').filter((l) => !l.startsWith('//# sourceMappingURL=')).join('\n');
-            if (dist !== committed) {
-                report(bundlePath, 1, 'playground-bundle', 'differs from dist/index.js — run `npm run docs:playground`');
-            }
+        if (loader.includes('./zipnative.js')) {
+            report(loaderPath, 1, 'cdn-pin', 'the loader must not import a local bundle — the playgrounds are CDN-only since 1.0');
         }
-        // The CDN loader's version pin must track the manifest too.
-        const loaderPath = 'docs/playgrounds/load-engine.js';
-        if (existsSync(resolve(ROOT, loaderPath))) {
-            const pin = read(loaderPath).match(/const VERSION = '([^']+)';/);
-            if (pin === null || pin[1] !== pkg.version) {
-                report(loaderPath, 1, 'playground-bundle',
-                    `CDN pin ${pin?.[1] ?? '(missing)'} != package.json ${pkg.version} — run \`npm run docs:playground\``);
+    }
+    if (existsSync(resolve(ROOT, 'docs/playgrounds/zipnative.js'))) {
+        report('docs/playgrounds/zipnative.js', 1, 'cdn-pin', 'stale local bundle — the playgrounds load the published package; delete it');
+    }
+}
+
+// ── Rule: satellite-counts ───────────────────────────────────────────
+// "15 commands", "13 tools", "7 prompts": every such literal anywhere in
+// the prose (HTML, Markdown, SVG <desc>, root docs) must equal the
+// manifest inventory — the pdfnative count-drift lesson (docs.yml header).
+{
+    const expected: Record<string, number | undefined> = {
+        commands: cliPkg?.commandCount,
+        tools: mcpPkg?.toolCount,
+        prompts: mcpPkg?.promptCount,
+    };
+    const corpus = [
+        ...walk('docs').filter((p) => /\.(html|md|svg)$/.test(p) && !p.includes('llms-full') && !p.includes('llms-recipes')),
+        'README.md', 'AGENTS.md', 'ROADMAP.md', 'CONTRIBUTING.md', 'llms.txt',
+    ];
+    const pattern = /\b(\d+)\s+(?:production\s+|MCP\s+|CLI\s+)?(commands|tools|prompts)\b/gi;
+    for (const path of corpus) {
+        const text = read(path);
+        for (const m of text.matchAll(pattern)) {
+            const noun = m[2].toLowerCase();
+            const want = expected[noun];
+            if (want === undefined) continue;
+            if (Number(m[1]) !== want && !allowed(text, m.index ?? 0, 'satellite-counts')) {
+                report(path, lineOf(text, m.index ?? 0), 'satellite-counts',
+                    `"${m[0]}" but the manifest declares ${want} ${noun} — fix the prose or the manifest`);
             }
         }
     }
@@ -373,12 +462,27 @@ for (const page of htmlPages) {
             report(page, lineOf(html, m.index ?? 0), 'jsonld-version', 'invalid JSON-LD');
             continue;
         }
-        for (const node of parsed['@graph'] ?? []) {
+        // Walk every node (top-level or @graph) plus nested `about` nodes:
+        // any node NAMED after a manifest package must carry that package's
+        // version — the #library node and the satellite `about` nodes alike.
+        const nodes: Array<Record<string, unknown>> = parsed['@graph'] ?? [parsed as Record<string, unknown>];
+        const checkVersion = (node: Record<string, unknown>): void => {
             const id = typeof node['@id'] === 'string' ? node['@id'] : '';
-            if (id.endsWith('#library') && node['softwareVersion'] !== truthVersion) {
+            const name = typeof node['name'] === 'string' ? node['name'] : '';
+            const pkgEntry = ecosystem.packages[name];
+            const expected = id.endsWith('#library') ? truthVersion : (pkgEntry?.version ?? null);
+            if (expected !== null && node['softwareVersion'] !== undefined && node['softwareVersion'] !== expected) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version',
-                    `#library softwareVersion ${String(node['softwareVersion'])} != manifest ${String(truthVersion)}`);
+                    `${name || id} softwareVersion ${String(node['softwareVersion'])} != manifest ${expected}`);
             }
+            if (id.endsWith('#library') && node['softwareVersion'] === undefined) {
+                report(page, lineOf(html, m.index ?? 0), 'jsonld-version', '#library node lacks softwareVersion');
+            }
+        };
+        for (const node of nodes) {
+            checkVersion(node);
+            const about = node['about'];
+            if (about !== null && typeof about === 'object') checkVersion(about as Record<string, unknown>);
             const type = node['@type'];
             if ((type === 'WebSite' || type === 'SoftwareSourceCode' || type === 'TechArticle') && node['inLanguage'] === undefined) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `${String(type)} node lacks inLanguage`);

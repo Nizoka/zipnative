@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
    zipnative.dev — Playground chrome (theme + hamburger)
    Shared by every playground page. Per-page logic lives in each page's
-   own inline <script type="module"> which imports ./zipnative.js.
+   own inline <script type="module"> which imports the published engine
+   through ./load-engine.js (version-pinned CDN).
    ═══════════════════════════════════════════════════════════════ */
 
 (function () {

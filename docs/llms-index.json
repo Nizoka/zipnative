@@ -1,13 +1,13 @@
 {
   "$comment": "Index of zipnative’s machine-readable artefacts and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. approxTokens = bytes/4, approximate by construction.",
   "site": "https://zipnative.dev",
-  "verifiedOn": "2026-09-02",
+  "verifiedOn": "2026-09-07",
   "artefacts": [
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 7858,
-      "approxTokens": 1965
+      "bytes": 7837,
+      "approxTokens": 1959
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 61777,
-      "approxTokens": 15444
+      "bytes": 61756,
+      "approxTokens": 15439
     },
     {
       "url": "llms-recipes.txt",
@@ -42,8 +42,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, counts and milestones — the single source of truth.",
-      "bytes": 1413,
-      "approxTokens": 353
+      "bytes": 3202,
+      "approxTokens": 801
     }
   ],
   "guides": [
