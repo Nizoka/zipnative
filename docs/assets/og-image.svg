@@ -80,8 +80,12 @@
     <text x="690" y="541">Incremental</text>
     <rect x="792" y="510" width="136" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
     <text x="860" y="541">Workers</text>
+    <rect x="944" y="510" width="72" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="980" y="541" fill="#bfdbfe">CLI</text>
+    <rect x="1032" y="510" width="88" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="1076" y="541" fill="#bfdbfe">MCP</text>
   </g>
 
   <text x="1120" y="596" text-anchor="end" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="20" fill="#475569">MIT · zero dependencies · open source</text>
+        font-size="20" fill="#475569">library · CLI · MCP server · MIT · open source</text>
 </svg>
