@@ -35,8 +35,9 @@ artefact.
 - Encrypted entries: detected (`entry.isEncrypted`), reads throw
   `ZipUnsupportedError`. No encryption support in 1.x.
 - The engine never touches the filesystem — `extractZip` returns
-  `{ path, data, entry }[]`; writing to disk is the caller's (or the future
-  CLI's) job. `sanitizeEntryPath()` is exported for external sinks.
+  `{ path, data, entry }[]`; writing to disk is the caller's job, or
+  `zipnative extract`'s (the CLI is the filesystem trust boundary).
+  `sanitizeEntryPath()` is exported for external sinks.
 
 ## Core writing API (v0.2)
 
@@ -138,10 +139,34 @@ artefact.
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 
+## Ecosystem (all three packages published, 1.0.0)
+
+- `zipnative-cli` — `npx zipnative-cli <command>` (binary `zipnative`),
+  15 commands: create, modify, list, inspect, cat, extract, stream,
+  verify, crc32, inflate, batch, doctor, schema, completion, govern.
+  Agent contract: `--json` envelope on stderr carrying `err.code`
+  verbatim (13 `E_*` classes), `--dry-run`, `--summary` / `--fields`
+  projection, JSON Schemas via `schema`, `.zipnativerc.json`. Offline,
+  always. Pins `zipnative ^1.0.0`. Guide: docs/guides/cli.md.
+- `zipnative-mcp` — `npx zipnative-mcp` (stdio; Streamable HTTP on
+  127.0.0.1 with ZIPNATIVE_MCP_PORT), 13 tools: inspect_zip,
+  list_zip_entries, read_zip_entry, verify_zip, extract_zip,
+  scan_zip_forward, sanitize_entry_paths, create_zip, modify_zip,
+  compute_crc32, inflate_raw, describe_engine, draft_governance_issue;
+  7 prompts; sandboxed `zipnative://output/` resources
+  (ZIPNATIVE_MCP_OUTPUT_DIR). Pins `zipnative ^1.0.0`. Guide:
+  docs/guides/mcp.md.
+- Choosing a surface: docs/guides/choose.md (capability × surface
+  matrix, machine-readable twin docs/data/surfaces.json).
+- No surface adds encryption: delegate confidentiality to the document
+  layer (pdfnative AES-256, Office) and archive the encrypted files —
+  docs/guides/use-cases.md, Case 5.
+
 ## Docs
 
 - README.md: positioning, quick start, comparison, limitations
 - SECURITY.md: threat model and every bound with CWE tags
 - ROADMAP.md: 0.1 read → 0.2 deterministic write → 0.4 incremental modify →
   0.5 workers → 0.9 RC → 1.0 (frozen API, npm + provenance) → satellites
+  (cli + mcp, both 1.0.0)
 - AGENTS.md: conventions and architecture for contributors and agents

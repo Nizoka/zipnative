@@ -140,9 +140,19 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - Visual identity: the zipper-cut Z (logo, favicon, og-image, GitHub
   social preview)
 
-## Post-1.0 satellites (separate repos)
+## Satellites ✅ *(separate repos, both 1.0.0)*
 
-- `zipnative-cli` — agent-grade CLI (`--json` envelope, `--dry-run`,
-  doctor/schema/completion)
-- `zipnative-mcp` — MCP server mirroring the CLI's JSON contract
+- [`zipnative-cli`](https://github.com/Nizoka/zipnative-cli) 1.0.0
+  *(published 2026-09-05)* — agent-grade CLI: 15 commands, `--json`
+  envelope carrying `err.code` verbatim, `--dry-run`, `--summary` /
+  `--fields` projection, `doctor` / `schema` / `completion` / `govern`,
+  its own veraZIP gate; pins `zipnative ^1.0.0`
+- [`zipnative-mcp`](https://github.com/Nizoka/zipnative-mcp) 1.0.0
+  *(published 2026-09-07)* — MCP server mirroring the CLI's contract:
+  13 tools, 7 prompts, sandboxed `zipnative://output/` resources, stdio
+  + loopback Streamable HTTP; pins `zipnative ^1.0.0`
+
+## Post-1.0 (engine)
+
 - Read-only AES decryption behind an injected crypto provider (if demand)
+- Per-entry Zip64 streaming opt-in (the 0.9 decision record above)

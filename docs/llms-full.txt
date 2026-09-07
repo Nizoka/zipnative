@@ -35,8 +35,9 @@ artefact.
 - Encrypted entries: detected (`entry.isEncrypted`), reads throw
   `ZipUnsupportedError`. No encryption support in 1.x.
 - The engine never touches the filesystem — `extractZip` returns
-  `{ path, data, entry }[]`; writing to disk is the caller's (or the future
-  CLI's) job. `sanitizeEntryPath()` is exported for external sinks.
+  `{ path, data, entry }[]`; writing to disk is the caller's job, or
+  `zipnative extract`'s (the CLI is the filesystem trust boundary).
+  `sanitizeEntryPath()` is exported for external sinks.
 
 ## Core writing API (v0.2)
 
@@ -138,12 +139,36 @@ artefact.
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 
+## Ecosystem (all three packages published, 1.0.0)
+
+- `zipnative-cli` — `npx zipnative-cli <command>` (binary `zipnative`),
+  15 commands: create, modify, list, inspect, cat, extract, stream,
+  verify, crc32, inflate, batch, doctor, schema, completion, govern.
+  Agent contract: `--json` envelope on stderr carrying `err.code`
+  verbatim (13 `E_*` classes), `--dry-run`, `--summary` / `--fields`
+  projection, JSON Schemas via `schema`, `.zipnativerc.json`. Offline,
+  always. Pins `zipnative ^1.0.0`. Guide: docs/guides/cli.md.
+- `zipnative-mcp` — `npx zipnative-mcp` (stdio; Streamable HTTP on
+  127.0.0.1 with ZIPNATIVE_MCP_PORT), 13 tools: inspect_zip,
+  list_zip_entries, read_zip_entry, verify_zip, extract_zip,
+  scan_zip_forward, sanitize_entry_paths, create_zip, modify_zip,
+  compute_crc32, inflate_raw, describe_engine, draft_governance_issue;
+  7 prompts; sandboxed `zipnative://output/` resources
+  (ZIPNATIVE_MCP_OUTPUT_DIR). Pins `zipnative ^1.0.0`. Guide:
+  docs/guides/mcp.md.
+- Choosing a surface: docs/guides/choose.md (capability × surface
+  matrix, machine-readable twin docs/data/surfaces.json).
+- No surface adds encryption: delegate confidentiality to the document
+  layer (pdfnative AES-256, Office) and archive the encrypted files —
+  docs/guides/use-cases.md, Case 5.
+
 ## Docs
 
 - README.md: positioning, quick start, comparison, limitations
 - SECURITY.md: threat model and every bound with CWE tags
 - ROADMAP.md: 0.1 read → 0.2 deterministic write → 0.4 incremental modify →
   0.5 workers → 0.9 RC → 1.0 (frozen API, npm + provenance) → satellites
+  (cli + mcp, both 1.0.0)
 - AGENTS.md: conventions and architecture for contributors and agents
 
 ---
@@ -157,6 +182,8 @@ artefact.
 [![CodeQL](https://github.com/Nizoka/zipnative/actions/workflows/codeql.yml/badge.svg)](https://github.com/Nizoka/zipnative/actions/workflows/codeql.yml)
 [![npm version](https://img.shields.io/npm/v/zipnative)](https://www.npmjs.com/package/zipnative)
 [![npm downloads](https://img.shields.io/npm/dm/zipnative)](https://www.npmjs.com/package/zipnative)
+[![zipnative-cli](https://img.shields.io/npm/v/zipnative-cli?label=zipnative-cli&color=0e7490)](https://www.npmjs.com/package/zipnative-cli)
+[![zipnative-mcp](https://img.shields.io/npm/v/zipnative-mcp?label=zipnative-mcp&color=4338ca)](https://www.npmjs.com/package/zipnative-mcp)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/zipnative)](https://bundlephobia.com/package/zipnative)
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
@@ -167,7 +194,7 @@ artefact.
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: 1.0 — stable.** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
+> **Status: 1.0 — stable.** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9). The satellites are published too: [`zipnative-cli`](https://www.npmjs.com/package/zipnative-cli) (15 commands, agent-grade JSON contract) and [`zipnative-mcp`](https://www.npmjs.com/package/zipnative-mcp) (13 tools for AI assistants) — see [Ecosystem](#ecosystem). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
 
 ## Why zipnative?
 
@@ -362,11 +389,11 @@ ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 
 
 | Package | Purpose | Status |
 |---|---|---|
-| `zipnative` | core engine (this repo) | active |
-| `zipnative-cli` | command-line tool, agent-grade JSON contract | planned |
-| `zipnative-mcp` | MCP server for AI agents | planned |
+| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 77 exports, zero runtime dependencies | 1.0.0 |
+| [`zipnative-cli`](https://github.com/Nizoka/zipnative-cli) | command-line tool (`npx zipnative-cli`, binary `zipnative`) — 15 commands, `--json` envelope, `--dry-run`, JSON Schemas, shell completion; the filesystem trust boundary the engine refuses to be | 1.0.0 |
+| [`zipnative-mcp`](https://github.com/Nizoka/zipnative-mcp) | MCP server for AI assistants (`npx zipnative-mcp`) — 13 tools, 7 prompts, sandboxed file resources, stdio + Streamable HTTP | 1.0.0 |
 
-The core stays dependency-free by exiling every dependency-bearing integration to a satellite repo — the pdfnative ecosystem pattern.
+Both satellites pin `zipnative ^1.0.0` in their `dependencies` and add nothing to the engine: the core stays dependency-free by exiling every dependency-bearing integration to a satellite repo — the pdfnative ecosystem pattern. Neither satellite adds encryption: [docs/guides/use-cases.md](docs/guides/use-cases.md) shows how confidentiality is delegated to the document layer instead. Versions and inventories are recorded once, in [docs/assets/ecosystem.json](docs/assets/ecosystem.json), and policed by `npm run verify:docs`.
 
 ## Development
 

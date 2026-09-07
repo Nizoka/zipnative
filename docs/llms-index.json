@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 7837,
-      "approxTokens": 1959
+      "bytes": 9215,
+      "approxTokens": 2304
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 61756,
-      "approxTokens": 15439
+      "bytes": 64496,
+      "approxTokens": 16124
     },
     {
       "url": "llms-recipes.txt",
