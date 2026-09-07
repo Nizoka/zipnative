@@ -499,6 +499,32 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
     }
 }
 
+// ── Rule: switcher-parity ────────────────────────────────────────────
+// Every playground page carries a hand-synced sub-nav listing every
+// playground page (the pdfnative pattern, ported): the link set must
+// equal the page set, the page itself is marked aria-current, and the
+// hub's card grid links every page too.
+{
+    const dir = 'docs/playgrounds';
+    const pages = walk(dir).filter((p) => p.endsWith('.html') && !p.endsWith('index.html')).map((p) => p.replace(/\\/g, '/').split('/').pop() ?? '');
+    for (const page of pages) {
+        const path = `${dir}/${page}`;
+        const html = read(path);
+        const nav = html.match(/<nav class="playground-switcher"[\s\S]*?<\/nav>/);
+        if (nav === null) { report(path, 1, 'switcher-parity', 'no <nav class="playground-switcher">'); continue; }
+        const links = [...nav[0].matchAll(/<a href="\.\/([a-z-]+\.html)"([^>]*)>/g)];
+        const linked = links.map((m) => m[1]);
+        for (const p of pages) if (!linked.includes(p)) report(path, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher lacks ${p}`);
+        for (const l of linked) if (!pages.includes(l)) report(path, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher links ${l}, which is not a playground page`);
+        const current = links.filter((m) => m[2].includes('aria-current="page"')).map((m) => m[1]);
+        if (current.length !== 1 || current[0] !== page) report(path, lineOf(html, nav.index ?? 0), 'switcher-parity', `aria-current="page" must mark exactly ${page} (got ${current.join(', ') || 'none'})`);
+    }
+    const hub = read(`${dir}/index.html`);
+    for (const p of pages) {
+        if (!hub.includes(`class="pg-card" href="${p}"`)) report(`${dir}/index.html`, 1, 'switcher-parity', `hub has no card for ${p}`);
+    }
+}
+
 // ── Rule: api-json-sync ──────────────────────────────────────────────
 {
     const rebuilt = `${JSON.stringify(buildApiJson(ROOT), null, 2)}\n`;

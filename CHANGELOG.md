@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+
+Documentation-only release of the site and the repository docs, aligned on the published ecosystem: `zipnative` 1.0.0, `zipnative-cli` 1.0.0 (npm 2026-09-05) and `zipnative-mcp` 1.0.0 (npm 2026-09-07). No engine change.
+
+- **The satellites are published** — README (ecosystem table, badges, status line), ROADMAP, AGENTS.md, llms.txt and the agent brief say so, with binaries, counts and the `^1.0.0` pin; `docs/assets/ecosystem.json` records both packages in full (version, repo, binary, pin, command groups, tools, prompts, resource templates, transports, environment variables) and is the single source of truth every count on the site is checked against.
+- **Three new guides** in the pdfnative charter — [CLI](docs/guides/cli.md) (the fifteen commands with every flag, the agent contract, global options, environment, security posture, what the CLI does not do), [MCP](docs/guides/mcp.md) (client configuration for Claude Desktop, Claude Code, Cursor, VS Code and Streamable HTTP; the thirteen tools with inputs and outputs; seven prompts; sandboxed resources; the seven environment variables; error and security models) and [Choosing your surface](docs/guides/choose.md) (the capability × surface matrix, twin of the new `docs/data/surfaces.json`).
+- **Two new playgrounds** — the [CLI command builder](docs/playgrounds/cli.html) (every flag of every command from an embedded copy of the CLI surface, validation of the combinations the CLI refuses, 27 presets, a copy-ready POSIX line; nothing executed, by design) and the [MCP tool explorer](docs/playgrounds/mcp.html) (the real MCP payloads, client configuration, and a Run button executing the engine call behind twelve of the thirteen tools on a sample or a dropped archive — honest about what only the Node server can do).
+- **Use case 5 — Encrypt first, then archive** ([use-cases guide](docs/guides/use-cases.md), with its diagram): why no surface has a password (ZipCrypto is broken; AES-in-ZIP is not in 1.x) and how confidentiality is delegated to the document layer — pdfnative AES-256 or Office — while the archive stays deterministic and verifiable.
+- **Landing** — a "Pick your surface" section, a hero install switcher, the satellite badges, a live npm version strip (`docs/assets/versions.js`, the pdfnative widget), and `architecture.svg` extended with an "ecosystem consumers" band above the module diagram. Nav and footers on every page link the new material; `og-image` and `social-preview` carry CLI and MCP.
+- **Playgrounds are CDN-only** — `load-engine.js` imports the published package (esm.sh → jsDelivr, capability probe, loud on-page error when both fail); the pre-publication fallback — the committed copy of `dist/index.js`, the `docs:playground` script and the build step in `docs.yml` — is removed.
+- **verify-docs** — `playground-bundle` is replaced by `cdn-pin`; `manifest-shape` covers every package; `jsonld-version` checks the satellite `about` nodes; new rules `satellite-counts` (every "N commands / tools / prompts" literal across HTML, Markdown, SVG and root docs equals the manifest), `surfaces-shape`, `cli-surface-parity` (the `docs/data/cli-surface.json` snapshot of `zipnative schema manifest` against the manifest, the guide and the builder's flag table), `mcp-surface-parity` (guide headings, prompts, env vars, resource template, card order on the playground), `switcher-parity` and `versions-widget`. `verifiedOn` → 2026-09-07.
+
 ## [1.0.0] - 2026-09-02
 
 **First stable release — the freeze is the feature.** No engine behavior changes vs 0.9.0. From 1.0.0 the public API surface (77 exports across `zipnative` and `zipnative/worker`), the 39-code error vocabulary and the `deterministic: true` output bytes are a semver commitment: removals, renames and byte changes are semver-major. First npm publication, via Trusted Publishing (OIDC) with provenance.
