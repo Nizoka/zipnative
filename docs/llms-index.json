@@ -41,9 +41,21 @@
     },
     {
       "url": "assets/ecosystem.json",
-      "description": "Versions, counts and milestones — the single source of truth.",
+      "description": "Versions, counts and inventories for zipnative, zipnative-cli and zipnative-mcp — the single source of truth.",
       "bytes": 3202,
       "approxTokens": 801
+    },
+    {
+      "url": "data/surfaces.json",
+      "description": "The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.",
+      "bytes": 15484,
+      "approxTokens": 3871
+    },
+    {
+      "url": "data/cli-surface.json",
+      "description": "zipnative-cli 1.0.0 command and flag surface — a snapshot of `zipnative schema manifest` plus the boolean-flag table.",
+      "bytes": 11481,
+      "approxTokens": 2870
     }
   ],
   "guides": [

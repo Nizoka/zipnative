@@ -1,0 +1,516 @@
+{
+  "$comment": "zipnative-cli 1.0.0 command surface — a pruned snapshot of `npx -y zipnative-cli@1.0.0 schema manifest` (the capability manifest the CLI derives from its own src/commands/completion.ts), plus the boolean-flag table from src/utils/flags.ts. Regenerate at every CLI release; verify-docs cli-surface-parity checks the guide and the CLI playground against it.",
+  "version": "1.0.0",
+  "engine": "1.0.0",
+  "binary": "zipnative",
+  "schemaId": "https://zipnative.dev/schema/cli/1.0.0/manifest.json",
+  "contract": {
+    "stdout": "primary artifact (archive bytes, entry bytes, JSON report, text, schema, script)",
+    "stderr": "diagnostics and, under --json, the status/error envelope",
+    "exitCodes": {
+      "0": "success",
+      "1": "runtime/check failure",
+      "2": "usage error"
+    },
+    "network": "none — no command can open a socket"
+  },
+  "shortFlags": {
+    "-i": "--input",
+    "-o": "--output",
+    "-d": "--output-dir",
+    "-e": "--entry",
+    "-f": "--format",
+    "-q": "--quiet",
+    "-h": "--help",
+    "-V": "--version"
+  },
+  "globalFlags": [
+    "--help",
+    "--version",
+    "--json",
+    "--dry-run",
+    "--quiet",
+    "--no-color",
+    "--config",
+    "--no-config",
+    "--pretty",
+    "--strict",
+    "--pure-codecs",
+    "--codec",
+    "--max-input-size",
+    "--max-entries",
+    "--max-entry-size",
+    "--max-total-size",
+    "--max-ratio",
+    "--max-name-bytes",
+    "--max-extra-bytes",
+    "--max-comment-bytes",
+    "--max-cd-bytes"
+  ],
+  "globalBooleanFlags": [
+    "--help",
+    "--version",
+    "--json",
+    "--dry-run",
+    "--quiet",
+    "--no-color",
+    "--no-config",
+    "--pretty",
+    "--strict",
+    "--pure-codecs"
+  ],
+  "dryRunCommands": [
+    "create",
+    "extract",
+    "modify",
+    "stream",
+    "cat",
+    "inflate",
+    "batch"
+  ],
+  "projectedCommands": [
+    "list",
+    "inspect",
+    "verify",
+    "stream",
+    "batch"
+  ],
+  "manifestCommands": [
+    "create",
+    "list",
+    "inspect",
+    "extract",
+    "cat",
+    "verify",
+    "stream",
+    "modify",
+    "crc32",
+    "inflate"
+  ],
+  "pathFlags": [
+    "--input",
+    "--output",
+    "--output-dir",
+    "--input-dir",
+    "--base",
+    "--from-manifest",
+    "--manifest",
+    "--config",
+    "--codec",
+    "--comment-file"
+  ],
+  "errorCodes": [
+    "E_USAGE",
+    "E_INPUT",
+    "E_PARSE",
+    "E_IO",
+    "E_SECURITY",
+    "E_DATA",
+    "E_LIMIT",
+    "E_UNSUPPORTED",
+    "E_NOT_FOUND",
+    "E_VERIFY_FAILED",
+    "E_CHECK_FAILED",
+    "E_POLICY",
+    "E_RUNTIME"
+  ],
+  "diagnosticCodes": [
+    "ZIP_PREPENDED_DATA",
+    "ZIP_MULTIPLE_EOCD",
+    "ZIP_NAME_MISMATCH",
+    "ZIP_UNICODE_PATH_CONFLICT",
+    "ZIP_INVALID_UTF8_NAME",
+    "ZIP_DUPLICATE_NAME",
+    "ZIP_EXTRA_FIELD_MALFORMED",
+    "ZIP_ZIP64_EXTRA_IGNORED",
+    "ZIP_TIMESTAMP_NOT_PINNED",
+    "ZIP_NONDETERMINISTIC_CODEC",
+    "ZIP_DEAD_BYTES_RATIO"
+  ],
+  "limits": [
+    {
+      "flag": "--max-entries",
+      "key": "maxEntries",
+      "default": 100000,
+      "cwe": "CWE-400"
+    },
+    {
+      "flag": "--max-entry-size",
+      "key": "maxEntryUncompressedSize",
+      "default": 1073741824,
+      "cwe": "CWE-400"
+    },
+    {
+      "flag": "--max-total-size",
+      "key": "maxTotalUncompressedSize",
+      "default": 8589934592,
+      "cwe": "CWE-400"
+    },
+    {
+      "flag": "--max-ratio",
+      "key": "maxCompressionRatio",
+      "default": 1024,
+      "cwe": "CWE-409"
+    },
+    {
+      "flag": "--max-name-bytes",
+      "key": "maxNameBytes",
+      "default": 4096,
+      "cwe": "CWE-400"
+    },
+    {
+      "flag": "--max-extra-bytes",
+      "key": "maxExtraFieldBytes",
+      "default": 65535,
+      "cwe": "CWE-400"
+    },
+    {
+      "flag": "--max-comment-bytes",
+      "key": "maxCommentBytes",
+      "default": 65535,
+      "cwe": "CWE-400"
+    },
+    {
+      "flag": "--max-cd-bytes",
+      "key": "maxCentralDirectoryBytes",
+      "default": 268435456,
+      "cwe": "CWE-400"
+    }
+  ],
+  "schemas": [
+    "create-manifest",
+    "modify-manifest",
+    "batch-manifest",
+    "entries",
+    "entries-summary",
+    "inspect",
+    "inspect-summary",
+    "verify",
+    "verify-summary",
+    "stream",
+    "stream-summary",
+    "batch",
+    "batch-summary",
+    "doctor",
+    "govern-verify",
+    "crc32",
+    "status",
+    "error",
+    "errors",
+    "limits",
+    "diagnostics",
+    "manifest"
+  ],
+  "commands": [
+    {
+      "name": "create",
+      "group": "Create & modify",
+      "summary": "Build a deterministic ZIP from files, directories, stdin or a manifest",
+      "flags": [
+        "--input",
+        "--output",
+        "--stdin-name",
+        "--from-manifest",
+        "--base",
+        "--prefix",
+        "--dir-entries",
+        "--include",
+        "--exclude",
+        "--follow-symlinks",
+        "--method",
+        "--level",
+        "--deterministic",
+        "--order",
+        "--date",
+        "--mtime",
+        "--comment",
+        "--comment-file",
+        "--entry-comment",
+        "--preserve-mode",
+        "--store-ext",
+        "--stream",
+        "--chunk-size",
+        "--parallel",
+        "--workers",
+        "--min-job-size",
+        "--job-timeout",
+        "--overwrite"
+      ],
+      "booleanFlags": [
+        "--dir-entries",
+        "--follow-symlinks",
+        "--deterministic",
+        "--mtime",
+        "--preserve-mode",
+        "--stream",
+        "--parallel",
+        "--overwrite"
+      ]
+    },
+    {
+      "name": "modify",
+      "group": "Create & modify",
+      "summary": "Incremental edits: add/replace/remove/rename/comment, append-only or compact",
+      "flags": [
+        "--input",
+        "--output",
+        "--add",
+        "--add-dir",
+        "--replace",
+        "--remove",
+        "--rename",
+        "--comment",
+        "--comment-file",
+        "--method",
+        "--level",
+        "--deterministic",
+        "--date",
+        "--compact",
+        "--in-place",
+        "--from-manifest",
+        "--overwrite"
+      ],
+      "booleanFlags": [
+        "--deterministic",
+        "--compact",
+        "--in-place",
+        "--overwrite"
+      ]
+    },
+    {
+      "name": "list",
+      "group": "Read & extract",
+      "summary": "List archive entries (text | json | ndjson)",
+      "flags": [
+        "--input",
+        "--format",
+        "--long",
+        "--validate",
+        "--include",
+        "--exclude",
+        "--summary",
+        "--fields"
+      ],
+      "booleanFlags": [
+        "--long",
+        "--summary"
+      ]
+    },
+    {
+      "name": "inspect",
+      "group": "Read & extract",
+      "summary": "Forensic archive report with determinism/security assertions",
+      "flags": [
+        "--input",
+        "--format",
+        "--entries",
+        "--entry",
+        "--extra",
+        "--check",
+        "--summary",
+        "--fields"
+      ],
+      "booleanFlags": [
+        "--entries",
+        "--extra",
+        "--summary"
+      ]
+    },
+    {
+      "name": "cat",
+      "group": "Read & extract",
+      "summary": "Stream one or more entries to stdout",
+      "flags": [
+        "--input",
+        "--entry",
+        "--output",
+        "--raw",
+        "--no-verify-crc",
+        "--overwrite"
+      ],
+      "booleanFlags": [
+        "--raw",
+        "--no-verify-crc",
+        "--overwrite"
+      ]
+    },
+    {
+      "name": "extract",
+      "group": "Read & extract",
+      "summary": "Extract to a directory (zip-slip, symlink, bomb and duplicate guards on by default)",
+      "flags": [
+        "--input",
+        "--output-dir",
+        "--include",
+        "--exclude",
+        "--entry",
+        "--overwrite",
+        "--on-duplicate",
+        "--skip-unsafe",
+        "--skip-unsupported",
+        "--allow-symlinks",
+        "--skip-symlinks",
+        "--flat",
+        "--buffered",
+        "--preserve-mode",
+        "--preserve-mtime"
+      ],
+      "booleanFlags": [
+        "--overwrite",
+        "--skip-unsafe",
+        "--skip-unsupported",
+        "--allow-symlinks",
+        "--skip-symlinks",
+        "--flat",
+        "--buffered",
+        "--preserve-mode",
+        "--preserve-mtime"
+      ]
+    },
+    {
+      "name": "stream",
+      "group": "Read & extract",
+      "summary": "Forward-only reader over stdin/pipes (no central directory)",
+      "flags": [
+        "--input",
+        "--list",
+        "--output-dir",
+        "--cat",
+        "--format",
+        "--long",
+        "--include",
+        "--exclude",
+        "--overwrite",
+        "--on-duplicate",
+        "--skip-unsafe",
+        "--skip-unsupported",
+        "--flat",
+        "--preserve-mtime",
+        "--summary",
+        "--fields"
+      ],
+      "booleanFlags": [
+        "--list",
+        "--long",
+        "--overwrite",
+        "--skip-unsafe",
+        "--skip-unsupported",
+        "--flat",
+        "--preserve-mtime",
+        "--summary"
+      ]
+    },
+    {
+      "name": "verify",
+      "group": "Integrity & codecs",
+      "summary": "Deep integrity verification (CRC, sizes, local headers, diagnostics)",
+      "flags": [
+        "--input",
+        "--entry",
+        "--format",
+        "--summary",
+        "--fields"
+      ],
+      "booleanFlags": [
+        "--summary"
+      ]
+    },
+    {
+      "name": "crc32",
+      "group": "Integrity & codecs",
+      "summary": "CRC-32 of files or stdin",
+      "flags": [
+        "--input",
+        "--seed",
+        "--expect",
+        "--format"
+      ],
+      "booleanFlags": []
+    },
+    {
+      "name": "inflate",
+      "group": "Integrity & codecs",
+      "summary": "Decompress a raw DEFLATE (or registered-codec) stream",
+      "flags": [
+        "--input",
+        "--output",
+        "--method",
+        "--max-output",
+        "--sync",
+        "--allow-trailing",
+        "--overwrite"
+      ],
+      "booleanFlags": [
+        "--sync",
+        "--allow-trailing",
+        "--overwrite"
+      ]
+    },
+    {
+      "name": "batch",
+      "group": "Automation & meta",
+      "summary": "Archive a directory tree per subfolder, verify a folder of archives, or run a manifest pipeline",
+      "flags": [
+        "--input-dir",
+        "--output-dir",
+        "--task",
+        "--concurrency",
+        "--fail-fast",
+        "--manifest",
+        "--continue-on-error",
+        "--allow-codec-load",
+        "--format",
+        "--summary",
+        "--fields",
+        "--method",
+        "--level",
+        "--deterministic",
+        "--order",
+        "--date",
+        "--comment",
+        "--overwrite"
+      ],
+      "booleanFlags": [
+        "--fail-fast",
+        "--continue-on-error",
+        "--allow-codec-load",
+        "--summary",
+        "--deterministic",
+        "--overwrite"
+      ]
+    },
+    {
+      "name": "doctor",
+      "group": "Automation & meta",
+      "summary": "Environment / capability preflight (text or --json)",
+      "flags": [
+        "--format"
+      ],
+      "booleanFlags": []
+    },
+    {
+      "name": "schema",
+      "group": "Automation & meta",
+      "summary": "Print a JSON Schema / capability manifest for agents",
+      "flags": [],
+      "booleanFlags": []
+    },
+    {
+      "name": "completion",
+      "group": "Automation & meta",
+      "summary": "Emit a shell completion script (bash|zsh|fish|powershell)",
+      "flags": [],
+      "booleanFlags": []
+    },
+    {
+      "name": "govern",
+      "group": "Automation & meta",
+      "summary": "AI-governance / HITL contract (rules, policy, verify-issue)",
+      "flags": [
+        "--input",
+        "--format"
+      ],
+      "booleanFlags": []
+    }
+  ]
+}

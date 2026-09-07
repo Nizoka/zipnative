@@ -87,6 +87,7 @@ const pkg = JSON.parse(read('package.json')) as { version: string; name: string 
 const MANIFEST = 'docs/assets/ecosystem.json';
 const cliPkg = ecosystem.packages['zipnative-cli'];
 const mcpPkg = ecosystem.packages['zipnative-mcp'];
+const cliCommandsOf = (): readonly string[] => Object.values(cliPkg?.commandGroups ?? {}).flat();
 
 // ── Rule: manifest-shape ─────────────────────────────────────────────
 // Every package (engine + satellites) carries a coherent record; the
@@ -226,6 +227,107 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
             if (Number(m[1]) !== want && !allowed(text, m.index ?? 0, 'satellite-counts')) {
                 report(path, lineOf(text, m.index ?? 0), 'satellite-counts',
                     `"${m[0]}" but the manifest declares ${want} ${noun} — fix the prose or the manifest`);
+            }
+        }
+    }
+}
+
+// ── Rule: surfaces-shape ─────────────────────────────────────────────
+// docs/data/surfaces.json (the capability × surface matrix) must name
+// only things that exist: library calls that are real exports (api.json),
+// CLI commands from the manifest's command groups, MCP tools from the
+// manifest's tool list. Its verifiedOn rides with the manifest's.
+{
+    interface Cell { supported?: boolean; call?: string; command?: string; tool?: string; notes?: string }
+    interface Surfaces { verifiedOn?: string; capabilities?: ReadonlyArray<{ id?: string; label?: string; library?: Cell; cli?: Cell; mcp?: Cell }> }
+    const path = 'docs/data/surfaces.json';
+    if (!existsSync(resolve(ROOT, path))) {
+        report(path, 1, 'surfaces-shape', 'missing — the choose guide needs its machine-readable twin');
+    } else {
+        const surfaces = JSON.parse(read(path)) as Surfaces;
+        const apiNames = new Set((JSON.parse(read('docs/assets/api.json')) as { exports?: ReadonlyArray<{ name?: string }> }).exports?.map((e) => e.name ?? '') ?? []);
+        const commands = new Set(cliCommandsOf());
+        const tools = new Set(mcpPkg?.tools ?? []);
+        if (surfaces.verifiedOn !== verifiedOn) {
+            report(path, 1, 'surfaces-shape', `verifiedOn ${String(surfaces.verifiedOn)} != manifest ${String(verifiedOn)}`);
+        }
+        const ids = new Set<string>();
+        for (const cap of surfaces.capabilities ?? []) {
+            const id = cap.id ?? '(no id)';
+            if (ids.has(id)) report(path, 1, 'surfaces-shape', `duplicate capability id ${id}`);
+            ids.add(id);
+            for (const surface of ['library', 'cli', 'mcp'] as const) {
+                const cell = cap[surface];
+                if (cell === undefined || typeof cell.supported !== 'boolean') {
+                    report(path, 1, 'surfaces-shape', `${id}.${surface} must carry a boolean supported`);
+                    continue;
+                }
+                if (!cell.supported) continue;
+                if (surface === 'library') {
+                    // Every `name()` token must be a real export; bare prose is allowed.
+                    for (const m of (cell.call ?? '').matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\(\)/g)) {
+                        const readerMethods = ['entries', 'readEntry', 'readEntryStream', 'readEntryRaw', 'verifyEntry', 'addStream', 'stream', 'save', 'saveCompact', 'add', 'addDirectory'];
+                        if (!apiNames.has(m[1]) && !readerMethods.includes(m[1])) {
+                            report(path, 1, 'surfaces-shape', `${id}.library names ${m[1]}() — not an export in api.json`);
+                        }
+                    }
+                } else if (surface === 'cli') {
+                    // The first token is a command (or a global flag, which starts with --).
+                    const first = (cell.command ?? '').split(/[\s/]+/)[0] ?? '';
+                    if (!first.startsWith('--') && !commands.has(first)) {
+                        report(path, 1, 'surfaces-shape', `${id}.cli names command '${first}' — not in the manifest's commandGroups`);
+                    }
+                } else {
+                    const first = (cell.tool ?? '').split(/\s+/)[0] ?? '';
+                    const protocolLevel = ['tools/list', 'limits', 'strict:', 'outputMode:'];
+                    if (!tools.has(first) && !protocolLevel.includes(first)) {
+                        report(path, 1, 'surfaces-shape', `${id}.mcp names tool '${first}' — not in the manifest's tools`);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Rule: cli-surface-parity ─────────────────────────────────────────
+// docs/data/cli-surface.json is the snapshot of `zipnative schema
+// manifest` (itself derived from the CLI's own command table). Part 1:
+// the snapshot agrees with the ecosystem manifest — same version, same
+// command set, and every --max-* limit flag present among the globals.
+{
+    const path = 'docs/data/cli-surface.json';
+    if (!existsSync(resolve(ROOT, path))) {
+        report(path, 1, 'cli-surface-parity', 'missing — snapshot `npx -y zipnative-cli@<version> schema manifest`');
+    } else {
+        const surface = JSON.parse(read(path)) as {
+            version?: string; globalFlags?: readonly string[]; globalBooleanFlags?: readonly string[];
+            commands?: ReadonlyArray<{ name?: string; group?: string; flags?: readonly string[]; booleanFlags?: readonly string[] }>;
+            limits?: ReadonlyArray<{ flag?: string }>;
+        };
+        if (surface.version !== cliPkg?.version) {
+            report(path, 1, 'cli-surface-parity', `version ${String(surface.version)} != manifest zipnative-cli ${String(cliPkg?.version)}`);
+        }
+        const snapshotNames = (surface.commands ?? []).map((c) => c.name ?? '');
+        const manifestNames = cliCommandsOf();
+        for (const name of manifestNames) {
+            if (!snapshotNames.includes(name)) report(path, 1, 'cli-surface-parity', `manifest command '${name}' missing from the snapshot`);
+        }
+        for (const name of snapshotNames) {
+            if (!manifestNames.includes(name)) report(path, 1, 'cli-surface-parity', `snapshot command '${name}' missing from ecosystem.json commandGroups`);
+        }
+        for (const c of surface.commands ?? []) {
+            const group = cliPkg?.commandGroups ?? {};
+            const declared = Object.entries(group).find(([, names]) => names.includes(c.name ?? ''))?.[0];
+            if (declared !== undefined && c.group !== declared) {
+                report(path, 1, 'cli-surface-parity', `command '${String(c.name)}' is in group '${String(c.group)}' but the manifest says '${declared}'`);
+            }
+            for (const b of c.booleanFlags ?? []) {
+                if (!(c.flags ?? []).includes(b)) report(path, 1, 'cli-surface-parity', `command '${String(c.name)}': boolean flag ${b} is not among its flags`);
+            }
+        }
+        for (const limit of surface.limits ?? []) {
+            if (limit.flag !== undefined && !(surface.globalFlags ?? []).includes(limit.flag)) {
+                report(path, 1, 'cli-surface-parity', `limit flag ${limit.flag} missing from globalFlags`);
             }
         }
     }

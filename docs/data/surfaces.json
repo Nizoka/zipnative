@@ -1,0 +1,172 @@
+{
+  "$comment": "Machine-readable form of the capability × surface table in docs/guides/choose.md. Hand-maintained, verified against the sources on the date below: library `call` names against docs/assets/api.json (the mechanically extracted export surface), CLI `command` names against packages.zipnative-cli.commandGroups and MCP `tool` names against packages.zipnative-mcp.tools in docs/assets/ecosystem.json (the single source of truth for names and counts — regenerate nothing from this file). All three surfaces are 1.0.0, so no `since` is recorded. `supported: false` cells carry a note naming the honest alternative where one exists.",
+  "verifiedOn": "2026-09-07",
+  "surfaces": {
+    "library": { "package": "zipnative", "install": "npm install zipnative" },
+    "cli": { "package": "zipnative-cli", "install": "npx zipnative-cli <command>", "binary": "zipnative" },
+    "mcp": { "package": "zipnative-mcp", "install": "npx zipnative-mcp", "binary": "zipnative-mcp" }
+  },
+  "capabilities": [
+    {
+      "id": "list",
+      "label": "List entries without extracting",
+      "library": { "supported": true, "call": "openZip() → entries()", "notes": "Lazy central-directory walk; nothing is decompressed." },
+      "cli": { "supported": true, "command": "list", "notes": "text | json | ndjson; --long adds offsets, flags and extra fields; --include / --exclude globs." },
+      "mcp": { "supported": true, "tool": "list_zip_entries", "notes": "Paged (limit 200, max 2000); filter by names, prefix or globs; every row carries the sanitized path an extraction would use." }
+    },
+    {
+      "id": "inspect",
+      "label": "Forensic report + CI assertions",
+      "library": { "supported": true, "call": "openZip() + verifyZip()", "notes": "No single report call — compose entries(), the diagnostics channel and verifyZip() yourself." },
+      "cli": { "supported": true, "command": "inspect", "notes": "Eager open; repeatable --check assertions (deterministic, no-encryption, safe-names, max-entries=N, …) turn it into a CI gate — exit 1 / E_CHECK_FAILED." },
+      "mcp": { "supported": true, "tool": "inspect_zip", "notes": "Same report shape as `zipnative inspect --json`; check[] and assert{} → checks[] + checksPassed." }
+    },
+    {
+      "id": "read-entry",
+      "label": "Read one entry (random access)",
+      "library": { "supported": true, "call": "openZip() → readEntry() / readEntryStream() / readEntryRaw() / verifyEntry()", "notes": "CRC-verified, zero-copy compressed source." },
+      "cli": { "supported": true, "command": "cat", "notes": "One or more entries to stdout or --output; --raw emits the compressed payload; CRC checked at end of stream like unzip -p." },
+      "mcp": { "supported": true, "tool": "read_zip_entry", "notes": "mode data | raw | verify; utf8 or base64 encoding; byte range; 16 MiB inline cap." }
+    },
+    {
+      "id": "verify",
+      "label": "One-call integrity verification",
+      "library": { "supported": true, "call": "verifyZip()", "notes": "Never throws for archive problems; structural refusals land in report.error." },
+      "cli": { "supported": true, "command": "verify", "notes": "Exit 1 / E_VERIFY_FAILED when not ok; --strict also fails on diagnostics; --entry restricts the scope." },
+      "mcp": { "supported": true, "tool": "verify_zip", "notes": "entries: all | failed | skipped | none keeps the response token-frugal." }
+    },
+    {
+      "id": "extract",
+      "label": "Secure extraction (guards on by default)",
+      "library": { "supported": true, "call": "extractZip() / extractZipStream()", "notes": "In memory only — returns data plus sanitized paths; the engine never writes files." },
+      "cli": { "supported": true, "command": "extract", "notes": "The filesystem trust boundary: zip-slip, symlink, duplicate, bomb and device-name guards on by default; --dry-run plans without writing; --skip-unsafe / --skip-unsupported opt into skipping." },
+      "mcp": { "supported": true, "tool": "extract_zip", "notes": "Inline base64 (32 MiB total) or outputMode: 'file' inside ZIPNATIVE_MCP_OUTPUT_DIR with resource links; includeData: false is the dry run." }
+    },
+    {
+      "id": "stream-read",
+      "label": "Forward reading of unseekable sources",
+      "library": { "supported": true, "call": "iterateZipEntries()", "notes": "Bounded memory, CRC verified, data-descriptor entries delimited by the resumable inflater. Trusts local headers alone." },
+      "cli": { "supported": true, "command": "stream", "notes": "stdin / pipes, no central directory; --list, --output-dir or --cat; every JSON output carries trust: 'local-headers-only'." },
+      "mcp": { "supported": true, "tool": "scan_zip_forward", "notes": "Explicitly NOT authoritative; tolerateTruncation for damaged archives; data: none | verify | include." }
+    },
+    {
+      "id": "sanitize",
+      "label": "Entry-path sanitisation (the traversal gate)",
+      "library": { "supported": true, "call": "sanitizeEntryPath()", "notes": "null for unsafe names — traversal, absolute, drive/UNC, NUL, ADS, Windows device names." },
+      "cli": { "supported": true, "command": "extract / inspect", "notes": "extract --dry-run reports what would be refused; inspect --check safe-names asserts it." },
+      "mcp": { "supported": true, "tool": "sanitize_entry_paths", "notes": "Up to 10 000 names per call with a rejection reason each." }
+    },
+    {
+      "id": "create",
+      "label": "Deterministic archive creation",
+      "library": { "supported": true, "call": "createZip()", "notes": "compression: { deterministic: true } pins the pure-TS encoder — identical SHA-256 on every runtime; canonical order and DOS-epoch timestamps by default." },
+      "cli": { "supported": true, "command": "create", "notes": "--deterministic, --order canonical | insertion (EPUB mimetype first), --date epoch | now | ISO, --from-manifest, --include / --exclude." },
+      "mcp": { "supported": true, "tool": "create_zip", "notes": "Inline text / base64 or sandbox sourcePath entries; includeSha256 returns the digest with the archive." }
+    },
+    {
+      "id": "parallel",
+      "label": "Worker-parallel compression",
+      "library": { "supported": true, "call": "createParallelZip() (zipnative/worker)", "notes": "Byte-identical to createZip per compression tier; unconditional under deterministic: true." },
+      "cli": { "supported": true, "command": "create", "notes": "--parallel with --workers, --min-job-size, --job-timeout; refused with --codec." },
+      "mcp": { "supported": true, "tool": "create_zip", "notes": "parallel: { workers, minWorkerJobSize, jobTimeout }, capped by ZIPNATIVE_MCP_WORKERS." }
+    },
+    {
+      "id": "stream-write",
+      "label": "Constant-memory writing",
+      "library": { "supported": true, "call": "createZip() → addStream() + stream()", "notes": "Data-descriptor layout; streamed entries ≤ 4 GiB (ZIP_UNSUPPORTED_ZIP64_STREAMING beyond)." },
+      "cli": { "supported": true, "command": "create", "notes": "--stream writes with bounded memory; --stdin-name archives a pipe; --chunk-size tunes the writer." },
+      "mcp": { "supported": true, "tool": "create_zip", "notes": "entries[].stream: true on a sandbox sourcePath feeds addStream; outputMode: 'file' assembles the archive by streaming to disk." }
+    },
+    {
+      "id": "modify",
+      "label": "Incremental modification (no recompression)",
+      "library": { "supported": true, "call": "createZipModifier() → save() / saveCompact()", "notes": "save() is append-only (removed content stays recoverable); saveCompact() truly deletes. 7-Zip's CLI mis-reads append-only output." },
+      "cli": { "supported": true, "command": "modify", "notes": "--add / --replace / --remove / --rename / --comment; --compact for true deletion; --in-place with an atomic rename; every untouched entry is verified before re-emission." },
+      "mcp": { "supported": true, "tool": "modify_zip", "notes": "operations[] (add, replace, remove, rename, setComment); mode: append | compact." }
+    },
+    {
+      "id": "crc32",
+      "label": "CRC-32",
+      "library": { "supported": true, "call": "crc32()", "notes": "Seedable — continue a running checksum." },
+      "cli": { "supported": true, "command": "crc32", "notes": "Files or stdin in 64 KiB chunks; --seed; --expect fails with E_CHECK_FAILED on mismatch." },
+      "mcp": { "supported": true, "tool": "compute_crc32", "notes": "dataBase64, text or sandbox sourcePath; seed; expect." }
+    },
+    {
+      "id": "inflate",
+      "label": "Raw DEFLATE decompression (bounded)",
+      "library": { "supported": true, "call": "createInflator()", "notes": "Resumable pure-TS inflater; reports exactly where the compressed stream ends." },
+      "cli": { "supported": true, "command": "inflate", "notes": "--max-output bounds the expansion (default: the effective --max-entry-size, 1 GiB); --allow-trailing; --sync." },
+      "mcp": { "supported": true, "tool": "inflate_raw", "notes": "maxOutput is REQUIRED; ZIP_INFLATE_OUTPUT_OVERFLOW when exceeded." }
+    },
+    {
+      "id": "codecs",
+      "label": "Custom codecs / codec injection",
+      "library": { "supported": true, "call": "registerCodec() / setDeflateImpl() / setInflateImpl() / getCodec()", "notes": "The extension point for methods other than 0 and 8; deterministic: true refuses a foreign deflateImpl." },
+      "cli": { "supported": true, "command": "--codec <module>", "notes": "Executes user code — accepted on the command line only, never from .zipnativerc.json; batch manifests need --allow-codec-load." },
+      "mcp": { "supported": false, "notes": "Deliberately not exposed: a codec module is arbitrary code. Methods 0 and 8 only (ZIP_UNSUPPORTED_METHOD otherwise)." }
+    },
+    {
+      "id": "limits",
+      "label": "Security bounds (CWE-tagged)",
+      "library": { "supported": true, "call": "limits option on openZip() / extractZip() / verifyZip() (DEFAULT_ZIP_LIMITS)", "notes": "Eight named bounds: entries, entry size, total size, ratio, name, extra-field, comment and central-directory bytes." },
+      "cli": { "supported": true, "command": "--max-entries … --max-cd-bytes", "notes": "The same eight as global flags plus --max-input-size; 'none' disables one with a visible warning." },
+      "mcp": { "supported": true, "tool": "limits { … } on every reading tool", "notes": "Per-call limits are capped by the operator ceilings ZIPNATIVE_MCP_MAX_UNCOMPRESSED_BYTES / ZIPNATIVE_MCP_MAX_ENTRIES (LIMIT_CEILING_EXCEEDED above them)." }
+    },
+    {
+      "id": "diagnostics",
+      "label": "Diagnostics channel / strict mode",
+      "library": { "supported": true, "call": "onDiagnostic / strict on openZip() / extractZip() / verifyZip()", "notes": "Eleven diagnostic codes (prepended data, name mismatch, dead bytes, …) — recoverable findings, never thrown unless strict." },
+      "cli": { "supported": true, "command": "--strict", "notes": "Diagnostics ride in the --json envelope; --strict turns the first one into a failure." },
+      "mcp": { "supported": true, "tool": "strict: true on every tool", "notes": "Escalates the first diagnostic to ZIP_STRICT_DIAGNOSTIC; otherwise diagnostics[] (de-duplicated, 200 kept) accompany the result." }
+    },
+    {
+      "id": "preflight",
+      "label": "Capability preflight",
+      "library": { "supported": true, "call": "VERSION + activeDeflateTier()", "notes": "Which deflate tier (native, CompressionStream, pure-TS) the runtime will use." },
+      "cli": { "supported": true, "command": "doctor", "notes": "Ten checks (node, engine, deflate tier, workers, codecs, limits, …) as text or --json; exit 1 on any failure." },
+      "mcp": { "supported": true, "tool": "describe_engine", "notes": "Engine version and tiers plus the server's caps, ceilings, sandbox and cache state." }
+    },
+    {
+      "id": "contract",
+      "label": "Machine contract (schemas, projection)",
+      "library": { "supported": true, "call": "docs/assets/api.json + docs/data/errors.json", "notes": "The mechanically extracted export surface and the frozen error registry; every thrown error carries a stable err.code." },
+      "cli": { "supported": true, "command": "schema", "notes": "22 JSON Schema subjects (Draft 2020-12) incl. the capability manifest; --summary / --fields a,b.c project list, inspect, verify, stream and batch." },
+      "mcp": { "supported": true, "tool": "tools/list (inputSchema + outputSchema)", "notes": "verbosity: 'summary' and fields: […] project every read tool; _meta.examples ship executable inputs." }
+    },
+    {
+      "id": "governance",
+      "label": "AI-governance contract (human-in-the-loop)",
+      "library": { "supported": false, "notes": "Repository-level policy: .github/ai-governance.json and npm run verify:issue for issue drafts." },
+      "cli": { "supported": true, "command": "govern", "notes": "govern rules | policy | verify-issue <draft.md> — E_POLICY on violation." },
+      "mcp": { "supported": true, "tool": "draft_governance_issue", "notes": "Drafts a compliant issue (never files it); the governance_contract and draft_issue_workflow prompts explain the rules." }
+    },
+    {
+      "id": "filesystem",
+      "label": "Filesystem sink",
+      "library": { "supported": false, "notes": "By design — the engine never touches the filesystem; extraction returns data plus sanitized paths." },
+      "cli": { "supported": true, "command": "extract / create / modify", "notes": "The CLI is the trust boundary: --output-dir, --output, --in-place; refuses to overwrite without --overwrite." },
+      "mcp": { "supported": true, "tool": "outputMode: 'file' + resources", "notes": "Only inside ZIPNATIVE_MCP_OUTPUT_DIR (the one sandbox); results are exposed as zipnative://output/{+path} resources." }
+    },
+    {
+      "id": "batch",
+      "label": "Batch pipelines",
+      "library": { "supported": false, "notes": "Compose the calls in your own code — recipes/ shows the patterns." },
+      "cli": { "supported": true, "command": "batch", "notes": "Directory mode (--input-dir, --task create | verify, --concurrency) or manifest mode (ten whitelisted commands, @id output references, one JSON report on stdout)." },
+      "mcp": { "supported": false, "notes": "One call per tool; the host orchestrates. Results can be chained through the sandbox (outputPath → zipPath)." }
+    },
+    {
+      "id": "completion",
+      "label": "Shell completion",
+      "library": { "supported": false },
+      "cli": { "supported": true, "command": "completion", "notes": "bash | zsh | fish | powershell, generated from the same command table as --help." },
+      "mcp": { "supported": false }
+    },
+    {
+      "id": "encryption",
+      "label": "Encryption (read or write)",
+      "library": { "supported": false, "notes": "By policy in 1.x — ZipCrypto is broken. Encrypted entries are detected (entry.isEncrypted) and reads throw ZIP_UNSUPPORTED_ENCRYPTION. Delegate confidentiality to the document layer (pdfnative AES-256, Office) and archive the encrypted files — use-cases guide, Case 5." },
+      "cli": { "supported": false, "notes": "Encrypted entries are listed, skipped by verify, refused by extract unless --skip-unsupported; inspect --check no-encryption asserts their absence." },
+      "mcp": { "supported": false, "notes": "There is no password input; verify_zip skips encrypted entries, extract_zip refuses them; modify_zip can still copy them untouched." }
+    }
+  ]
+}
