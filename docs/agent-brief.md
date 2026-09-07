@@ -15,6 +15,17 @@ Workers. The engine never touches the filesystem, never opens a socket,
 never evals. 1.0: the 77-export surface, the 39-code error vocabulary and
 the `deterministic: true` output bytes are frozen under semver.
 
+Two published satellites wrap the same engine, both 1.0.0, both pinning
+`zipnative ^1.0.0`: `zipnative-cli` (binary `zipnative`, 15 commands —
+the filesystem trust boundary, a `--json` envelope carrying `err.code`
+verbatim, `--dry-run`, `--summary` / `--fields`) and `zipnative-mcp`
+(`npx -y zipnative-mcp`, 13 tools, 7 prompts, sandboxed resources, no
+network). Writing application code → the library; driving a shell or CI
+→ the CLI; giving an assistant tool access → the MCP server
+([choosing guide](guides/choose.html)). No surface encrypts, by policy —
+delegate confidentiality to the document layer
+([use cases, Case 5](guides/use-cases.html#case-5--encrypt-first-then-archive)).
+
 ## The core API
 
 ```ts
@@ -69,8 +80,11 @@ clause by the blocking `npm run validate:zip` gate — see the
 - [assets/api.json](assets/api.json) — all 77 exports with signatures
 - [data/errors.json](data/errors.json) — the frozen error registry
 - Guides: [quickstart](guides/quickstart.html) ·
-  [security](guides/security.html) · [determinism](guides/determinism.html) ·
-  [errors](guides/errors.html) · [use cases](guides/use-cases.html) ·
-  [conformance](guides/conformance.html)
+  [choosing your surface](guides/choose.html) · [CLI](guides/cli.html) ·
+  [MCP](guides/mcp.html) · [security](guides/security.html) ·
+  [determinism](guides/determinism.html) · [errors](guides/errors.html) ·
+  [use cases](guides/use-cases.html) · [conformance](guides/conformance.html)
+- [data/surfaces.json](data/surfaces.json) — capability × surface matrix;
+  [data/cli-surface.json](data/cli-surface.json) — every CLI command and flag
 - Governance: agents draft, humans perform GitHub writes
   (`.github/ai-governance.json`).

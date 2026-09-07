@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choosing your surface — zipnative</title>
+  <meta name="description" content="Library, CLI or MCP server? The decision in prose, the capability × surface matrix for zipnative, zipnative-cli and zipnative-mcp, the honest notes, and why you can switch later.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://zipnative.dev/guides/choose.html">
+  <meta property="og:title" content="Choosing your surface — zipnative">
+  <meta property="og:description" content="Library, CLI or MCP server? The decision in prose and the capability × surface matrix for the three zipnative packages.">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/guides/choose.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/choose.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/choose.html">
+  <link rel="alternate" type="text/markdown" href="choose.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/" },
+          { "@type": "ListItem", "position": 3, "name": "Choosing your surface" }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Choosing your surface",
+        "inLanguage": "en",
+        "description": "Library, CLI or MCP server? The decision in prose and the capability × surface matrix for the three zipnative packages.",
+        "url": "https://zipnative.dev/guides/choose.html",
+        "author": { "@type": "Organization", "name": "Nizoka", "url": "https://zipnative.dev/" }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="./">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Choosing your surface</div>
+    <article id="guide-content" class="guide-content" data-md="choose.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="choosing-your-surface">Choosing your surface</h1>
+<blockquote>
+<p><strong>Write application code → the library. Drive a shell, Makefile or CI
+job → <code>zipnative-cli</code>. Give a conversational AI assistant tool access →
+<code>zipnative-mcp</code>.</strong> All three surfaces sit on the same zero-dependency
+engine and write the same ISO/IEC 21320-1-conformant bytes, so the
+choice is about <em>who is calling</em>, not about what comes out — and you
+can switch later without re-authoring anything.</p>
+</blockquote>
+<h2 id="the-decision-in-prose">The decision, in prose<a class="heading-anchor" href="#the-decision-in-prose" aria-label="Link to this section">#</a></h2>
+<p><strong>You are writing application code</strong> — a Node, Deno, Bun, browser or
+Worker service, a script with logic around the archive. Use the
+<strong>library</strong> (<code>npm install zipnative</code>). It is the full surface: the lazy
+reader, secure extraction, the deterministic writer, the incremental
+modifier, forward streaming, worker parallelism, codec injection, and
+the 39-code error vocabulary. Everything the other two surfaces do,
+they do by calling this package.</p>
+<p><strong>You are driving a shell, a CI pipeline, a container, or a build tool
+in another language.</strong> Use the <strong>CLI</strong> (<code>zipnative-cli</code>, binary
+<code>zipnative</code>) — fifteen commands over stdin/stdout pipelines with an
+agent-native contract: a <code>--json</code> envelope carrying <code>err.code</code> verbatim,
+thirteen stable <code>E_*</code> classes, <code>--dry-run</code>, <code>--summary</code> / <code>--fields</code>
+projection, JSON Schemas, shell completion. It is also the <strong>filesystem
+trust boundary</strong> the engine refuses to be: <code>extract</code> writes files, and
+re-checks every name before it does.</p>
+<p><strong>You are (or you are building) a conversational assistant with tool
+access</strong> — Claude Desktop, Claude Code, Cursor, VS Code, or any Model
+Context Protocol client. Use the <strong>MCP server</strong> (<code>zipnative-mcp</code>,
+<code>npx -y zipnative-mcp</code>) — thirteen tools with strict schemas, seven
+prompts, a sandbox for file inputs and outputs, and no network access
+of any kind.</p>
+<h2 id="capability--surface">Capability × surface<a class="heading-anchor" href="#capability--surface" aria-label="Link to this section">#</a></h2>
+<p>The same facts in machine-readable form live in
+<a href="../data/surfaces.json"><code>docs/data/surfaces.json</code></a>; export, command and
+tool names are verified against <a href="../assets/api.json"><code>api.json</code></a> and
+<a href="../assets/ecosystem.json"><code>ecosystem.json</code></a> by the documentation CI. An
+em-dash means the surface genuinely lacks the capability, with the
+honest alternative named in the notes below.</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Library (<code>zipnative</code>)</th>
+<th>CLI (<code>zipnative-cli</code>)</th>
+<th>MCP (<code>zipnative-mcp</code>)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>List entries without extracting</td>
+<td><code>openZip</code> → <code>entries()</code></td>
+<td><code>list</code></td>
+<td><code>list_zip_entries</code></td>
+</tr>
+<tr>
+<td>Forensic report + CI assertions</td>
+<td>compose <code>openZip</code> + <code>verifyZip</code></td>
+<td><code>inspect --check …</code></td>
+<td><code>inspect_zip</code> (<code>check</code>, <code>assert</code>)</td>
+</tr>
+<tr>
+<td>Read one entry (random access)</td>
+<td><code>readEntry</code> / <code>readEntryStream</code> / <code>readEntryRaw</code> / <code>verifyEntry</code></td>
+<td><code>cat</code> (<code>--raw</code>)</td>
+<td><code>read_zip_entry</code> (data / raw / verify, ranges)</td>
+</tr>
+<tr>
+<td>One-call integrity verification</td>
+<td><code>verifyZip</code></td>
+<td><code>verify</code></td>
+<td><code>verify_zip</code></td>
+</tr>
+<tr>
+<td>Secure extraction (guards on by default)</td>
+<td><code>extractZip</code> / <code>extractZipStream</code> — in memory</td>
+<td><code>extract</code> — to disk, the trust boundary</td>
+<td><code>extract_zip</code> — inline or into the sandbox</td>
+</tr>
+<tr>
+<td>Forward reading of unseekable sources</td>
+<td><code>iterateZipEntries</code></td>
+<td><code>stream</code></td>
+<td><code>scan_zip_forward</code> (not authoritative)</td>
+</tr>
+<tr>
+<td>Entry-path sanitisation</td>
+<td><code>sanitizeEntryPath</code></td>
+<td><code>extract --dry-run</code>, <code>inspect --check safe-names</code></td>
+<td><code>sanitize_entry_paths</code></td>
+</tr>
+<tr>
+<td>Deterministic archive creation</td>
+<td><code>createZip</code> (<code>deterministic: true</code>)</td>
+<td><code>create --deterministic</code></td>
+<td><code>create_zip</code> (<code>compression.deterministic</code>)</td>
+</tr>
+<tr>
+<td>Worker-parallel compression</td>
+<td><code>createParallelZip</code> (<code>zipnative/worker</code>)</td>
+<td><code>create --parallel</code></td>
+<td><code>create_zip</code> (<code>parallel</code>)</td>
+</tr>
+<tr>
+<td>Constant-memory writing</td>
+<td><code>addStream</code> + <code>stream()</code></td>
+<td><code>create --stream</code>, <code>--stdin-name</code></td>
+<td><code>create_zip</code> (<code>stream: true</code>, file mode)</td>
+</tr>
+<tr>
+<td>Incremental modification</td>
+<td><code>createZipModifier</code> → <code>save</code> / <code>saveCompact</code></td>
+<td><code>modify</code> (<code>--compact</code>, <code>--in-place</code>)</td>
+<td><code>modify_zip</code> (<code>append</code> / <code>compact</code>)</td>
+</tr>
+<tr>
+<td>CRC-32</td>
+<td><code>crc32</code></td>
+<td><code>crc32</code></td>
+<td><code>compute_crc32</code></td>
+</tr>
+<tr>
+<td>Raw DEFLATE decompression (bounded)</td>
+<td><code>createInflator</code></td>
+<td><code>inflate --max-output</code></td>
+<td><code>inflate_raw</code> (<code>maxOutput</code> required)</td>
+</tr>
+<tr>
+<td>Custom codecs / codec injection</td>
+<td><code>registerCodec</code>, <code>setDeflateImpl</code>, <code>setInflateImpl</code></td>
+<td><code>--codec &lt;module&gt;</code> (command line only)</td>
+<td>— (deliberately: a codec module is arbitrary code)</td>
+</tr>
+<tr>
+<td>Security bounds (CWE-tagged)</td>
+<td><code>limits</code> option, <code>DEFAULT_ZIP_LIMITS</code></td>
+<td>the eight <code>--max-*</code> flags + <code>--max-input-size</code></td>
+<td><code>limits</code> per call, under operator ceilings</td>
+</tr>
+<tr>
+<td>Diagnostics channel / strict mode</td>
+<td><code>onDiagnostic</code>, <code>strict</code></td>
+<td><code>--strict</code>, diagnostics in the envelope</td>
+<td><code>strict: true</code>, <code>diagnostics[]</code></td>
+</tr>
+<tr>
+<td>Capability preflight</td>
+<td><code>VERSION</code>, <code>activeDeflateTier</code></td>
+<td><code>doctor</code></td>
+<td><code>describe_engine</code></td>
+</tr>
+<tr>
+<td>Machine contract (schemas, projection)</td>
+<td><code>api.json</code>, <code>errors.json</code></td>
+<td><code>schema</code> (22 subjects), <code>--summary</code> / <code>--fields</code></td>
+<td><code>tools/list</code> schemas, <code>verbosity</code> / <code>fields</code></td>
+</tr>
+<tr>
+<td>AI-governance contract</td>
+<td>— (repository policy, <code>verify:issue</code>)</td>
+<td><code>govern</code></td>
+<td><code>draft_governance_issue</code> + the prompts</td>
+</tr>
+<tr>
+<td>Filesystem sink</td>
+<td>— (by design)</td>
+<td><code>extract</code>, <code>create</code>, <code>modify</code></td>
+<td><code>outputMode: &#39;file&#39;</code> inside the sandbox, resources</td>
+</tr>
+<tr>
+<td>Batch pipelines</td>
+<td>— (compose the calls)</td>
+<td><code>batch</code> (directory or manifest mode)</td>
+<td>— (one call per tool; the host orchestrates)</td>
+</tr>
+<tr>
+<td>Shell completion</td>
+<td>—</td>
+<td><code>completion</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Encryption (read or write)</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<h2 id="honest-notes">Honest notes<a class="heading-anchor" href="#honest-notes" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>No surface encrypts, by policy.</strong> ZipCrypto is broken and AES-in-ZIP
+is not in 1.x; every surface <em>detects</em> encrypted entries
+(<code>entry.isEncrypted</code>, <code>ZIP_UNSUPPORTED_ENCRYPTION</code>) and never
+decrypts. Confidentiality belongs to the document layer — encrypt the
+PDF with pdfnative, the workbook with Office, then archive the
+encrypted files; the archive stays deterministic and verifiable.
+<a href="use-cases.html#case-5--encrypt-first-then-archive">Case 5</a> shows the
+pattern with a diagram.</li>
+<li><strong>Only the CLI writes files.</strong> The engine returns data plus sanitized
+paths; the MCP server writes only inside <code>ZIPNATIVE_MCP_OUTPUT_DIR</code>. If
+you extract with anything else, run the names through
+<code>sanitizeEntryPath</code> (or <code>sanitize_entry_paths</code>) first.</li>
+<li><strong>The forward readers are not authoritative</strong> on any surface —
+<code>iterateZipEntries</code>, <code>stream</code> and <code>scan_zip_forward</code> trust local
+headers alone. Prefer the central-directory path whenever the whole
+archive is available.</li>
+<li><strong>Append-only modification keeps every original byte</strong> on every
+surface: <code>save()</code>, <code>modify</code> without <code>--compact</code>, <code>modify_zip mode: &#39;append&#39;</code> leave removed content recoverable, and 7-Zip&#39;s CLI mis-reads
+that layout. Compact when deletion or 7-Zip interop matters.</li>
+<li><strong>The table is the complete story</strong> for these capabilities, not a
+sample — where a cell is an em-dash, the surface genuinely lacks the
+capability today rather than hiding it under another name.</li>
+</ul>
+<h2 id="you-can-switch-later">You can switch later<a class="heading-anchor" href="#you-can-switch-later" aria-label="Link to this section">#</a></h2>
+<p>All three surfaces call the same engine, so the artefacts are
+interchangeable: an archive built by <code>create_zip</code> verifies under
+<code>zipnative verify</code>, extracts under <code>extractZip</code>, and its <code>sha256</code> from
+<code>includeSha256</code> equals the one <code>create --deterministic</code> produces from the
+same inputs. Inputs travel too — the CLI&#39;s <code>create --from-manifest</code>, the
+MCP <code>create_zip.entries</code> and the library&#39;s <code>add()</code> calls describe the
+same entries. Starting on the &quot;wrong&quot; surface costs a call-site
+migration, not a re-authoring.</p>
+<h2 id="further-reading">Further reading<a class="heading-anchor" href="#further-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="quickstart.html">Quickstart</a> — the library in five minutes.</li>
+<li><a href="cli.html">CLI guide</a> · <a href="mcp.html">MCP guide</a> — the complete
+per-surface references.</li>
+<li><a href="../playgrounds/cli.html">CLI playground</a> ·
+<a href="../playgrounds/mcp.html">MCP playground</a> — try both surfaces in the
+browser.</li>
+<li><a href="use-cases.html">Use cases</a> — five production architectures with
+diagrams.</li>
+<li><a href="../agent-brief.md">Agent brief</a> — the same decision tree in
+paste-into-context form.</li>
+</ul>
+<!-- guide:render:end -->
+  </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative-cli" rel="noopener" target="_blank">zipnative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative-mcp" rel="noopener" target="_blank">zipnative-mcp</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="./">All guides</a></li>
+            <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="choose.html">Choosing your surface</a></li>
+            <li><a href="cli.html">CLI guide</a></li>
+            <li><a href="mcp.html">MCP guide</a></li>
+            <li><a href="security.html">Security model</a></li>
+            <li><a href="determinism.html">Determinism contract</a></li>
+            <li><a href="errors.html">Errors and error codes</a></li>
+            <li><a href="use-cases.html">Use cases</a></li>
+            <li><a href="conformance.html">Conformance and validation</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="../playgrounds/cli.html">CLI playground</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP playground</a></li>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+            <li><a href="../assets/ecosystem.json">ecosystem.json</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

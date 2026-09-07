@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI guide — zipnative-cli</title>
+  <meta name="description" content="zipnative-cli 1.0.0 reference: the fifteen commands with every flag, the agent contract (--json envelope, E_* codes, --dry-run, --summary / --fields), global options, environment, security posture and what the CLI does not do.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://zipnative.dev/guides/cli.html">
+  <meta property="og:title" content="CLI guide — zipnative-cli">
+  <meta property="og:description" content="zipnative-cli 1.0.0 reference: the fifteen commands with every flag, the agent contract, global options, environment and security posture.">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/guides/cli.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/cli.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/cli.html">
+  <link rel="alternate" type="text/markdown" href="cli.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/" },
+          { "@type": "ListItem", "position": 3, "name": "CLI guide" }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "zipnative-cli — Command-line reference",
+        "inLanguage": "en",
+        "description": "zipnative-cli 1.0.0 reference: the fifteen commands with every flag, the agent contract, global options, environment and security posture.",
+        "url": "https://zipnative.dev/guides/cli.html",
+        "author": { "@type": "Organization", "name": "Nizoka", "url": "https://zipnative.dev/" },
+        "about": {
+          "@type": "SoftwareApplication",
+          "name": "zipnative-cli",
+          "softwareVersion": "1.0.0",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "Node.js >= 22",
+          "url": "https://github.com/Nizoka/zipnative-cli"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="./">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › CLI guide</div>
+    <article id="guide-content" class="guide-content" data-md="cli.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="zipnative-cli--command-line-reference">zipnative-cli — Command-line reference</h1>
+<blockquote>
+<p><strong><code>zipnative-cli</code> 1.0.0 is the official command-line interface for the
+zipnative engine</strong> — fifteen commands over stdin/stdout pipelines, an
+agent-native automation contract (a <code>--json</code> envelope carrying the
+engine&#39;s <code>err.code</code> verbatim, <code>--dry-run</code>, <code>--summary</code> / <code>--fields</code>
+projection, JSON Schemas), and the one job the engine refuses by design:
+writing to the filesystem. Offline, always. Pins <code>zipnative ^1.0.0</code>.</p>
+</blockquote>
+<p><a href="https://github.com/Nizoka/zipnative-cli" target="_blank" rel="noopener"><code>zipnative-cli</code></a> is a pure
+dispatch layer over <a href="https://github.com/Nizoka/zipnative" target="_blank" rel="noopener"><code>zipnative</code></a>:
+no ZIP logic lives in the CLI, every command forwards to a public engine
+API, and the engine&#39;s guarantees — safe-by-default extraction,
+deterministic bytes, the frozen 39-code error vocabulary — arrive
+unchanged. What the CLI <em>adds</em> is the process boundary the engine
+deliberately lacks: files, directories, pipes, exit codes, shell
+completion, and a JSON contract that agents and CI can drive without
+parsing prose.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Engine API behind it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>create</code></td>
+<td><code>createZip()</code> / <code>createParallelZip()</code> (<code>zipnative/worker</code>) — <code>add</code>, <code>addDirectory</code>, <code>addStream</code>, <code>toBytes</code> / <code>stream</code></td>
+</tr>
+<tr>
+<td><code>modify</code></td>
+<td><code>createZipModifier(openZip(bytes))</code> — <code>save()</code> (append-only) / <code>saveCompact()</code></td>
+</tr>
+<tr>
+<td><code>list</code></td>
+<td><code>openZip()</code> → <code>entries()</code></td>
+</tr>
+<tr>
+<td><code>inspect</code></td>
+<td><code>openZip({ validate: &#39;eager&#39; })</code> → entries, flags, diagnostics; the <code>--check</code> assertions are CLI logic over engine facts</td>
+</tr>
+<tr>
+<td><code>cat</code></td>
+<td><code>openZip()</code> → <code>readEntryStream()</code> / <code>readEntryRaw()</code></td>
+</tr>
+<tr>
+<td><code>extract</code></td>
+<td><code>extractZipStream()</code> (default) / <code>extractZip()</code> (<code>--buffered</code>) + <code>sanitizeEntryPath()</code> re-checked at the sink</td>
+</tr>
+<tr>
+<td><code>stream</code></td>
+<td><code>iterateZipEntries()</code> — local headers only</td>
+</tr>
+<tr>
+<td><code>verify</code></td>
+<td><code>verifyZip()</code> verbatim</td>
+</tr>
+<tr>
+<td><code>crc32</code></td>
+<td><code>crc32()</code></td>
+</tr>
+<tr>
+<td><code>inflate</code></td>
+<td><code>createInflator()</code> (or a registered codec)</td>
+</tr>
+<tr>
+<td><code>batch</code></td>
+<td>the commands above, orchestrated</td>
+</tr>
+<tr>
+<td><code>doctor</code></td>
+<td><code>VERSION</code>, <code>activeDeflateTier()</code>, <code>getCodec()</code>, <code>DEFAULT_ZIP_LIMITS</code> + runtime probes</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td>— (the CLI&#39;s own JSON Schemas, Draft 2020-12)</td>
+</tr>
+<tr>
+<td><code>completion</code></td>
+<td>— (generated from the same command table as <code>--help</code>)</td>
+</tr>
+<tr>
+<td><code>govern</code></td>
+<td>— (the AI-governance contract, <code>.github/ai-governance.json</code>)</td>
+</tr>
+</tbody></table>
+<h2 id="installation">Installation<a class="heading-anchor" href="#installation" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-bash"># Run directly with npx — no global install required
+npx zipnative-cli list archive.zip
+
+# Or install globally: the binary is called `zipnative`
+npm install --global zipnative-cli
+zipnative list archive.zip
+</code></pre>
+<p><strong>Requirements:</strong> Node.js ≥ 22. The package has exactly one runtime
+dependency, <code>zipnative ^1.0.0</code>, ships as a single CommonJS binary, and is
+published with npm provenance — verify the artefact with
+<code>npm audit signatures</code>. Every command runs <strong>offline</strong>: no command can
+open a socket.</p>
+<h2 id="when-to-use-the-cli">When to use the CLI<a class="heading-anchor" href="#when-to-use-the-cli" aria-label="Link to this section">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Use the <strong>CLI</strong> when…</th>
+<th>Use the <strong>library</strong> when…</th>
+<th>Use the <strong>MCP server</strong> when…</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>You write shell scripts, Makefiles or CI jobs</td>
+<td>You build a Node, Bun, Deno, browser or Worker service</td>
+<td>A conversational assistant needs archive tools</td>
+</tr>
+<tr>
+<td>Archives live on disk or arrive through a pipe</td>
+<td>Archives live in memory or in a stream you control</td>
+<td>Archives arrive as base64 or in a sandbox directory</td>
+</tr>
+<tr>
+<td>You want exit codes, <code>--dry-run</code> and a JSON envelope</td>
+<td>You want the full API — random access, modifiers, codecs</td>
+<td>You want typed tools with schemas and prompts</td>
+</tr>
+</tbody></table>
+<p>The three surfaces share one engine, so the artefacts are
+interchangeable; the <a href="choose.html">choosing guide</a> holds the full
+capability × surface matrix.</p>
+<h2 id="quick-start">Quick start<a class="heading-anchor" href="#quick-start" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-bash"># A reproducible archive: identical SHA-256 on every runtime
+zipnative create src/ docs/ --output release.zip --deterministic
+
+# Inventory without decompressing a byte
+zipnative list release.zip --format json | jq &#39;.entries[].name&#39;
+
+# A CI gate: fail (exit 1, E_CHECK_FAILED) unless every assertion holds
+zipnative inspect release.zip --check deterministic,no-encryption,safe-names,max-entries=1000
+
+# Extract behind the default guards — zip-slip, symlinks, bombs, duplicates refused
+zipnative extract --input release.zip --output-dir ./out
+
+# Integrity in one call (never fails for an archive problem — it reports)
+zipnative verify release.zip --json
+</code></pre>
+<h2 id="the-agent-contract">The agent contract<a class="heading-anchor" href="#the-agent-contract" aria-label="Link to this section">#</a></h2>
+<p>The CLI is designed to be driven by programs — CI runners, coding
+agents, other languages — without parsing prose.</p>
+<ul>
+<li><strong>stdout is the artefact, stderr is the channel.</strong> Archive bytes,
+entry bytes, reports, schemas and scripts go to stdout. Diagnostics,
+progress and — under <code>--json</code> — the status or error <strong>envelope</strong> go to
+stderr, as the last line that starts with <code>{</code>. <code>batch</code> is the one
+exception: its JSON report <em>is</em> the stdout document.</li>
+<li><strong>Stable error codes.</strong> Every failure is one of 13 <code>E_*</code> classes
+(<code>E_USAGE</code> exit 2; <code>E_INPUT</code>, <code>E_PARSE</code>, <code>E_IO</code>, <code>E_SECURITY</code>,
+<code>E_DATA</code>, <code>E_LIMIT</code>, <code>E_UNSUPPORTED</code>, <code>E_NOT_FOUND</code>,
+<code>E_VERIFY_FAILED</code>, <code>E_CHECK_FAILED</code>, <code>E_POLICY</code>, <code>E_RUNTIME</code> exit 1)
+and the envelope carries the engine&#39;s <code>ZIP_*</code> code verbatim as
+<code>zipCode</code>, the entry name when one is involved, a <code>detail</code> object and
+a <code>remedy</code> string. Branch on the codes, never on message text.</li>
+<li><strong>Exit codes:</strong> <code>0</code> success (also a closed pipe), <code>1</code> any <code>E_*</code> class
+but usage, <code>2</code> usage error, <code>130</code> / <code>143</code> interrupted by SIGINT /
+SIGTERM (only the file being written is removed; finished outputs
+stay).</li>
+<li><strong><code>--dry-run</code></strong> on <code>create</code>, <code>extract</code>, <code>modify</code>, <code>stream</code>, <code>cat</code>,
+<code>inflate</code> and <code>batch</code> validates and prints the plan, writing nothing.</li>
+<li><strong>Token economy:</strong> <code>--summary</code> returns a minimal verdict and
+<code>--fields a,b.c</code> projects dot paths, on <code>list</code>, <code>inspect</code>, <code>verify</code>,
+<code>stream</code> and <code>batch</code>.</li>
+<li><strong>Schemas:</strong> <code>zipnative schema &lt;subject&gt;</code> prints a JSON Schema
+(Draft 2020-12) for every input and output shape, and
+<code>zipnative schema manifest</code> the capability manifest — commands, flags,
+codes, limits — that this page and the <a href="../playgrounds/cli.html">CLI playground</a>
+are checked against.</li>
+<li><strong>Config:</strong> <code>.zipnativerc.json</code> is discovered upward from the working
+directory (global keys plus command-scoped sections; explicit flags win).
+Unattended runs should pass <code>--no-config</code> or <code>--config &lt;file&gt;</code>. The
+<code>codec</code> key is refused from any config file — a codec module executes
+code.</li>
+<li><strong>Parsing rules:</strong> flags and positionals are order-independent; a
+boolean flag never consumes the next token; <code>--flag=false|0|no|off</code> is
+the explicit off form; a lone <code>-</code> means stdin or stdout; combined short
+flags (<code>-lq</code>) are refused. Short aliases taking a value: <code>-i</code>, <code>-o</code>,
+<code>-d</code>, <code>-e</code>, <code>-f</code>; boolean: <code>-q</code>, <code>-h</code>, <code>-V</code>.</li>
+</ul>
+<p>A status envelope and an error envelope, as an agent sees them:</p>
+<pre><code class="language-json">{&quot;ok&quot;:true,&quot;command&quot;:&quot;create&quot;,&quot;dryRun&quot;:false,&quot;output&quot;:&quot;release.zip&quot;,&quot;entries&quot;:42,&quot;files&quot;:40,&quot;directories&quot;:2,&quot;bytes&quot;:183044,&quot;bytesIn&quot;:611203,&quot;method&quot;:&quot;deflate&quot;,&quot;level&quot;:6,&quot;deterministic&quot;:true,&quot;tier&quot;:&quot;pure-pinned&quot;,&quot;order&quot;:&quot;canonical&quot;,&quot;stream&quot;:false,&quot;layout&quot;:&quot;buffered&quot;,&quot;parallel&quot;:false,&quot;skipped&quot;:[],&quot;diagnostics&quot;:[]}
+{&quot;ok&quot;:false,&quot;command&quot;:&quot;extract&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_SECURITY&quot;,&quot;message&quot;:&quot;zipnative: entry name escapes the extraction root: ../../etc/passwd&quot;,&quot;zipCode&quot;:&quot;ZIP_PATH_TRAVERSAL&quot;,&quot;entryName&quot;:&quot;../../etc/passwd&quot;,&quot;remedy&quot;:&quot;--skip-unsafe (extract, stream) skips such entries; nothing unsafe is ever written&quot;}}
+</code></pre>
+<h2 id="command-reference">Command reference<a class="heading-anchor" href="#command-reference" aria-label="Link to this section">#</a></h2>
+<p>Fifteen commands in four groups. Every command accepts the
+<a href="#global-options">global options</a>; the tables below list the
+command-specific flags.</p>
+<h3 id="create--modify">Create &amp; modify<a class="heading-anchor" href="#create--modify" aria-label="Link to this section">#</a></h3>
+<h4 id="zipnative-create"><code>zipnative create</code><a class="heading-anchor" href="#zipnative-create" aria-label="Link to this section">#</a></h4>
+<p>Build a deterministic ZIP from files, directories, stdin or a manifest.</p>
+<pre><code class="language-bash">zipnative create [&lt;path&gt;...] --output &lt;out.zip&gt; [options]
+zipnative create --from-manifest &lt;entries.json&gt; -o &lt;out.zip&gt;
+cat file | zipnative create --stdin-name &lt;name&gt; -o &lt;out.zip&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>&lt;path&gt;...</code> / <code>--input</code>, <code>-i</code></td>
+<td>—</td>
+<td>Files and directories (directories walked recursively); <code>--input</code> is repeatable</td>
+</tr>
+<tr>
+<td><code>--stdin-name &lt;n&gt;</code></td>
+<td>—</td>
+<td>Read stdin as one entry named <code>&lt;n&gt;</code></td>
+</tr>
+<tr>
+<td><code>--from-manifest &lt;f&gt;</code></td>
+<td>—</td>
+<td>JSON manifest (<code>zipnative schema create-manifest</code>)</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>stdout</td>
+<td>Output path</td>
+</tr>
+<tr>
+<td><code>--overwrite</code></td>
+<td>refuse (<code>E_IO</code>)</td>
+<td>Replace an existing output file</td>
+</tr>
+<tr>
+<td><code>--base &lt;dir&gt;</code></td>
+<td>each input&#39;s parent</td>
+<td>Entry names relative to <code>&lt;dir&gt;</code></td>
+</tr>
+<tr>
+<td><code>--prefix &lt;dir/&gt;</code></td>
+<td>—</td>
+<td>Prepend to every entry name</td>
+</tr>
+<tr>
+<td><code>--dir-entries</code></td>
+<td>off</td>
+<td>Emit explicit directory entries (keeps empty directories)</td>
+</tr>
+<tr>
+<td><code>--include &lt;glob&gt;</code> / <code>--exclude &lt;glob&gt;</code></td>
+<td>—</td>
+<td>Keep / drop matching names (repeatable; <code>*</code>, <code>**</code>, <code>?</code>)</td>
+</tr>
+<tr>
+<td><code>--follow-symlinks</code></td>
+<td>skipped with a warning</td>
+<td>Dereference symlinks — symlink entries are never written</td>
+</tr>
+<tr>
+<td><code>--method store|deflate</code></td>
+<td><code>deflate</code></td>
+<td>Compression method</td>
+</tr>
+<tr>
+<td><code>--level 0-9</code></td>
+<td><code>6</code></td>
+<td>Deflate level</td>
+</tr>
+<tr>
+<td><code>--deterministic</code></td>
+<td>off</td>
+<td>Pin the pure-TS encoder: identical SHA-256 on every runtime (<code>tier: &quot;pure-pinned&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>--order canonical|insertion</code></td>
+<td><code>canonical</code></td>
+<td>Entry order; <code>insertion</code> keeps argv order (an EPUB <code>mimetype</code> first)</td>
+</tr>
+<tr>
+<td><code>--date epoch|now|&lt;ISO&gt;</code></td>
+<td><code>epoch</code></td>
+<td>Entry timestamp; an ISO date is UTC wall-clock (range 1980–2107, 2-second resolution)</td>
+</tr>
+<tr>
+<td><code>--mtime</code></td>
+<td>off</td>
+<td>Use each file&#39;s modification time (local time, non-reproducible)</td>
+</tr>
+<tr>
+<td><code>--comment &lt;text&gt;</code> / <code>--comment-file &lt;path&gt;</code></td>
+<td>—</td>
+<td>Archive comment (text, or raw bytes from a file, <code>-</code> = stdin; exclusive; ≤ 65 535 bytes)</td>
+</tr>
+<tr>
+<td><code>--entry-comment &lt;name&gt;=&lt;text&gt;</code></td>
+<td>—</td>
+<td>Per-entry comment (repeatable)</td>
+</tr>
+<tr>
+<td><code>--preserve-mode</code></td>
+<td>off</td>
+<td>Store POSIX mode bits (never setuid / setgid / sticky)</td>
+</tr>
+<tr>
+<td><code>--store-ext png,jpg,zip</code></td>
+<td>—</td>
+<td>Store (no deflate) entries with these extensions</td>
+</tr>
+<tr>
+<td><code>--stream</code></td>
+<td>off</td>
+<td>Constant-memory writer, data-descriptor layout; entries &gt; 4 GiB refused (<code>ZIP_UNSUPPORTED_ZIP64_STREAMING</code>)</td>
+</tr>
+<tr>
+<td><code>--chunk-size &lt;size&gt;</code></td>
+<td><code>65536</code></td>
+<td>Output chunk size for the chunked writer (<code>--stream</code> or <code>--stdin-name</code>)</td>
+</tr>
+<tr>
+<td><code>--parallel</code></td>
+<td>off</td>
+<td>Deflate across a worker pool (<code>zipnative/worker</code>), byte-identical per tier; refused (exit 2) with a <code>--codec</code> module</td>
+</tr>
+<tr>
+<td><code>--workers &lt;n&gt;</code></td>
+<td>cores − 1, max 8</td>
+<td>Worker count (<code>0</code> = main thread)</td>
+</tr>
+<tr>
+<td><code>--min-job-size &lt;size&gt;</code></td>
+<td><code>32k</code></td>
+<td>Minimum entry size sent to a worker</td>
+</tr>
+<tr>
+<td><code>--job-timeout &lt;ms&gt;</code></td>
+<td><code>60000</code></td>
+<td>Per-job cap before inline fallback</td>
+</tr>
+</tbody></table>
+<p>The status envelope reports <code>entries</code>, <code>files</code>, <code>directories</code>, <code>bytes</code>,
+<code>bytesIn</code>, <code>method</code>, <code>level</code>, <code>deterministic</code>, <code>tier</code>, <code>order</code>, <code>stream</code>,
+<code>layout</code>, <code>parallel</code>, <code>skipped</code> and <code>diagnostics</code>. A <code>--stream</code> archive is
+reproducible but not <em>canonical</em> (data descriptors) — <code>inspect --check canonical-layout</code> tells the two apart.</p>
+<h4 id="zipnative-modify"><code>zipnative modify</code><a class="heading-anchor" href="#zipnative-modify" aria-label="Link to this section">#</a></h4>
+<p>Incremental edits without recompressing untouched entries.</p>
+<pre><code class="language-bash">zipnative modify --input &lt;a.zip&gt; --output &lt;b.zip&gt; [edits] [--compact]
+zipnative modify --input &lt;a.zip&gt; --in-place [edits]
+zipnative modify --input &lt;a.zip&gt; -o &lt;b.zip&gt; --from-manifest &lt;edits.json&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>—</td>
+<td>Source archive</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>stdout</td>
+<td>Output path</td>
+</tr>
+<tr>
+<td><code>--overwrite</code></td>
+<td>refuse (<code>E_IO</code>)</td>
+<td>Replace an existing <code>--output</code> file</td>
+</tr>
+<tr>
+<td><code>--remove &lt;name&gt;</code></td>
+<td>—</td>
+<td>Remove an entry (repeatable)</td>
+</tr>
+<tr>
+<td><code>--rename &lt;from&gt;=&lt;to&gt;</code></td>
+<td>—</td>
+<td>Rename an entry (repeatable; never overwrites implicitly)</td>
+</tr>
+<tr>
+<td><code>--replace &lt;name&gt;=&lt;path&gt;</code></td>
+<td>—</td>
+<td>Replace an entry&#39;s content (repeatable; <code>-</code> = stdin)</td>
+</tr>
+<tr>
+<td><code>--add &lt;name&gt;=&lt;path&gt;</code></td>
+<td>—</td>
+<td>Add an entry (repeatable; a bare <code>&lt;path&gt;</code> uses its basename)</td>
+</tr>
+<tr>
+<td><code>--add-dir &lt;name&gt;</code></td>
+<td>—</td>
+<td>Add an explicit directory entry (repeatable)</td>
+</tr>
+<tr>
+<td><code>--comment &lt;text&gt;</code> / <code>--comment-file &lt;path&gt;</code></td>
+<td>—</td>
+<td>Set the archive comment (<code>&quot;&quot;</code> clears; raw bytes from a file, <code>-</code> = stdin; exclusive)</td>
+</tr>
+<tr>
+<td><code>--from-manifest &lt;f&gt;</code></td>
+<td>—</td>
+<td>JSON edits (<code>zipnative schema modify-manifest</code>)</td>
+</tr>
+<tr>
+<td><code>--method</code> / <code>--level</code> / <code>--deterministic</code></td>
+<td>engine defaults</td>
+<td>Compression for <strong>new</strong> payloads</td>
+</tr>
+<tr>
+<td><code>--date epoch|now|&lt;ISO&gt;</code></td>
+<td><code>epoch</code></td>
+<td>Timestamp for new payloads</td>
+</tr>
+<tr>
+<td><code>--compact</code></td>
+<td>off</td>
+<td>Canonical rewrite (<code>saveCompact()</code>): removed data truly gone, still no recompression</td>
+</tr>
+<tr>
+<td><code>--in-place</code></td>
+<td>off</td>
+<td>Write back to the input path (exclusive temp file + atomic rename)</td>
+</tr>
+</tbody></table>
+<p>Edits apply in a fixed order regardless of argv order: remove → rename →
+replace → add / add-dir → comment. The default save is <strong>append-only</strong>:
+original bytes verbatim, edits appended, a new central directory —
+removed or replaced content <strong>remains recoverable</strong> (data remanence), and
+7-Zip&#39;s CLI is known to mis-read this layout. Pass <code>--compact</code> when either
+matters. Every untouched entry is verified (CRC-32, sizes, local header
+against central directory) before it is re-emitted; a lying record is
+refused with <code>E_DATA</code> / <code>E_SECURITY</code> and the entry name. Encrypted
+entries are copied as-is and counted in <code>verifySkipped</code>.</p>
+<h3 id="read--extract">Read &amp; extract<a class="heading-anchor" href="#read--extract" aria-label="Link to this section">#</a></h3>
+<h4 id="zipnative-list"><code>zipnative list</code><a class="heading-anchor" href="#zipnative-list" aria-label="Link to this section">#</a></h4>
+<p>List archive entries without decompressing anything.</p>
+<pre><code class="language-bash">zipnative list --input &lt;a.zip&gt; [options]
+zipnative list &lt;a.zip&gt; --format ndjson --include &#39;**/*.json&#39;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>Archive path (positional accepted)</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json|ndjson</code></td>
+<td><code>text</code> (<code>json</code> under <code>--json</code>)</td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--long</code></td>
+<td>off</td>
+<td>Add mode, flags, versions, offsets, extra fields, <code>rawNameHex</code>, <code>commentHex</code></td>
+</tr>
+<tr>
+<td><code>--validate lazy|eager</code></td>
+<td><code>lazy</code></td>
+<td><code>eager</code> cross-checks every local header up front</td>
+</tr>
+<tr>
+<td><code>--include &lt;glob&gt;</code> / <code>--exclude &lt;glob&gt;</code></td>
+<td>—</td>
+<td>Name filters (repeatable)</td>
+</tr>
+<tr>
+<td><code>--summary</code></td>
+<td>—</td>
+<td><code>{ entries, files, directories, compressedSize, uncompressedSize, zip64, encrypted }</code></td>
+</tr>
+<tr>
+<td><code>--fields a,b.c</code></td>
+<td>—</td>
+<td>Dot-path projection of the JSON report</td>
+</tr>
+</tbody></table>
+<p>JSON shape: <code>zipnative schema entries</code>.</p>
+<h4 id="zipnative-inspect"><code>zipnative inspect</code><a class="heading-anchor" href="#zipnative-inspect" aria-label="Link to this section">#</a></h4>
+<p>A forensic report with determinism and security assertions — the CI
+gate. The archive is opened <strong>eagerly</strong>: every local header
+cross-checked, the overlap table built up front.</p>
+<pre><code class="language-bash">zipnative inspect --input &lt;a.zip&gt; [--format json|text] [--check &lt;assert&gt;]...
+zipnative inspect &lt;a.zip&gt; --check deterministic,no-encryption,safe-names --json
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>Archive path (positional accepted)</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json</code></td>
+<td><code>text</code> (<code>json</code> under <code>--json</code>)</td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--entries</code></td>
+<td>off</td>
+<td>Include every entry (long form) in the report</td>
+</tr>
+<tr>
+<td><code>--entry &lt;name&gt;</code></td>
+<td>—</td>
+<td>Include only the named entries (repeatable)</td>
+</tr>
+<tr>
+<td><code>--extra</code></td>
+<td>off</td>
+<td>Include extra-field payloads as hex</td>
+</tr>
+<tr>
+<td><code>--check &lt;assert&gt;</code></td>
+<td>—</td>
+<td>Assertion (repeatable, comma-separable); any failure prints the report then exits 1 with <code>E_CHECK_FAILED</code></td>
+</tr>
+<tr>
+<td><code>--summary</code></td>
+<td>—</td>
+<td><code>{ entries, bytes, uncompressedSize, zip64, encrypted, deterministic, canonicalLayout, diagnostics, checksPassed? }</code></td>
+</tr>
+<tr>
+<td><code>--fields a,b.c</code></td>
+<td>—</td>
+<td>Dot-path projection</td>
+</tr>
+</tbody></table>
+<p>The <code>--check</code> vocabulary — fifteen simple assertions and six that take a
+value (<code>canonical-layout</code> and <code>no-data-descriptor</code> are aliases, so twenty
+distinct checks):</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Passes when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>deterministic</code></td>
+<td>epoch timestamps + canonical order + UTF-8 flags (reproducible on every runtime)</td>
+</tr>
+<tr>
+<td><code>epoch-timestamps</code> · <code>canonical-order</code> · <code>utf8-names</code></td>
+<td>the individual determinism facts</td>
+</tr>
+<tr>
+<td><code>canonical-layout</code> / <code>no-data-descriptor</code></td>
+<td>buffered layout — a <code>--stream</code> archive is reproducible but not canonical</td>
+</tr>
+<tr>
+<td><code>no-zip64</code> · <code>zip64</code></td>
+<td>Zip64 records absent / present</td>
+</tr>
+<tr>
+<td><code>no-encryption</code></td>
+<td>no entry carries the encryption flag</td>
+</tr>
+<tr>
+<td><code>no-symlinks</code></td>
+<td>no symlink entries</td>
+</tr>
+<tr>
+<td><code>safe-names</code></td>
+<td>every name passes <code>sanitizeEntryPath()</code></td>
+</tr>
+<tr>
+<td><code>no-duplicates</code></td>
+<td>no duplicate names</td>
+</tr>
+<tr>
+<td><code>no-diagnostics</code></td>
+<td>the engine emitted no diagnostic</td>
+</tr>
+<tr>
+<td><code>store-only</code> · <code>deflate-only</code></td>
+<td>a single method throughout</td>
+</tr>
+<tr>
+<td><code>max-entries=N</code> · <code>min-entries=N</code></td>
+<td>entry-count bounds</td>
+</tr>
+<tr>
+<td><code>max-uncompressed=&lt;size&gt;</code> · <code>max-ratio=N</code></td>
+<td>size and worst per-entry ratio bounds</td>
+</tr>
+<tr>
+<td><code>has=&lt;name&gt;</code></td>
+<td>the named entry exists</td>
+</tr>
+<tr>
+<td><code>method=store|deflate|&lt;id&gt;</code></td>
+<td>every entry uses that method</td>
+</tr>
+</tbody></table>
+<p>JSON shape: <code>zipnative schema inspect</code>.</p>
+<h4 id="zipnative-cat"><code>zipnative cat</code><a class="heading-anchor" href="#zipnative-cat" aria-label="Link to this section">#</a></h4>
+<p>Stream one or more entries to stdout.</p>
+<pre><code class="language-bash">zipnative cat --input &lt;a.zip&gt; --entry &lt;name&gt; [--entry &lt;name&gt;]... [-o &lt;file&gt;]
+zipnative cat &lt;a.zip&gt; &lt;name&gt; [&lt;name&gt;...]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>—</td>
+<td>Archive path</td>
+</tr>
+<tr>
+<td><code>--entry</code>, <code>-e</code></td>
+<td>—</td>
+<td>Entry name (repeatable); entries are concatenated in order</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>stdout</td>
+<td>Write to a file instead</td>
+</tr>
+<tr>
+<td><code>--overwrite</code></td>
+<td>refuse (<code>E_IO</code>)</td>
+<td>Replace an existing <code>--output</code> file</td>
+</tr>
+<tr>
+<td><code>--raw</code></td>
+<td>off</td>
+<td>Output the <strong>compressed</strong> payload (zero-copy), no decoding</td>
+</tr>
+<tr>
+<td><code>--no-verify-crc</code></td>
+<td>off</td>
+<td>Skip the CRC-32 check at the end of the stream</td>
+</tr>
+</tbody></table>
+<p>The CRC is verified at the <em>end</em> of the stream (like <code>unzip -p</code>), so
+stdout may already carry bytes when <code>E_DATA</code> fires; with <code>--output</code> the
+partial file is removed.</p>
+<h4 id="zipnative-extract"><code>zipnative extract</code><a class="heading-anchor" href="#zipnative-extract" aria-label="Link to this section">#</a></h4>
+<p>Extract to a directory, secure by default — the CLI is the filesystem
+trust boundary the engine refuses to be.</p>
+<pre><code class="language-bash">zipnative extract --input &lt;a.zip&gt; --output-dir &lt;dir&gt; [options]
+zipnative extract release.zip -d ./out --dry-run --json
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>Archive path (positional accepted)</td>
+</tr>
+<tr>
+<td><code>--output-dir</code>, <code>-d</code></td>
+<td><strong>required</strong></td>
+<td>Destination (created if missing); every path re-checked with <code>sanitizeEntryPath()</code> and contained under this root</td>
+</tr>
+<tr>
+<td><code>--include &lt;glob&gt;</code> / <code>--exclude &lt;glob&gt;</code></td>
+<td>—</td>
+<td>Name filters (repeatable)</td>
+</tr>
+<tr>
+<td><code>--entry &lt;name&gt;</code></td>
+<td>—</td>
+<td>Extract only the named entries (repeatable)</td>
+</tr>
+<tr>
+<td><code>--overwrite</code></td>
+<td>refuse (<code>E_IO</code>)</td>
+<td>Replace existing files</td>
+</tr>
+<tr>
+<td><code>--on-duplicate error|first|last</code></td>
+<td><code>error</code></td>
+<td>Two entries mapping to one sanitized path</td>
+</tr>
+<tr>
+<td><code>--skip-unsafe</code></td>
+<td>off</td>
+<td><strong>Skip</strong> entries whose names cannot be made safe (zip-slip, absolute, drive / UNC, NUL, ADS, device names) instead of failing — nothing unsafe is ever written</td>
+</tr>
+<tr>
+<td><code>--skip-unsupported</code></td>
+<td>off</td>
+<td>Skip encrypted entries and methods with no registered codec (reason <code>unsupported</code>)</td>
+</tr>
+<tr>
+<td><code>--allow-symlinks</code></td>
+<td>refuse</td>
+<td>Write a symlink entry&#39;s <strong>target text</strong> as a regular file (a symlink is never materialised)</td>
+</tr>
+<tr>
+<td><code>--skip-symlinks</code></td>
+<td>off</td>
+<td>Drop symlink entries silently</td>
+</tr>
+<tr>
+<td><code>--flat</code></td>
+<td>off</td>
+<td>Drop directories, write basenames only</td>
+</tr>
+<tr>
+<td><code>--buffered</code></td>
+<td>off</td>
+<td>Use the in-memory extractor (many tiny entries)</td>
+</tr>
+<tr>
+<td><code>--preserve-mode</code></td>
+<td>off</td>
+<td>Apply POSIX mode bits (never setuid / setgid / sticky)</td>
+</tr>
+<tr>
+<td><code>--preserve-mtime</code></td>
+<td>off</td>
+<td>Apply the entry timestamp to each file</td>
+</tr>
+</tbody></table>
+<p>Refusals are <code>E_SECURITY</code> with the engine code: <code>ZIP_PATH_TRAVERSAL</code>,
+<code>ZIP_SYMLINK_REJECTED</code>, <code>ZIP_EXTRACT_DUPLICATE_PATH</code>, <code>ZIP_ENTRY_OVERLAP</code>,
+<code>ZIP_CD_LFH_MISMATCH</code>. Bounds are <code>E_LIMIT</code> (<code>--max-entry-size</code>,
+<code>--max-total-size</code>, <code>--max-ratio</code>, …).</p>
+<h4 id="zipnative-stream"><code>zipnative stream</code><a class="heading-anchor" href="#zipnative-stream" aria-label="Link to this section">#</a></h4>
+<p>The forward-only reader for <strong>unseekable</strong> input — stdin, pipes, a
+download in flight. No central directory is consulted.</p>
+<pre><code class="language-bash">curl ... | zipnative stream [--list] [--format ndjson]
+curl ... | zipnative stream --output-dir &lt;dir&gt;
+cat a.zip | zipnative stream --cat &lt;name&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>File to read sequentially</td>
+</tr>
+<tr>
+<td><code>--list</code></td>
+<td>default mode</td>
+<td>List entries as they arrive</td>
+</tr>
+<tr>
+<td><code>--output-dir</code>, <code>-d</code></td>
+<td>—</td>
+<td>Extract under <code>&lt;dir&gt;</code> (<code>sanitizeEntryPath</code> + containment)</td>
+</tr>
+<tr>
+<td><code>--cat &lt;name&gt;</code></td>
+<td>—</td>
+<td>Write the named entry&#39;s data to stdout (repeatable)</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json|ndjson</code></td>
+<td><code>text</code> (<code>ndjson</code> under <code>--json</code>; <code>json</code> with <code>--summary</code> / <code>--fields</code>)</td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--long</code></td>
+<td>off</td>
+<td>Add flags, versions and extra fields</td>
+</tr>
+<tr>
+<td><code>--include</code> / <code>--exclude</code>, <code>--overwrite</code>, <code>--on-duplicate</code>, <code>--flat</code>, <code>--preserve-mtime</code></td>
+<td>as <code>extract</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>--skip-unsafe</code> / <code>--skip-unsupported</code></td>
+<td>off</td>
+<td>Skip instead of failing</td>
+</tr>
+<tr>
+<td><code>--summary</code> / <code>--fields</code></td>
+<td>—</td>
+<td>Projection of the <code>--format json</code> report</td>
+</tr>
+</tbody></table>
+<p><strong>Trust caveat:</strong> local headers alone — there is no central directory to
+cross-check names, sizes, methods or attributes, so <code>--preserve-mode</code>,
+<code>--allow-symlinks</code> and <code>--skip-symlinks</code> are unavailable here, a
+<code>warning:</code> line is printed at start, and every JSON output carries
+<code>trust: &quot;local-headers-only&quot;</code>. Prefer <code>list</code> / <code>extract</code> whenever the
+whole file is available.</p>
+<h3 id="integrity--codecs">Integrity &amp; codecs<a class="heading-anchor" href="#integrity--codecs" aria-label="Link to this section">#</a></h3>
+<h4 id="zipnative-verify"><code>zipnative verify</code><a class="heading-anchor" href="#zipnative-verify" aria-label="Link to this section">#</a></h4>
+<p>Deep integrity verification in one call — the engine&#39;s
+<code>ZipVerificationReport</code> verbatim.</p>
+<pre><code class="language-bash">zipnative verify --input &lt;a.zip&gt; [--format json|text] [--strict]
+zipnative verify &lt;a.zip&gt; --entry manifest.json --json
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>Archive path (positional accepted)</td>
+</tr>
+<tr>
+<td><code>--entry</code>, <code>-e</code></td>
+<td>all</td>
+<td>Verify only the named entries (repeatable); an unknown name is <code>E_NOT_FOUND</code> before any output</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json</code></td>
+<td><code>text</code> (<code>json</code> under <code>--json</code>)</td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--summary</code></td>
+<td>—</td>
+<td><code>{ ok, entries, failed, skipped, diagnostics, selected?, error? }</code></td>
+</tr>
+<tr>
+<td><code>--fields a,b.c</code></td>
+<td>—</td>
+<td>Dot-path projection</td>
+</tr>
+</tbody></table>
+<p>The report is <code>{ ok, error, entryCount, entries[{ name, ok, crcMatch, sizeMatch, localHeaderMatch, skipped? }], diagnostics }</code> plus <code>failed</code>,
+<code>skipped</code>, <code>strict</code> and <code>selected</code>. Encrypted entries are honestly
+<code>skipped</code>, never faked as verified. Exit 1 / <code>E_VERIFY_FAILED</code> when <code>ok</code>
+is false; <code>--strict</code> also fails on any diagnostic. <code>verify</code> proves
+integrity and structure, <strong>not</strong> path safety: a zip-slip archive with
+valid CRCs is <code>ok</code> — gate names with <code>inspect --check safe-names,no-symlinks</code>
+or <code>extract --dry-run</code> before extracting.</p>
+<h4 id="zipnative-crc32"><code>zipnative crc32</code><a class="heading-anchor" href="#zipnative-crc32" aria-label="Link to this section">#</a></h4>
+<p>CRC-32 (IEEE, the ZIP checksum) of files or stdin, in 64 KiB chunks.</p>
+<pre><code class="language-bash">zipnative crc32 [&lt;file&gt;...] [--seed &lt;hex&gt;] [--expect &lt;hex&gt;] [--format text|json]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>&lt;file&gt;...</code> / <code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>Files (repeatable)</td>
+</tr>
+<tr>
+<td><code>--seed &lt;hex&gt;</code></td>
+<td><code>0</code></td>
+<td>Continue a running checksum from this value</td>
+</tr>
+<tr>
+<td><code>--expect &lt;hex&gt;</code></td>
+<td>—</td>
+<td>Single input: exit 1 / <code>E_CHECK_FAILED</code> on mismatch (<code>detail { expectedCrc, actualCrc }</code>)</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json</code></td>
+<td><code>text</code> (<code>&lt;crc&gt;  &lt;bytes&gt;  &lt;file&gt;</code>)</td>
+<td>Output format</td>
+</tr>
+</tbody></table>
+<h4 id="zipnative-inflate"><code>zipnative inflate</code><a class="heading-anchor" href="#zipnative-inflate" aria-label="Link to this section">#</a></h4>
+<p>Decompress a raw DEFLATE (RFC 1951) or registered-codec stream through
+the engine&#39;s resumable inflater — constant memory, exact
+<code>bytesConsumed</code>, trailing bytes reported as <code>leftover</code>.</p>
+<pre><code class="language-bash">zipnative inflate [--input &lt;file&gt;] [--output &lt;file&gt;] [--max-output &lt;size&gt;]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>stdin</td>
+<td>Compressed input</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>stdout</td>
+<td>Decompressed output</td>
+</tr>
+<tr>
+<td><code>--overwrite</code></td>
+<td>refuse (<code>E_IO</code>)</td>
+<td>Replace an existing <code>--output</code> file</td>
+</tr>
+<tr>
+<td><code>--max-output &lt;size&gt;</code></td>
+<td>the effective <code>--max-entry-size</code> (1 GiB)</td>
+<td>Hard output bound; <code>none</code> only for trusted input</td>
+</tr>
+<tr>
+<td><code>--method deflate|store|&lt;id&gt;</code></td>
+<td><code>deflate</code></td>
+<td>Codec (ids via <code>--codec</code>)</td>
+</tr>
+<tr>
+<td><code>--sync</code></td>
+<td>off</td>
+<td>Buffer the input and use the codec&#39;s <code>decompressSync</code></td>
+</tr>
+<tr>
+<td><code>--allow-trailing</code></td>
+<td>off</td>
+<td>Silence the warning about bytes after the stream end</td>
+</tr>
+</tbody></table>
+<p>Errors: <code>ZIP_DEFLATE_CORRUPT</code> / <code>ZIP_DEFLATE_TRUNCATED</code> → <code>E_PARSE</code>,
+<code>ZIP_INFLATE_OUTPUT_OVERFLOW</code> → <code>E_DATA</code>.</p>
+<h3 id="automation--meta">Automation &amp; meta<a class="heading-anchor" href="#automation--meta" aria-label="Link to this section">#</a></h3>
+<h4 id="zipnative-batch"><code>zipnative batch</code><a class="heading-anchor" href="#zipnative-batch" aria-label="Link to this section">#</a></h4>
+<p>Batch orchestration in two modes.</p>
+<pre><code class="language-bash">zipnative batch --input-dir &lt;dir&gt; --output-dir &lt;dir&gt; [--task create] [create flags]
+zipnative batch --input-dir &lt;dir&gt; --task verify
+zipnative batch --manifest &lt;tasks.json&gt; [--continue-on-error] [--allow-codec-load]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input-dir &lt;dir&gt;</code></td>
+<td>—</td>
+<td>Directory mode: <code>--task create</code> archives each immediate subdirectory to <code>&lt;output-dir&gt;/&lt;name&gt;.zip</code>; <code>--task verify</code> verifies every <code>*.zip</code></td>
+</tr>
+<tr>
+<td><code>--output-dir &lt;dir&gt;</code></td>
+<td>—</td>
+<td>Destination for <code>--task create</code></td>
+</tr>
+<tr>
+<td><code>--task create|verify</code></td>
+<td><code>create</code></td>
+<td>Directory-mode task</td>
+</tr>
+<tr>
+<td><code>--overwrite</code></td>
+<td>refuse (<code>E_IO</code>)</td>
+<td>Replace existing <code>&lt;name&gt;.zip</code> files</td>
+</tr>
+<tr>
+<td><code>--concurrency &lt;n&gt;</code></td>
+<td><code>4</code> (max 64)</td>
+<td>Parallel workers</td>
+</tr>
+<tr>
+<td><code>--fail-fast</code></td>
+<td>off</td>
+<td>Stop scheduling after the first failure</td>
+</tr>
+<tr>
+<td><code>--method</code> / <code>--level</code> / <code>--deterministic</code> / <code>--order</code> / <code>--date</code> / <code>--comment</code></td>
+<td>—</td>
+<td>Forwarded to every <code>create</code> task (any other <code>create</code> flag is forwarded too)</td>
+</tr>
+<tr>
+<td><code>--manifest &lt;file&gt;</code></td>
+<td>—</td>
+<td>Manifest mode: an ordered pipeline of whitelisted commands (<code>create</code>, <code>list</code>, <code>inspect</code>, <code>extract</code>, <code>cat</code>, <code>verify</code>, <code>stream</code>, <code>modify</code>, <code>crc32</code>, <code>inflate</code>) with <code>@&lt;id&gt;</code> output references — <code>zipnative schema batch-manifest</code></td>
+</tr>
+<tr>
+<td><code>--continue-on-error</code></td>
+<td>off</td>
+<td>Keep running independent tasks after a failure</td>
+</tr>
+<tr>
+<td><code>--allow-codec-load</code></td>
+<td>off</td>
+<td>Permit a <code>codec</code> flag inside tasks (executes user code)</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json</code></td>
+<td><code>text</code> (<code>json</code> under <code>--json</code>)</td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--summary</code></td>
+<td>—</td>
+<td><code>{ ok, command, mode, total, succeeded, failed, skipped }</code></td>
+</tr>
+<tr>
+<td><code>--fields a,b.c</code></td>
+<td>—</td>
+<td>Dot-path projection</td>
+</tr>
+</tbody></table>
+<p>Under <code>--json</code> stdout is <strong>one</strong> batch document — each task&#39;s stdout is
+captured into <code>tasks[i].report</code> (parsed JSON / NDJSON) or <code>.stdout</code>, so
+<code>create</code> / <code>modify</code> / <code>cat</code> / <code>inflate</code> tasks must declare an <code>output</code>
+and <code>stream --cat</code> is refused at validation. Path values inside a
+manifest are <em>data</em> and are refused on <code>..</code>. Exit 1 carries the first
+failing task&#39;s <code>E_*</code> code.</p>
+<h4 id="zipnative-doctor"><code>zipnative doctor</code><a class="heading-anchor" href="#zipnative-doctor" aria-label="Link to this section">#</a></h4>
+<p>Environment and capability preflight — always offline.</p>
+<pre><code class="language-bash">zipnative doctor [--format json|text]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--format</code>, <code>-f</code> <code>text|json</code></td>
+<td><code>text</code> (<code>json</code> under <code>--json</code>)</td>
+<td>Output format</td>
+</tr>
+</tbody></table>
+<p>Ten checks: <code>cli</code>, <code>node</code> (≥ 22), <code>zipnative</code> (package vs <code>VERSION</code>
+export), <code>deflate-tier</code> (node-zlib expected; pure under <code>--pure-codecs</code>),
+<code>deflate-pinned</code> (the tier <code>--deterministic</code> uses), <code>web-streams</code>,
+<code>workers</code> (for <code>create --parallel</code>), <code>codecs</code>, <code>limits</code> (the effective
+bounds, <code>--max-*</code> overrides included) and <code>commands</code>. Statuses <code>ok</code>,
+<code>warn</code>, <code>error</code>; exit 0 when every check passes, 1 otherwise.</p>
+<h4 id="zipnative-schema"><code>zipnative schema</code><a class="heading-anchor" href="#zipnative-schema" aria-label="Link to this section">#</a></h4>
+<p>Print a JSON Schema (Draft 2020-12) or the capability manifest.</p>
+<pre><code class="language-bash">zipnative schema [&lt;subject&gt;]     # default subject: create-manifest
+zipnative schema list            # { subjects: [...] }
+zipnative schema manifest        # commands, flags, codes, limits, schemas
+</code></pre>
+<p>Twenty-two subjects: inputs <code>create-manifest</code>, <code>modify-manifest</code>,
+<code>batch-manifest</code>; outputs <code>entries</code>, <code>entries-summary</code>, <code>inspect</code>,
+<code>inspect-summary</code>, <code>verify</code>, <code>verify-summary</code>, <code>stream</code>,
+<code>stream-summary</code>, <code>batch</code>, <code>batch-summary</code>, <code>doctor</code>, <code>govern-verify</code>,
+<code>crc32</code>; the envelopes <code>status</code>, <code>error</code>; <code>errors</code> (the <code>E_*</code> codes, the
+39 <code>ZIP_*</code> → <code>E_*</code> mapping and the diagnostics); <code>limits</code>, <code>diagnostics</code>;
+and <code>manifest</code>. Every <code>$id</code> is versioned:
+<code>https://zipnative.dev/schema/cli/1.0.0/&lt;subject&gt;.schema.json</code>.</p>
+<h4 id="zipnative-completion"><code>zipnative completion</code><a class="heading-anchor" href="#zipnative-completion" aria-label="Link to this section">#</a></h4>
+<p>Emit a shell completion script, generated from the same command table
+as <code>--help</code> and <code>schema manifest</code>.</p>
+<pre><code class="language-bash">zipnative completion bash &gt; /etc/bash_completion.d/zipnative
+zipnative completion zsh  &gt; &quot;${fpath[1]}/_zipnative&quot;
+zipnative completion fish &gt; ~/.config/fish/completions/zipnative.fish
+zipnative completion powershell &gt;&gt; $PROFILE
+</code></pre>
+<p>Path flags (<code>--input</code>, <code>--output</code>, <code>--output-dir</code>, <code>--input-dir</code>,
+<code>--base</code>, <code>--from-manifest</code>, <code>--manifest</code>, <code>--config</code>, <code>--codec</code>,
+<code>--comment-file</code>) complete files; other value flags require an argument;
+boolean flags take none. An unsupported shell is exit 2.</p>
+<h4 id="zipnative-govern"><code>zipnative govern</code><a class="heading-anchor" href="#zipnative-govern" aria-label="Link to this section">#</a></h4>
+<p>The AI-governance / human-in-the-loop contract.</p>
+<pre><code class="language-bash">zipnative govern rules                    # the human/agent protocol
+zipnative govern policy [--pretty]        # the machine-readable policy (JSON)
+zipnative govern verify-issue &lt;draft.md&gt;  # validate a draft; exit 1 / E_POLICY on violation
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--input</code>, <code>-i</code></td>
+<td>positional</td>
+<td>Draft path for <code>verify-issue</code> (<code>-</code> = stdin)</td>
+</tr>
+<tr>
+<td><code>--format</code>, <code>-f</code> <code>json|text</code></td>
+<td><code>text</code> (<code>json</code> under <code>--json</code>)</td>
+<td>Report format for <code>verify-issue</code> (<code>zipnative schema govern-verify</code>)</td>
+</tr>
+</tbody></table>
+<p><code>verify-issue</code> fails a draft that proposes a runtime dependency or omits
+a reproduction; missing recommended fields and apparent anti-goal
+proposals (encryption, other formats, multi-disk, repair) are warnings.
+A passing check is necessary, never sufficient — agents are draftsmen;
+a human reviews and submits.</p>
+<h2 id="global-options">Global options<a class="heading-anchor" href="#global-options" aria-label="Link to this section">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>—</td>
+<td>Global or per-command usage</td>
+</tr>
+<tr>
+<td><code>--version</code>, <code>-V</code></td>
+<td>—</td>
+<td>Version; with <code>--json</code>: <code>{ name, version, zipnative }</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>—</td>
+<td>Agent mode: JSON envelope on stderr, data on stdout (<code>batch</code>: the report is the stdout document)</td>
+</tr>
+<tr>
+<td><code>--pretty</code></td>
+<td>—</td>
+<td>Indent JSON output under <code>--json</code></td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>—</td>
+<td>Validate and plan without writing (<code>create</code>, <code>extract</code>, <code>modify</code>, <code>stream</code>, <code>cat</code>, <code>inflate</code>, <code>batch</code>)</td>
+</tr>
+<tr>
+<td><code>--quiet</code>, <code>-q</code></td>
+<td>—</td>
+<td>Suppress progress and text diagnostics on stderr (never envelopes or errors)</td>
+</tr>
+<tr>
+<td><code>--no-color</code></td>
+<td>—</td>
+<td>Disable ANSI colour on stderr (also <code>NO_COLOR</code>; <code>FORCE_COLOR</code> turns it on; <code>TERM=dumb</code> off)</td>
+</tr>
+<tr>
+<td><code>--strict</code></td>
+<td>—</td>
+<td>Escalate the first engine diagnostic into <code>E_CHECK_FAILED</code> before any output byte (<code>verify</code>: <code>E_VERIFY_FAILED</code>)</td>
+</tr>
+<tr>
+<td><code>--config &lt;file&gt;</code></td>
+<td>nearest <code>.zipnativerc.json</code> upward</td>
+<td>Use a specific config file</td>
+</tr>
+<tr>
+<td><code>--no-config</code></td>
+<td>—</td>
+<td>Ignore any <code>.zipnativerc.json</code></td>
+</tr>
+<tr>
+<td><code>--max-entries &lt;n&gt;</code></td>
+<td><code>100000</code></td>
+<td>Central-directory entry bound (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-entry-size &lt;size&gt;</code></td>
+<td>1 GiB</td>
+<td>Decompressed size of one entry (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-total-size &lt;size&gt;</code></td>
+<td>8 GiB</td>
+<td>Total decompressed size (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-ratio &lt;n&gt;</code></td>
+<td><code>1024</code></td>
+<td>Uncompressed / compressed ratio (CWE-409)</td>
+</tr>
+<tr>
+<td><code>--max-name-bytes &lt;size&gt;</code></td>
+<td><code>4096</code></td>
+<td>Entry-name length (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-extra-bytes &lt;size&gt;</code></td>
+<td><code>65535</code></td>
+<td>Extra-field block length (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-comment-bytes &lt;size&gt;</code></td>
+<td><code>65535</code></td>
+<td>Comment length (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-cd-bytes &lt;size&gt;</code></td>
+<td>256 MiB</td>
+<td>Central-directory size (CWE-400)</td>
+</tr>
+<tr>
+<td><code>--max-input-size &lt;size&gt;</code></td>
+<td>4 GiB</td>
+<td>CLI-owned bound on every <strong>buffered</strong> read (<code>list</code>, <code>inspect</code>, <code>verify</code>, <code>extract</code>, <code>cat</code>, <code>modify</code>, <code>create --stdin-name</code>, <code>inflate --sync</code>, <code>govern verify-issue</code>); <code>E_LIMIT</code> beyond it. The streaming commands are not bounded by it</td>
+</tr>
+<tr>
+<td><code>--pure-codecs</code></td>
+<td>—</td>
+<td>Skip <code>node:zlib</code>, run the pure-TS codec tier</td>
+</tr>
+<tr>
+<td><code>--codec &lt;module&gt;</code></td>
+<td>—</td>
+<td>Load an ESM module exporting <code>{ codecs: ZipCodec[] }</code> (+ optional <code>inflateImpl</code> / <code>deflateImpl</code>). Executes user code: command line only, never from a config file; refused by <code>create --parallel</code></td>
+</tr>
+</tbody></table>
+<p><code>&lt;size&gt;</code> accepts <code>65536</code>, <code>512k</code>, <code>1m</code>, <code>8g</code>, <code>1GiB</code>; <code>none</code> disables a
+bound with a visible warning. The eight <code>--max-*</code> flags are the engine&#39;s
+<code>ZipLimits</code>; <code>--max-input-size</code> is the CLI&#39;s own.</p>
+<h2 id="environment">Environment<a class="heading-anchor" href="#environment" aria-label="Link to this section">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ZIPNATIVE_JSON=1</code></td>
+<td>same as <code>--json</code></td>
+</tr>
+<tr>
+<td><code>ZIPNATIVE_DRY_RUN=1</code></td>
+<td>same as <code>--dry-run</code></td>
+</tr>
+<tr>
+<td><code>ZIPNATIVE_QUIET=1</code></td>
+<td>same as <code>--quiet</code></td>
+</tr>
+<tr>
+<td><code>ZIPNATIVE_STRICT=1</code></td>
+<td>same as <code>--strict</code></td>
+</tr>
+<tr>
+<td><code>ZIPNATIVE_PURE_CODECS=1</code></td>
+<td>same as <code>--pure-codecs</code></td>
+</tr>
+<tr>
+<td><code>ZIPNATIVE_DEBUG=1</code></td>
+<td>add the stack trace to an error</td>
+</tr>
+<tr>
+<td><code>NO_COLOR</code> / <code>FORCE_COLOR</code> / <code>TERM=dumb</code></td>
+<td>colour of the stderr lines</td>
+</tr>
+</tbody></table>
+<p>Output is English and locale-independent: no locale is read, dates are
+ISO-8601 UTC, sizes use binary units, and messages are not part of the
+contract — branch on <code>error.code</code>, <code>error.zipCode</code> and <code>error.remedy</code>.</p>
+<h2 id="security-posture">Security posture<a class="heading-anchor" href="#security-posture" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Offline, always.</strong> No command can open a socket — no telemetry, no
+update check, no URL from any argument.</li>
+<li><strong>The extraction sink re-checks every name</strong> with the engine&#39;s
+<code>sanitizeEntryPath()</code> and contains it under <code>--output-dir</code>; nothing
+unsafe is ever written, with or without <code>--skip-unsafe</code>. Symlinks are
+never materialised.</li>
+<li><strong>Bounds are on by default</strong> and every one is named and CWE-tagged;
+<code>none</code> is loud. <code>inflate</code> has a hard output bound; <code>--max-input-size</code>
+caps every buffered read.</li>
+<li><strong>Overwrite is refused</strong> (<code>E_IO</code>) unless <code>--overwrite</code>; interrupts
+remove only the file in flight.</li>
+<li><strong><code>--codec</code> executes user code</strong>, so it is accepted on the command
+line only — never from <code>.zipnativerc.json</code>, and only inside a <code>batch</code>
+manifest under <code>--allow-codec-load</code>.</li>
+<li><strong>Manifest paths are data.</strong> <code>..</code> inside a <code>create</code> / <code>modify</code> / <code>batch</code>
+manifest is refused (<code>E_INPUT</code>); argv paths are the invoking user&#39;s own
+authority.</li>
+</ul>
+<h2 id="conformance">Conformance<a class="heading-anchor" href="#conformance" aria-label="Link to this section">#</a></h2>
+<p>Every archive the CLI writes is ISO/IEC 21320-1:2015 conformant: the
+CLI repository runs its own veraZIP gate — the engine&#39;s clause-by-clause
+validator over a corpus of archives produced by the CLI, plus foreign
+integrity passes — blocking in CI and before every publish. The
+<a href="conformance.html">conformance guide</a> explains the gate; conformant is
+not the same as safe, which is why the extraction guards exist on top.</p>
+<h2 id="not-supported">Not supported<a class="heading-anchor" href="#not-supported" aria-label="Link to this section">#</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Encryption, read or write</strong></td>
+<td>Engine policy in 1.x (ZipCrypto is broken). Encrypted entries are detected and listed; <code>verify</code> skips them, <code>extract</code> / <code>stream</code> refuse them unless <code>--skip-unsupported</code>; <code>inspect --check no-encryption</code> asserts their absence. Confidentiality belongs to the document layer — see <a href="use-cases.html#case-5--encrypt-first-then-archive">Case 5</a>.</td>
+</tr>
+<tr>
+<td>Other archive formats</td>
+<td>No 7z, RAR, tar, gzip; <code>--codec</code> is the extension point for methods other than 0 / 8</td>
+</tr>
+<tr>
+<td>Multi-disk archives</td>
+<td><code>ZIP_UNSUPPORTED_MULTI_DISK</code></td>
+</tr>
+<tr>
+<td>Archive repair</td>
+<td>Reported by <code>verify</code>, never guessed</td>
+</tr>
+<tr>
+<td>Streamed entries &gt; 4 GiB</td>
+<td><code>create --stream</code> refuses (<code>ZIP_UNSUPPORTED_ZIP64_STREAMING</code>); buffered entries are fully Zip64</td>
+</tr>
+<tr>
+<td>Network access</td>
+<td>None, in any mode</td>
+</tr>
+</tbody></table>
+<h2 id="versioning">Versioning<a class="heading-anchor" href="#versioning" aria-label="Link to this section">#</a></h2>
+<p>SemVer over the fifteen commands and their flags, the exit codes, the
+thirteen <code>E_*</code> classes and the <code>ZIP_*</code> → <code>E_*</code> mapping, the envelope and
+report keys, the <code>schema</code> subjects, the <code>.zipnativerc.json</code> keys, the
+<code>ZIPNATIVE_*</code> variables — and <strong>the bytes written under
+<code>--deterministic</code></strong> (a byte change is semver-major, as for the engine).
+Message wording, layout and key order are not a contract.</p>
+<h2 id="further-reading">Further reading<a class="heading-anchor" href="#further-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="../playgrounds/cli.html">CLI playground</a> — assemble any of the fifteen
+commands with live validation and copy the result.</li>
+<li><a href="choose.html">Choosing your surface</a> — library, CLI or MCP server, per
+capability.</li>
+<li><a href="mcp.html">MCP guide</a> — the same engine for AI assistants.</li>
+<li><a href="security.html">Security model</a> · <a href="errors.html">Errors and error codes</a>
+· <a href="determinism.html">The determinism contract</a>.</li>
+<li><a href="../data/cli-surface.json"><code>docs/data/cli-surface.json</code></a> — the
+command and flag snapshot this page is verified against; the full
+README, AGENTS.md and samples live in the
+<a href="https://github.com/Nizoka/zipnative-cli" target="_blank" rel="noopener">zipnative-cli repository</a>.</li>
+</ul>
+<!-- guide:render:end -->
+  </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative-cli" rel="noopener" target="_blank">zipnative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative-mcp" rel="noopener" target="_blank">zipnative-mcp</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="./">All guides</a></li>
+            <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="choose.html">Choosing your surface</a></li>
+            <li><a href="cli.html">CLI guide</a></li>
+            <li><a href="mcp.html">MCP guide</a></li>
+            <li><a href="security.html">Security model</a></li>
+            <li><a href="determinism.html">Determinism contract</a></li>
+            <li><a href="errors.html">Errors and error codes</a></li>
+            <li><a href="use-cases.html">Use cases</a></li>
+            <li><a href="conformance.html">Conformance and validation</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="../playgrounds/cli.html">CLI playground</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP playground</a></li>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+            <li><a href="../data/cli-surface.json">cli-surface.json</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI command builder — zipnative-cli playground</title>
+  <meta name="description" content="Assemble any of the fifteen zipnative-cli 1.0.0 commands — create, modify, list, inspect, cat, extract, stream, verify, crc32, inflate, batch, doctor, schema, completion, govern — with every flag, live validation of refused combinations, presets, and a copy-ready shell line. Runs entirely in your browser.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/cli.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/cli.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/cli.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <style>
+    .cli-tabs { display: flex; gap: 4px; margin: 24px 0 0; border-bottom: 1px solid var(--c-border); flex-wrap: wrap; }
+    .cli-tab { padding: 9px 14px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--c-text-dim); cursor: pointer; font-size: 14px; font-weight: 600; font-family: inherit; }
+    .cli-tab:hover { color: var(--c-text); }
+    .cli-tab[aria-selected="true"] { color: var(--c-primary); border-bottom-color: var(--c-primary); }
+    .cli-group { width: 100%; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--c-text-dim); padding: 10px 4px 2px; }
+    .cli-summary { margin: 18px 0 0; font-size: 14px; color: var(--c-text-dim); }
+    .cli-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin-top: 18px; }
+    .cli-form .full { grid-column: 1 / -1; }
+    .cli-form label { display: block; font-size: 13px; font-weight: 600; color: var(--c-text); margin-bottom: 4px; }
+    .cli-form label code { font-weight: 700; }
+    .cli-form .hint { display: block; font-size: 12px; color: var(--c-text-dim); margin-top: 3px; line-height: 1.4; font-weight: 400; }
+    .cli-form input[type="text"], .cli-form select, .cli-form textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--c-border); border-radius: 6px; font-size: 13px; font-family: inherit; background: var(--c-bg); color: var(--c-text); }
+    .cli-form textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 64px; resize: vertical; }
+    .cli-form .check { display: flex; align-items: flex-start; gap: 8px; font-weight: 600; font-size: 13px; }
+    .cli-form .check input { margin-top: 3px; }
+    .cli-form .check .hint { margin-top: 1px; }
+    .cli-form fieldset { grid-column: 1 / -1; border: 1px solid var(--c-border); border-radius: 8px; padding: 12px 16px 12px; margin: 4px 0 0; }
+    .cli-form legend { padding: 0 8px; font-size: 13px; font-weight: 700; color: var(--c-text); }
+    .cli-form fieldset > .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .cli-form fieldset > .grid.three { grid-template-columns: 1fr 1fr 1fr; }
+    .cli-panel { display: none; }
+    .cli-panel.active { display: block; }
+    .cli-preview { margin-top: 28px; }
+    .cli-preview h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .cli-preview pre { background: var(--c-code-bg); color: var(--c-code-text); padding: 16px; border-radius: 8px; font-size: 13px; overflow-x: auto; line-height: 1.5; }
+    .cli-preview .copy-btn, .cli-presets button { padding: 5px 12px; font-size: 12px; background: var(--c-primary); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .cli-preview .copy-btn:hover, .cli-presets button:hover { background: var(--c-accent); }
+    .cli-presets button.secondary { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); }
+    .cli-validation { margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 13px; line-height: 1.5; display: none; }
+    .cli-validation ul { margin: 6px 0 0 18px; }
+    .cli-validation.error { display: block; background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+    [data-theme="dark"] .cli-validation.error { background: #450a0a; border-color: #7f1d1d; color: #fecaca; }
+    .cli-validation.warn { display: block; background: #fef3c7; border: 1px solid #fcd34d; color: #78350f; }
+    [data-theme="dark"] .cli-validation.warn { background: #422006; border-color: #92400e; color: #fde68a; }
+    .cli-presets { display: flex; gap: 8px; align-items: center; margin: 18px 0 0; flex-wrap: wrap; }
+    .cli-presets select { padding: 6px 10px; border: 1px solid var(--c-border); border-radius: 6px; font-size: 13px; background: var(--c-bg); color: var(--c-text); font-family: inherit; max-width: 100%; }
+    .cli-toolbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 10px 0 0; font-size: 13px; }
+    .cli-toolbar label { display: flex; gap: 6px; align-items: center; }
+    .cli-toolbar input[type="text"] { padding: 5px 8px; border: 1px solid var(--c-border); border-radius: 6px; font-size: 12px; font-family: ui-monospace, monospace; background: var(--c-bg); color: var(--c-text); min-width: 180px; }
+    @media (max-width: 768px) { .cli-form, .cli-form fieldset > .grid, .cli-form fieldset > .grid.three { grid-template-columns: 1fr; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative-cli command builder",
+    "url": "https://zipnative.dev/playgrounds/cli.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "description": "Interactive command builder for zipnative-cli — assemble all fifteen commands with every flag, live validation and presets, then copy the shell line.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "zipnative-cli",
+      "softwareVersion": "1.0.0",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Node.js >= 22",
+      "url": "https://github.com/Nizoka/zipnative-cli"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › CLI command builder</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html">Incremental modify</a>
+      <a href="./stream.html">Forward streaming</a>
+      <a href="./cli.html" aria-current="page">CLI builder</a>
+      <a href="./mcp.html">MCP explorer</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>zipnative-cli command builder</h1>
+      <p>Pick a command, fill the form, copy the resulting shell line. Covers <strong>all fifteen
+      commands of <code>zipnative-cli</code> 1.0.0</strong> with every flag — creating and modifying
+      (<code>create</code>, <code>modify</code>), reading and extracting (<code>list</code>,
+      <code>inspect</code> with its CI assertions, <code>cat</code>, <code>extract</code>,
+      <code>stream</code>), integrity and codecs (<code>verify</code>, <code>crc32</code>,
+      <code>inflate</code>), and automation (<code>batch</code>, <code>doctor</code>,
+      <code>schema</code>, <code>completion</code>, <code>govern</code>) — plus the global options.
+      Combinations the CLI refuses are flagged as you type; the
+      <a href="../guides/cli.html">CLI guide</a> is the prose reference. The builder runs entirely in
+      your browser and reads its flag table from
+      <a href="../data/cli-surface.json"><code>cli-surface.json</code></a>, the snapshot of the
+      published CLI's own capability manifest — the documentation CI fails if the two drift.</p>
+
+      <div class="cli-presets">
+        <label for="preset"><strong>Quick preset:</strong></label>
+        <select id="preset"><option value="">— blank —</option></select>
+        <button id="reset" class="secondary" type="button">Reset</button>
+      </div>
+      <div class="cli-toolbar">
+        <label>invoke as
+          <select id="prefix">
+            <option value="npx zipnative-cli">npx zipnative-cli</option>
+            <option value="zipnative">zipnative (installed globally)</option>
+          </select>
+        </label>
+        <label>pipe stdin from <input type="text" id="pipe" placeholder="e.g. curl -s https://… | " aria-label="Command whose stdout is piped into zipnative"></label>
+      </div>
+
+      <div class="cli-tabs" id="tabs" role="tablist"></div>
+      <p class="cli-summary" id="summary"></p>
+      <div id="panels"></div>
+
+      <details style="margin-top: 22px;">
+        <summary style="cursor:pointer;font-weight:700;">Global options (every command)</summary>
+        <div class="cli-form" id="global-form"></div>
+      </details>
+
+      <div class="cli-validation" id="validation"></div>
+
+      <div class="cli-preview">
+        <h3>Generated command <button class="copy-btn" id="copy" type="button">Copy</button></h3>
+<pre><code class="language-bash" id="cmd-output">npx zipnative-cli create</code></pre>
+        <p class="hint" style="margin-top: 10px; font-size: 13px; color: var(--c-text-dim);">Paste it in any POSIX shell (values are single-quoted where needed). Nothing is uploaded — the builder is client-side only.</p>
+      </div>
+
+      <h2 style="margin-top: 36px;">What this playground does <em>not</em> do</h2>
+      <p>It does not <strong>execute</strong> the CLI in your browser — the CLI is a Node process
+      with a filesystem, exit codes and a stderr envelope, and we will not pretend to be one.
+      To see the engine run in the browser, use the <a href="./mcp.html">MCP explorer</a> (the
+      same operations as tool calls) or the library playgrounds. To run a built command:
+      <code>npx zipnative-cli &lt;your command&gt;</code>. The flag table is exhaustive; the
+      hints paraphrase <code>zipnative &lt;command&gt; --help</code>, which remains the authority.</p>
+
+      <h2>Resources</h2>
+      <ul>
+        <li><a href="../guides/cli.html">CLI guide</a> — every command and flag, the agent contract, exit codes, environment</li>
+        <li><a href="../data/cli-surface.json">cli-surface.json</a> — the command and flag snapshot this page is checked against</li>
+        <li><a href="https://github.com/Nizoka/zipnative-cli" rel="noopener" target="_blank">zipnative-cli on GitHub</a> · <a href="https://www.npmjs.com/package/zipnative-cli" rel="noopener" target="_blank">on npm</a></li>
+        <li><a href="../guides/mcp.html">MCP guide</a> · <a href="./mcp.html">MCP explorer</a></li>
+      </ul>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · builds commands for zipnative-cli 1.0.0 · nothing is executed or uploaded</span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- The command surface. Flag NAMES per command and the boolean kinds are
+       verified against docs/data/cli-surface.json by verify-docs
+       (cli-surface-parity part 3); kinds, enums and hints are human-audited. -->
+  <script type="application/json" id="cli-surface">
+  {
+    "version": "1.0.0",
+    "dryRunCommands": ["create", "extract", "modify", "stream", "cat", "inflate", "batch"],
+    "global": [
+      { "flag": "--json", "kind": "bool", "hint": "Agent mode: JSON status/error envelope on stderr, data stays on stdout (batch: the report is the stdout document)." },
+      { "flag": "--pretty", "kind": "bool", "hint": "Indent JSON output under --json." },
+      { "flag": "--dry-run", "kind": "bool", "hint": "Validate and plan, write nothing (create, extract, modify, stream, cat, inflate, batch)." },
+      { "flag": "--quiet", "kind": "bool", "hint": "Suppress progress and text diagnostics on stderr — never envelopes or errors." },
+      { "flag": "--no-color", "kind": "bool", "hint": "Disable ANSI colour on the stderr lines (also NO_COLOR)." },
+      { "flag": "--strict", "kind": "bool", "hint": "Escalate the first engine diagnostic into E_CHECK_FAILED (verify: E_VERIFY_FAILED)." },
+      { "flag": "--pure-codecs", "kind": "bool", "hint": "Skip node:zlib and run the pure-TS codec tier." },
+      { "flag": "--no-config", "kind": "bool", "hint": "Ignore any .zipnativerc.json — recommended for unattended runs." },
+      { "flag": "--config", "kind": "value", "path": true, "placeholder": ".zipnativerc.json", "hint": "Use a specific config file (default: nearest upward from cwd)." },
+      { "flag": "--codec", "kind": "value", "path": true, "placeholder": "./my-codec.mjs", "hint": "ESM module exporting { codecs: ZipCodec[] }. Executes user code — command line only, never from a config file." },
+      { "flag": "--max-input-size", "kind": "size", "placeholder": "4g", "hint": "Bound on every buffered read (default 4 GiB; 'none' disables with a warning)." },
+      { "flag": "--max-entries", "kind": "size", "placeholder": "100000", "hint": "ZipLimits: central-directory entry count (CWE-400)." },
+      { "flag": "--max-entry-size", "kind": "size", "placeholder": "1g", "hint": "ZipLimits: decompressed size of one entry (CWE-400)." },
+      { "flag": "--max-total-size", "kind": "size", "placeholder": "8g", "hint": "ZipLimits: total decompressed size (CWE-400)." },
+      { "flag": "--max-ratio", "kind": "size", "placeholder": "1024", "hint": "ZipLimits: uncompressed / compressed ratio (CWE-409)." },
+      { "flag": "--max-name-bytes", "kind": "size", "placeholder": "4096", "hint": "ZipLimits: entry-name length in bytes." },
+      { "flag": "--max-extra-bytes", "kind": "size", "placeholder": "65535", "hint": "ZipLimits: extra-field block length." },
+      { "flag": "--max-comment-bytes", "kind": "size", "placeholder": "65535", "hint": "ZipLimits: comment length." },
+      { "flag": "--max-cd-bytes", "kind": "size", "placeholder": "256m", "hint": "ZipLimits: central-directory size." }
+    ],
+    "commands": [
+      {
+        "name": "create", "group": "Create & modify", "summary": "Build a deterministic ZIP from files, directories, stdin or a manifest.",
+        "positional": { "id": "paths", "label": "Paths (one per line)", "hint": "Files and directories — directories are walked recursively. Positionals are equivalent to repeated --input.", "placeholder": "src/\ndocs/\nREADME.md" },
+        "flags": [
+          { "flag": "--output", "kind": "value", "path": true, "alias": "-o", "placeholder": "release.zip", "hint": "Output path (default: stdout)." },
+          { "flag": "--input", "kind": "repeatable", "path": true, "alias": "-i", "hint": "Same as a positional (repeatable; useful in manifests)." },
+          { "flag": "--stdin-name", "kind": "value", "placeholder": "payload.bin", "hint": "Read stdin as one entry with this name." },
+          { "flag": "--from-manifest", "kind": "value", "path": true, "placeholder": "entries.json", "hint": "JSON manifest — zipnative schema create-manifest." },
+          { "flag": "--overwrite", "kind": "bool", "hint": "Replace an existing output file (default: refuse, E_IO)." },
+          { "flag": "--base", "kind": "value", "path": true, "placeholder": "./", "hint": "Entry names relative to this directory (default: each input's parent)." },
+          { "flag": "--prefix", "kind": "value", "placeholder": "app-1.0.0/", "hint": "Prepend to every entry name." },
+          { "flag": "--dir-entries", "kind": "bool", "hint": "Emit explicit directory entries (keeps empty directories)." },
+          { "flag": "--include", "kind": "repeatable", "placeholder": "**/*.json", "hint": "Keep only matching names (*, **, ?)." },
+          { "flag": "--exclude", "kind": "repeatable", "placeholder": "**/*.log", "hint": "Drop matching names." },
+          { "flag": "--follow-symlinks", "kind": "bool", "hint": "Dereference symlinks (default: skipped with a warning; symlink entries are never written)." },
+          { "flag": "--method", "kind": "enum", "values": ["store", "deflate"], "default": "deflate" },
+          { "flag": "--level", "kind": "enum", "values": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], "default": "6", "hint": "Deflate level." },
+          { "flag": "--deterministic", "kind": "bool", "hint": "Pin the pure-TS encoder: identical SHA-256 on every runtime (tier pure-pinned)." },
+          { "flag": "--order", "kind": "enum", "values": ["canonical", "insertion"], "default": "canonical", "hint": "insertion = argv order (an EPUB mimetype first)." },
+          { "flag": "--date", "kind": "value", "placeholder": "epoch | now | 2026-01-01T00:00:00Z", "hint": "Entry timestamp (default DOS epoch, reproducible). ISO = UTC wall-clock, 1980–2107, 2-s resolution." },
+          { "flag": "--mtime", "kind": "bool", "hint": "Use each file's modification time (local time, non-reproducible)." },
+          { "flag": "--comment", "kind": "value", "placeholder": "built by CI", "hint": "Archive comment." },
+          { "flag": "--comment-file", "kind": "value", "path": true, "placeholder": "comment.txt", "hint": "Comment as raw bytes from a file ('-' = stdin); exclusive with --comment; ≤ 65535 bytes." },
+          { "flag": "--entry-comment", "kind": "repeatable", "placeholder": "README.md=read me first", "hint": "Per-entry comment, name=text." },
+          { "flag": "--preserve-mode", "kind": "bool", "hint": "Store POSIX mode bits (never setuid / setgid / sticky)." },
+          { "flag": "--store-ext", "kind": "value", "placeholder": "png,jpg,zip,pdf", "hint": "Store (no deflate) entries with these extensions — already-compressed or encrypted payloads." },
+          { "flag": "--stream", "kind": "bool", "hint": "Constant-memory writer, data-descriptor layout; entries > 4 GiB refused (ZIP_UNSUPPORTED_ZIP64_STREAMING)." },
+          { "flag": "--chunk-size", "kind": "size", "placeholder": "65536", "hint": "Output chunk size for the chunked writer (--stream or --stdin-name)." },
+          { "flag": "--parallel", "kind": "bool", "hint": "Deflate across a worker pool (zipnative/worker); byte-identical per tier. Refused with --codec." },
+          { "flag": "--workers", "kind": "value", "placeholder": "4", "hint": "Worker count (default cores − 1, max 8; 0 = main thread)." },
+          { "flag": "--min-job-size", "kind": "size", "placeholder": "32k", "hint": "Minimum entry size sent to a worker." },
+          { "flag": "--job-timeout", "kind": "value", "placeholder": "60000", "hint": "Per-job cap in ms before inline fallback." }
+        ]
+      },
+      {
+        "name": "modify", "group": "Create & modify", "summary": "Incremental edits without recompressing untouched entries — append-only or --compact.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "release.zip", "hint": "Source archive." },
+          { "flag": "--output", "kind": "value", "path": true, "alias": "-o", "placeholder": "release-v2.zip", "hint": "Output path (default: stdout)." },
+          { "flag": "--in-place", "kind": "bool", "hint": "Write back to the input path (exclusive temp file + atomic rename). Exclusive with --output." },
+          { "flag": "--overwrite", "kind": "bool", "hint": "Replace an existing --output file." },
+          { "flag": "--remove", "kind": "repeatable", "placeholder": "obsolete.log", "hint": "Remove an entry." },
+          { "flag": "--rename", "kind": "repeatable", "placeholder": "config.json=config/app.json", "hint": "from=to — never overwrites implicitly." },
+          { "flag": "--replace", "kind": "repeatable", "placeholder": "config.json=./config.json", "hint": "name=path ('-' = stdin)." },
+          { "flag": "--add", "kind": "repeatable", "placeholder": "CHANGELOG.md=./CHANGELOG.md", "hint": "name=path (a bare path uses its basename)." },
+          { "flag": "--add-dir", "kind": "repeatable", "placeholder": "assets/", "hint": "Add an explicit directory entry." },
+          { "flag": "--comment", "kind": "value", "placeholder": "", "hint": "Set the archive comment (\"\" clears it)." },
+          { "flag": "--comment-file", "kind": "value", "path": true, "placeholder": "comment.txt", "hint": "Comment as raw bytes ('-' = stdin); exclusive with --comment." },
+          { "flag": "--from-manifest", "kind": "value", "path": true, "placeholder": "edits.json", "hint": "JSON edits — zipnative schema modify-manifest." },
+          { "flag": "--method", "kind": "enum", "values": ["store", "deflate"], "default": "deflate", "hint": "For NEW payloads." },
+          { "flag": "--level", "kind": "enum", "values": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], "default": "6", "hint": "For NEW payloads." },
+          { "flag": "--deterministic", "kind": "bool", "hint": "Pin the pure-TS encoder for new payloads." },
+          { "flag": "--date", "kind": "value", "placeholder": "epoch | now | <ISO>", "hint": "Timestamp for new payloads (default DOS epoch)." },
+          { "flag": "--compact", "kind": "bool", "hint": "Canonical rewrite (saveCompact): removed data truly gone, still no recompression — and 7-Zip-readable." }
+        ]
+      },
+      {
+        "name": "list", "group": "Read & extract", "summary": "List archive entries without decompressing anything.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "release.zip", "hint": "Archive path (default: stdin)." },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json", "ndjson"], "default": "text", "hint": "json under --json." },
+          { "flag": "--long", "kind": "bool", "hint": "Add mode, flags, versions, offsets, extra fields, rawNameHex, commentHex." },
+          { "flag": "--validate", "kind": "enum", "values": ["lazy", "eager"], "default": "lazy", "hint": "eager cross-checks every local header up front." },
+          { "flag": "--include", "kind": "repeatable", "placeholder": "src/**" },
+          { "flag": "--exclude", "kind": "repeatable", "placeholder": "**/*.map" },
+          { "flag": "--summary", "kind": "bool", "hint": "{ entries, files, directories, compressedSize, uncompressedSize, zip64, encrypted }." },
+          { "flag": "--fields", "kind": "value", "placeholder": "entries.name,entries.uncompressedSize", "hint": "Dot-path projection of the JSON report." }
+        ]
+      },
+      {
+        "name": "inspect", "group": "Read & extract", "summary": "Forensic report with determinism / security assertions — the CI gate. Opens eagerly.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "release.zip", "hint": "Archive path (default: stdin)." },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text" },
+          { "flag": "--entries", "kind": "bool", "hint": "Include every entry (long form)." },
+          { "flag": "--entry", "kind": "repeatable", "placeholder": "manifest.json", "hint": "Include only the named entries." },
+          { "flag": "--extra", "kind": "bool", "hint": "Extra-field payloads as hex." },
+          { "flag": "--check", "kind": "multi", "join": ",", "values": ["deterministic", "epoch-timestamps", "canonical-order", "utf8-names", "canonical-layout", "no-data-descriptor", "no-zip64", "zip64", "no-encryption", "no-symlinks", "safe-names", "no-duplicates", "no-diagnostics", "store-only", "deflate-only"], "extraPlaceholder": "max-entries=1000, max-ratio=100, has=manifest.json, method=deflate", "hint": "Any failing assertion prints the report then exits 1 with E_CHECK_FAILED. Parametrised checks: max-entries=N, min-entries=N, max-uncompressed=<size>, max-ratio=N, has=<name>, method=store|deflate|<id>." },
+          { "flag": "--summary", "kind": "bool", "hint": "{ entries, bytes, uncompressedSize, zip64, encrypted, deterministic, canonicalLayout, diagnostics, checksPassed? }." },
+          { "flag": "--fields", "kind": "value", "placeholder": "checksPassed,checks", "hint": "Dot-path projection." }
+        ]
+      },
+      {
+        "name": "cat", "group": "Read & extract", "summary": "Stream one or more entries to stdout (or a file).",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "release.zip" },
+          { "flag": "--entry", "kind": "repeatable", "alias": "-e", "placeholder": "manifest.json", "hint": "Entries are concatenated in order." },
+          { "flag": "--output", "kind": "value", "path": true, "alias": "-o", "placeholder": "manifest.json", "hint": "Write to a file instead of stdout." },
+          { "flag": "--overwrite", "kind": "bool" },
+          { "flag": "--raw", "kind": "bool", "hint": "Output the COMPRESSED payload (zero-copy), no decoding — feed it to inflate." },
+          { "flag": "--no-verify-crc", "kind": "bool", "hint": "Skip the CRC-32 check at the end of the stream." }
+        ]
+      },
+      {
+        "name": "extract", "group": "Read & extract", "summary": "Extract to a directory — zip-slip, symlink, bomb and duplicate guards on by default.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "upload.zip", "hint": "Archive path (default: stdin)." },
+          { "flag": "--output-dir", "kind": "value", "path": true, "alias": "-d", "placeholder": "./out", "hint": "REQUIRED. Created if missing; every path re-checked with sanitizeEntryPath() and contained under it." },
+          { "flag": "--include", "kind": "repeatable", "placeholder": "docs/**" },
+          { "flag": "--exclude", "kind": "repeatable", "placeholder": "**/*.exe" },
+          { "flag": "--entry", "kind": "repeatable", "placeholder": "manifest.json", "hint": "Extract only the named entries." },
+          { "flag": "--overwrite", "kind": "bool", "hint": "Replace existing files (default: refuse, E_IO)." },
+          { "flag": "--on-duplicate", "kind": "enum", "values": ["error", "first", "last"], "default": "error", "hint": "Two entries mapping to one sanitized path." },
+          { "flag": "--skip-unsafe", "kind": "bool", "hint": "SKIP names that cannot be made safe instead of failing — nothing unsafe is ever written." },
+          { "flag": "--skip-unsupported", "kind": "bool", "hint": "SKIP encrypted entries and methods with no codec (reason 'unsupported')." },
+          { "flag": "--allow-symlinks", "kind": "bool", "hint": "Write a symlink entry's TARGET TEXT as a regular file (a symlink is never materialised)." },
+          { "flag": "--skip-symlinks", "kind": "bool", "hint": "Drop symlink entries silently." },
+          { "flag": "--flat", "kind": "bool", "hint": "Drop directories, write basenames only." },
+          { "flag": "--buffered", "kind": "bool", "hint": "In-memory extractor (many tiny entries)." },
+          { "flag": "--preserve-mode", "kind": "bool", "hint": "Apply POSIX mode bits (never setuid / setgid / sticky)." },
+          { "flag": "--preserve-mtime", "kind": "bool", "hint": "Apply the entry timestamp to each file." }
+        ]
+      },
+      {
+        "name": "stream", "group": "Read & extract", "summary": "Forward-only reader for UNSEEKABLE input — stdin, pipes. Local headers alone; trust: local-headers-only.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "", "hint": "File to read sequentially (default: stdin — the usual case)." },
+          { "flag": "--list", "kind": "bool", "hint": "List entries as they arrive (the default mode)." },
+          { "flag": "--output-dir", "kind": "value", "path": true, "alias": "-d", "placeholder": "./out", "hint": "Extract under this directory (sanitizeEntryPath + containment)." },
+          { "flag": "--cat", "kind": "repeatable", "placeholder": "manifest.json", "hint": "Write the named entry's data to stdout." },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json", "ndjson"], "default": "text", "hint": "ndjson under --json; json with --summary / --fields." },
+          { "flag": "--long", "kind": "bool", "hint": "Flags, versions and extra fields." },
+          { "flag": "--include", "kind": "repeatable" },
+          { "flag": "--exclude", "kind": "repeatable" },
+          { "flag": "--overwrite", "kind": "bool" },
+          { "flag": "--on-duplicate", "kind": "enum", "values": ["error", "first", "last"], "default": "error" },
+          { "flag": "--skip-unsafe", "kind": "bool", "hint": "Skip unsafe names instead of failing." },
+          { "flag": "--skip-unsupported", "kind": "bool", "hint": "Skip encrypted / unknown-method entries instead of failing." },
+          { "flag": "--flat", "kind": "bool" },
+          { "flag": "--preserve-mtime", "kind": "bool" },
+          { "flag": "--summary", "kind": "bool", "hint": "Projection of the --format json report." },
+          { "flag": "--fields", "kind": "value", "placeholder": "entries.name,trust" }
+        ]
+      },
+      {
+        "name": "verify", "group": "Integrity & codecs", "summary": "Deep integrity verification in one call — the engine's ZipVerificationReport verbatim.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "release.zip", "hint": "Archive path (default: stdin)." },
+          { "flag": "--entry", "kind": "repeatable", "alias": "-e", "placeholder": "manifest.json", "hint": "Verify only the named entries; an unknown name is E_NOT_FOUND." },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text" },
+          { "flag": "--summary", "kind": "bool", "hint": "{ ok, entries, failed, skipped, diagnostics, selected?, error? }." },
+          { "flag": "--fields", "kind": "value", "placeholder": "ok,failed,skipped" }
+        ]
+      },
+      {
+        "name": "crc32", "group": "Integrity & codecs", "summary": "CRC-32 (IEEE, the ZIP checksum) of files or stdin, in 64 KiB chunks.",
+        "positional": { "id": "files", "label": "Files (one per line)", "hint": "Default: stdin.", "placeholder": "release.zip" },
+        "flags": [
+          { "flag": "--input", "kind": "repeatable", "path": true, "alias": "-i", "hint": "Same as a positional." },
+          { "flag": "--seed", "kind": "value", "placeholder": "0", "hint": "Continue a running checksum from this hex value." },
+          { "flag": "--expect", "kind": "value", "placeholder": "0d4a1185", "hint": "Single input: exit 1 / E_CHECK_FAILED on mismatch." },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text" }
+        ]
+      },
+      {
+        "name": "inflate", "group": "Integrity & codecs", "summary": "Decompress a raw DEFLATE (RFC 1951) or registered-codec stream through the resumable inflater.",
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "payload.deflate", "hint": "Compressed input (default: stdin)." },
+          { "flag": "--output", "kind": "value", "path": true, "alias": "-o", "placeholder": "payload.bin", "hint": "Decompressed output (default: stdout)." },
+          { "flag": "--overwrite", "kind": "bool" },
+          { "flag": "--max-output", "kind": "size", "placeholder": "1g", "hint": "Hard output bound (default: the effective --max-entry-size, 1 GiB); 'none' only for trusted input." },
+          { "flag": "--method", "kind": "value", "placeholder": "deflate | store | <id>", "hint": "Codec (numeric ids via --codec)." },
+          { "flag": "--sync", "kind": "bool", "hint": "Buffer the input and use the codec's decompressSync." },
+          { "flag": "--allow-trailing", "kind": "bool", "hint": "Silence the warning about bytes after the stream end." }
+        ]
+      },
+      {
+        "name": "batch", "group": "Automation & meta", "summary": "Batch orchestration — directory mode (--input-dir) or manifest mode (--manifest).",
+        "flags": [
+          { "flag": "--input-dir", "kind": "value", "path": true, "placeholder": "./packages", "hint": "Directory mode: --task create archives each immediate subdirectory; --task verify verifies every *.zip." },
+          { "flag": "--output-dir", "kind": "value", "path": true, "placeholder": "./dist", "hint": "Destination for --task create." },
+          { "flag": "--task", "kind": "enum", "values": ["create", "verify"], "default": "create" },
+          { "flag": "--concurrency", "kind": "value", "placeholder": "4", "hint": "Parallel workers (default 4, max 64)." },
+          { "flag": "--fail-fast", "kind": "bool", "hint": "Stop scheduling after the first failure." },
+          { "flag": "--overwrite", "kind": "bool", "hint": "Replace existing <name>.zip files." },
+          { "flag": "--manifest", "kind": "value", "path": true, "placeholder": "tasks.json", "hint": "Manifest mode: an ordered pipeline of whitelisted commands with @id output references — zipnative schema batch-manifest." },
+          { "flag": "--continue-on-error", "kind": "bool", "hint": "Manifest mode: keep running independent tasks after a failure." },
+          { "flag": "--allow-codec-load", "kind": "bool", "hint": "Manifest mode: permit a 'codec' flag inside tasks (executes user code)." },
+          { "flag": "--method", "kind": "enum", "values": ["store", "deflate"], "default": "deflate", "hint": "Forwarded to every create task." },
+          { "flag": "--level", "kind": "enum", "values": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], "default": "6" },
+          { "flag": "--deterministic", "kind": "bool", "hint": "Forwarded to every create task." },
+          { "flag": "--order", "kind": "enum", "values": ["canonical", "insertion"], "default": "canonical" },
+          { "flag": "--date", "kind": "value", "placeholder": "epoch | now | <ISO>" },
+          { "flag": "--comment", "kind": "value", "placeholder": "built by CI" },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text" },
+          { "flag": "--summary", "kind": "bool", "hint": "{ ok, command, mode, total, succeeded, failed, skipped }." },
+          { "flag": "--fields", "kind": "value", "placeholder": "ok,failed" }
+        ]
+      },
+      {
+        "name": "doctor", "group": "Automation & meta", "summary": "Environment / capability preflight — ten checks, always offline; exit 1 if any fails.",
+        "flags": [
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text", "hint": "json under --json." }
+        ]
+      },
+      {
+        "name": "schema", "group": "Automation & meta", "summary": "Print a JSON Schema (Draft 2020-12) or the capability manifest.",
+        "positional": { "id": "subject", "label": "Subject", "kind": "enum", "values": ["list", "manifest", "create-manifest", "modify-manifest", "batch-manifest", "entries", "entries-summary", "inspect", "inspect-summary", "verify", "verify-summary", "stream", "stream-summary", "batch", "batch-summary", "doctor", "govern-verify", "crc32", "status", "error", "errors", "limits", "diagnostics"], "default": "manifest", "hint": "22 subjects; 'list' prints { subjects: [...] }; no subject = create-manifest." },
+        "flags": []
+      },
+      {
+        "name": "completion", "group": "Automation & meta", "summary": "Emit a shell completion script generated from the same command table as --help.",
+        "positional": { "id": "shell", "label": "Shell", "kind": "enum", "values": ["bash", "zsh", "fish", "powershell"], "default": "bash", "hint": "Pipe into your shell's completion directory." },
+        "flags": []
+      },
+      {
+        "name": "govern", "group": "Automation & meta", "summary": "The AI-governance / human-in-the-loop contract: rules, policy, verify-issue.",
+        "positional": { "id": "sub", "label": "Subcommand", "kind": "enum", "values": ["rules", "policy", "verify-issue"], "default": "rules", "hint": "verify-issue validates a draft: exit 1 / E_POLICY on violation." },
+        "positional2": { "id": "draft", "label": "Draft path (verify-issue)", "placeholder": ".github/drafts/issue.md", "hint": "Alternative to --input; '-' = stdin." },
+        "flags": [
+          { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "draft.md", "hint": "Draft path for verify-issue ('-' = stdin)." },
+          { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text", "hint": "Report format for verify-issue." }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <script src="playground.js" defer></script>
+  <script>
+  (function () {
+    'use strict';
+    const SURFACE = JSON.parse(document.getElementById('cli-surface').textContent);
+    const $ = (id) => document.getElementById(id);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    const byName = Object.fromEntries(SURFACE.commands.map((c) => [c.name, c]));
+
+    // ── State ─────────────────────────────────────────────────────────
+    const state = { cmd: 'create', bags: {}, pos: {}, global: {} };
+    for (const c of SURFACE.commands) { state.bags[c.name] = {}; state.pos[c.name] = {}; }
+
+    // ── Build the UI from the surface ────────────────────────────────
+    function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    function fieldHtml(scope, cmd, f) {
+      const id = `f-${scope}-${cmd || 'g'}-${f.flag.replace(/^--/, '')}`;
+      const data = `data-scope="${scope}" data-cmd="${cmd || ''}" data-flag="${f.flag}"`;
+      const label = `<code>${esc(f.flag)}</code>${f.alias ? `, <code>${esc(f.alias)}</code>` : ''}`;
+      const hint = f.hint ? `<span class="hint">${esc(f.hint)}</span>` : '';
+      if (f.kind === 'bool') {
+        return `<div><label class="check"><input type="checkbox" id="${id}" ${data}><span>${label}${hint}</span></label></div>`;
+      }
+      if (f.kind === 'enum') {
+        const opts = ['<option value="">— default' + (f.default ? ` (${esc(f.default)})` : '') + ' —</option>']
+          .concat(f.values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`)).join('');
+        return `<div><label for="${id}">${label}</label><select id="${id}" ${data}>${opts}</select>${hint}</div>`;
+      }
+      if (f.kind === 'repeatable') {
+        return `<div><label for="${id}">${label} <span style="font-weight:400;color:var(--c-text-dim)">(one per line, repeatable)</span></label><textarea id="${id}" ${data} placeholder="${esc(f.placeholder || '')}" spellcheck="false"></textarea>${hint}</div>`;
+      }
+      if (f.kind === 'multi') {
+        const boxes = f.values.map((v) => `<label class="check"><input type="checkbox" ${data} data-value="${esc(v)}"><span><code>${esc(v)}</code></span></label>`).join('');
+        return `<fieldset><legend>${label} — assertions</legend><div class="grid three">${boxes}</div>
+          <div style="margin-top:10px"><label for="${id}-extra">parametrised checks (comma-separated)</label><input type="text" id="${id}-extra" ${data} data-extra="1" placeholder="${esc(f.extraPlaceholder || '')}"></div>${hint}</fieldset>`;
+      }
+      // value / size
+      return `<div><label for="${id}">${label}${f.kind === 'size' ? ' <span style="font-weight:400;color:var(--c-text-dim)">&lt;size&gt;</span>' : ''}</label><input type="text" id="${id}" ${data} placeholder="${esc(f.placeholder || '')}" spellcheck="false">${hint}</div>`;
+    }
+
+    function positionalHtml(cmd, p, key) {
+      const id = `p-${cmd}-${p.id}`;
+      const data = `data-scope="pos" data-cmd="${cmd}" data-pos="${key}"`;
+      const hint = p.hint ? `<span class="hint">${esc(p.hint)}</span>` : '';
+      if (p.kind === 'enum') {
+        const opts = p.values.map((v) => `<option value="${esc(v)}"${v === p.default ? ' selected' : ''}>${esc(v)}</option>`).join('');
+        return `<div><label for="${id}">${esc(p.label)}</label><select id="${id}" ${data}>${opts}</select>${hint}</div>`;
+      }
+      if (p.placeholder !== undefined && !p.label.includes('one per line')) {
+        return `<div><label for="${id}">${esc(p.label)}</label><input type="text" id="${id}" ${data} placeholder="${esc(p.placeholder)}" spellcheck="false">${hint}</div>`;
+      }
+      return `<div class="full"><label for="${id}">${esc(p.label)}</label><textarea id="${id}" ${data} placeholder="${esc(p.placeholder || '')}" spellcheck="false"></textarea>${hint}</div>`;
+    }
+
+    (function buildUi() {
+      const tabs = $('tabs');
+      let group = '';
+      const tabHtml = [];
+      for (const c of SURFACE.commands) {
+        if (c.group !== group) { group = c.group; tabHtml.push(`<span class="cli-group">${esc(group)}</span>`); }
+        tabHtml.push(`<button class="cli-tab" role="tab" type="button" data-tab="${c.name}" aria-selected="${c.name === state.cmd}">${c.name}</button>`);
+      }
+      tabs.innerHTML = tabHtml.join('');
+      const panels = $('panels');
+      panels.innerHTML = SURFACE.commands.map((c) => {
+        const pos = c.positional ? positionalHtml(c.name, c.positional, 'positional') : '';
+        const pos2 = c.positional2 ? positionalHtml(c.name, c.positional2, 'positional2') : '';
+        const flags = c.flags.map((f) => fieldHtml('cmd', c.name, f)).join('');
+        const dry = SURFACE.dryRunCommands.includes(c.name)
+          ? `<div><label class="check"><input type="checkbox" data-scope="global" data-cmd="" data-flag="--dry-run" data-mirror="1"><span><code>--dry-run</code><span class="hint">Validate and plan; write nothing.</span></span></label></div>` : '';
+        return `<section class="cli-panel${c.name === state.cmd ? ' active' : ''}" data-panel="${c.name}"><div class="cli-form">${pos}${pos2}${flags}${dry}</div></section>`;
+      }).join('');
+      $('global-form').innerHTML = SURFACE.global.map((f) => fieldHtml('global', '', f)).join('');
+    })();
+
+    // ── Tabs ─────────────────────────────────────────────────────────
+    $$('.cli-tab').forEach((btn) => btn.addEventListener('click', () => selectTab(btn.dataset.tab)));
+    function selectTab(name) {
+      state.cmd = name;
+      $$('.cli-tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+      $$('.cli-panel').forEach((p) => p.classList.toggle('active', p.dataset.panel === name));
+      render();
+    }
+
+    // ── Inputs → state ───────────────────────────────────────────────
+    $$('[data-scope]').forEach((el) => {
+      const evt = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+      el.addEventListener(evt, () => { collect(el); render(); });
+    });
+    $('prefix').addEventListener('change', render);
+    $('pipe').addEventListener('input', render);
+
+    function collect(el) {
+      const scope = el.dataset.scope;
+      if (scope === 'pos') { state.pos[el.dataset.cmd][el.dataset.pos] = el.value.trim(); return; }
+      const bag = scope === 'global' ? state.global : state.bags[el.dataset.cmd];
+      const flag = el.dataset.flag;
+      if (el.type === 'checkbox' && el.dataset.value !== undefined) {
+        const arr = Array.isArray(bag[flag]) ? bag[flag].slice() : [];
+        const v = el.dataset.value;
+        const i = arr.indexOf(v);
+        if (el.checked && i < 0) arr.push(v); else if (!el.checked && i >= 0) arr.splice(i, 1);
+        setMulti(bag, flag, arr, bag.__extra?.[flag]);
+        return;
+      }
+      if (el.dataset.extra) {
+        bag.__extra = bag.__extra || {};
+        bag.__extra[flag] = el.value.split(',').map((s) => s.trim()).filter(Boolean);
+        const boxes = $$(`input[type="checkbox"][data-flag="${flag}"][data-cmd="${el.dataset.cmd}"]`).filter((b) => b.checked).map((b) => b.dataset.value);
+        setMulti(bag, flag, boxes, bag.__extra[flag]);
+        return;
+      }
+      if (el.type === 'checkbox') {
+        if (el.checked) bag[flag] = true; else delete bag[flag];
+        if (el.dataset.mirror) { const twin = $$(`#global-form [data-flag="${flag}"]`)[0]; if (twin) twin.checked = el.checked; }
+        return;
+      }
+      if (el.tagName === 'TEXTAREA') {
+        const lines = el.value.split('\n').map((s) => s.trim()).filter(Boolean);
+        if (lines.length) bag[flag] = lines; else delete bag[flag];
+        return;
+      }
+      const v = el.value.trim();
+      if (v) bag[flag] = v; else delete bag[flag];
+    }
+    function setMulti(bag, flag, boxes, extra) {
+      const all = [...boxes, ...(extra || [])];
+      if (all.length) bag[flag] = all; else delete bag[flag];
+    }
+
+    // ── State → inputs (presets, reset) ──────────────────────────────
+    function syncDom() {
+      $$('[data-scope]').forEach((el) => {
+        const scope = el.dataset.scope;
+        if (scope === 'pos') { el.value = state.pos[el.dataset.cmd][el.dataset.pos] ?? (el.tagName === 'SELECT' ? el.value : ''); return; }
+        const bag = scope === 'global' ? state.global : state.bags[el.dataset.cmd];
+        const v = bag[el.dataset.flag];
+        if (el.type === 'checkbox' && el.dataset.value !== undefined) { el.checked = Array.isArray(v) && v.includes(el.dataset.value); return; }
+        if (el.dataset.extra) { el.value = (bag.__extra?.[el.dataset.flag] || []).join(', '); return; }
+        if (el.type === 'checkbox') { el.checked = v === true; return; }
+        if (el.tagName === 'TEXTAREA') { el.value = Array.isArray(v) ? v.join('\n') : ''; return; }
+        el.value = typeof v === 'string' ? v : '';
+      });
+    }
+
+    // ── Validation (every rule traces to the CLI source) ─────────────
+    const SIZE_RE = /^(\d+([kmg]|[KMG]i?B)?|none)$/;
+    function validate() {
+      const errors = [], warns = [], info = [];
+      const cmd = state.cmd, b = state.bags[cmd], g = state.global, pos = state.pos[cmd];
+      const has = (f) => b[f] !== undefined;
+      const sizeFlags = ['--chunk-size', '--min-job-size', '--max-output'];
+      for (const f of sizeFlags) if (typeof b[f] === 'string' && !SIZE_RE.test(b[f])) errors.push(`\`${f}\` takes a <size>: 65536, 512k, 1m, 8g, 1GiB (or none).`);
+      for (const f of Object.keys(g)) if (f.startsWith('--max-') && typeof g[f] === 'string' && !SIZE_RE.test(g[f])) errors.push(`\`${f}\` takes a <size> or a number: 65536, 512k, 1m, 8g, 1GiB (or none).`);
+      for (const f of Object.keys(g)) if (f.startsWith('--max-') && g[f] === 'none') warns.push(`\`${f} none\` disables a security bound — the CLI prints a warning; not recommended for untrusted input.`);
+      if (g['--pretty'] && !g['--json']) warns.push('`--pretty` only affects JSON output — add `--json`.');
+      if (g['--dry-run'] && !SURFACE.dryRunCommands.includes(cmd)) warns.push(`\`--dry-run\` has no effect on \`${cmd}\` (honoured by ${SURFACE.dryRunCommands.join(', ')}).`);
+      if (g['--config'] && g['--no-config']) errors.push('`--config` and `--no-config` contradict each other.');
+      if (g['--codec']) info.push('`--codec` executes user code — the CLI accepts it on the command line only, never from `.zipnativerc.json`.');
+      if (has('--comment') && has('--comment-file')) errors.push('`--comment` and `--comment-file` are exclusive — the CLI exits 2.');
+      if (has('--summary') && has('--fields')) info.push('`--summary` and `--fields` both project the report; `--fields` wins for the listed paths.');
+
+      if (cmd === 'create') {
+        const inputs = (b['--input'] || []).length + (pos.positional ? pos.positional.split('\n').filter(Boolean).length : 0);
+        if (!inputs && !has('--stdin-name') && !has('--from-manifest')) warns.push('No input: add paths, `--stdin-name` (stdin) or `--from-manifest`.');
+        if (has('--from-manifest') && inputs) warns.push('`--from-manifest` already lists the entries — positional paths are extra inputs on top of it.');
+        if (has('--parallel') && g['--codec']) errors.push('`--parallel` is refused (exit 2) with a `--codec` module — workers never see the module.');
+        if (has('--parallel') && g['--pure-codecs']) warns.push('`--parallel` under `--pure-codecs` runs the pure-TS encoder in every worker — correct, slower.');
+        if (!has('--parallel') && (has('--workers') || has('--min-job-size') || has('--job-timeout'))) warns.push('`--workers`, `--min-job-size` and `--job-timeout` only apply with `--parallel`.');
+        if (has('--chunk-size') && !has('--stream') && !has('--stdin-name')) warns.push('`--chunk-size` only applies to the chunked writer (`--stream` or `--stdin-name`).');
+        if (has('--mtime') && has('--date')) warns.push('`--mtime` and `--date` both set timestamps — pick one; `--mtime` is non-reproducible.');
+        if (has('--mtime') && has('--deterministic')) warns.push('`--mtime` (local file times) defeats the cross-machine reproducibility `--deterministic` buys.');
+        if (b['--date'] && !/^(epoch|now|\d{4}-\d{2}-\d{2})/.test(b['--date'])) errors.push('`--date` is `epoch`, `now` or an ISO date (1980–2107).');
+        if (has('--stream')) info.push('`--stream` uses the data-descriptor layout: reproducible, but `inspect --check canonical-layout` will report it as non-canonical.');
+        if (!has('--output')) info.push('No `--output` — the archive goes to stdout.');
+      }
+      if (cmd === 'modify') {
+        if (!has('--input')) warns.push('`modify` needs `--input <a.zip>`.');
+        if (has('--in-place') && has('--output')) errors.push('`--in-place` and `--output` are exclusive.');
+        if (has('--in-place') && has('--overwrite')) warns.push('`--overwrite` is meaningless with `--in-place` (the input is replaced atomically).');
+        const edits = ['--remove', '--rename', '--replace', '--add', '--add-dir', '--comment', '--comment-file', '--from-manifest'].filter(has);
+        if (!edits.length) warns.push('No edit selected — `modify` returns the same bytes (a no-op).');
+        for (const f of ['--rename', '--replace']) for (const v of b[f] || []) if (!/^[^=]+=.+$/.test(v)) errors.push(`\`${f}\` takes \`${f === '--rename' ? 'from=to' : 'name=path'}\` — got \`${v}\`.`);
+        if ((has('--remove') || has('--replace') || has('--rename')) && !has('--compact')) warns.push('Append-only save: removed/replaced content REMAINS RECOVERABLE (data remanence) and 7-Zip\'s CLI mis-reads this layout — add `--compact` when either matters.');
+        if (b['--date'] && !/^(epoch|now|\d{4}-\d{2}-\d{2})/.test(b['--date'])) errors.push('`--date` is `epoch`, `now` or an ISO date.');
+      }
+      if (cmd === 'inspect') {
+        const checks = b['--check'] || [];
+        if (checks.includes('store-only') && checks.includes('deflate-only')) errors.push('`store-only` and `deflate-only` cannot both hold.');
+        if (checks.includes('zip64') && checks.includes('no-zip64')) errors.push('`zip64` and `no-zip64` cannot both hold.');
+        for (const c of checks) {
+          if (/=/.test(c) && !/^(max-entries|min-entries)=\d+$|^max-uncompressed=(\d+([kmg]|[KMG]i?B)?)$|^max-ratio=\d+(\.\d+)?$|^has=.+$|^method=(store|deflate|\d+)$/.test(c)) errors.push(`Unknown or malformed check \`${c}\` — see the assertion vocabulary in the hint.`);
+        }
+        if (has('--entries') && has('--entry')) warns.push('`--entries` already includes every entry; `--entry` is redundant.');
+      }
+      if (cmd === 'cat') {
+        if (!has('--input')) warns.push('`cat` needs `--input <a.zip>`.');
+        if (!has('--entry')) errors.push('`cat` needs at least one `--entry <name>`.');
+        if (has('--raw') && has('--no-verify-crc')) warns.push('`--no-verify-crc` has no effect with `--raw` — the compressed payload is never decoded.');
+        if (has('--overwrite') && !has('--output')) warns.push('`--overwrite` only applies with `--output`.');
+      }
+      if (cmd === 'extract') {
+        if (!has('--output-dir')) errors.push('`extract` REQUIRES `--output-dir <dir>` — the CLI exits 2 without it.');
+        if (has('--allow-symlinks') && has('--skip-symlinks')) errors.push('`--allow-symlinks` and `--skip-symlinks` are exclusive.');
+        if (has('--flat')) warns.push('`--flat` writes basenames only — two entries with the same basename collide (`--on-duplicate`).');
+      }
+      if (cmd === 'stream') {
+        const modes = ['--list', '--output-dir', '--cat'].filter(has);
+        if (modes.length > 1) warns.push('Pick one mode: `--list` (default), `--output-dir` or `--cat`.');
+        if (!$('pipe').value.trim() && !has('--input')) info.push('`stream` reads stdin by default — set "pipe stdin from" above, e.g. `curl -s … |`.');
+        info.push('Trust caveat: local headers alone — `--preserve-mode`, `--allow-symlinks` and `--skip-symlinks` do not exist here; every JSON output carries `trust: "local-headers-only"`.');
+      }
+      if (cmd === 'verify' && !has('--input') && !$('pipe').value.trim()) info.push('No `--input` — `verify` reads the archive from stdin.');
+      if (cmd === 'crc32') {
+        const files = (b['--input'] || []).length + (pos.positional ? pos.positional.split('\n').filter(Boolean).length : 0);
+        if (has('--expect') && files > 1) errors.push('`--expect` applies to a single input.');
+        for (const f of ['--seed', '--expect']) if (b[f] && !/^(0x)?[0-9a-fA-F]{1,8}$/.test(b[f])) errors.push(`\`${f}\` takes 1–8 hex digits.`);
+      }
+      if (cmd === 'inflate') {
+        if (!has('--max-output')) warns.push('No `--max-output` — the default bound is the effective `--max-entry-size` (1 GiB). Set it explicitly for untrusted streams; `none` only for trusted input.');
+        if (b['--method'] && !/^(deflate|store|\d+)$/.test(b['--method'])) errors.push('`--method` is `deflate`, `store` or a numeric codec id.');
+        if (/^\d+$/.test(b['--method'] || '') && !g['--codec']) warns.push('A numeric `--method` needs the codec registered via `--codec`.');
+      }
+      if (cmd === 'batch') {
+        if (has('--manifest') && (has('--input-dir') || has('--output-dir'))) errors.push('`--manifest` is exclusive with `--input-dir` / `--output-dir` — the CLI exits 2.');
+        if (!has('--manifest') && !has('--input-dir')) warns.push('`batch` needs `--input-dir` (directory mode) or `--manifest tasks.json` (manifest mode).');
+        if (has('--input-dir') && (b['--task'] || 'create') === 'create' && !has('--output-dir')) errors.push('`--task create` needs `--output-dir`.');
+        if (has('--input-dir') && b['--task'] === 'verify' && has('--output-dir')) warns.push('`--task verify` writes nothing — `--output-dir` is ignored.');
+        if (!has('--manifest') && (has('--continue-on-error') || has('--allow-codec-load'))) warns.push('`--continue-on-error` and `--allow-codec-load` apply to manifest mode only.');
+        if (b['--concurrency'] && !(/^\d+$/.test(b['--concurrency']) && Number(b['--concurrency']) >= 1 && Number(b['--concurrency']) <= 64)) errors.push('`--concurrency` is 1–64.');
+      }
+      if (cmd === 'govern') {
+        const sub = pos.positional || 'rules';
+        if (sub === 'verify-issue' && !pos.positional2 && !has('--input')) warns.push('`govern verify-issue` needs a draft path (positional or `--input`; `-` = stdin).');
+        if (sub !== 'verify-issue' && (pos.positional2 || has('--input') || has('--format'))) warns.push(`\`--input\`, \`--format\` and the draft path only apply to \`verify-issue\`, not \`${sub}\`.`);
+        if (sub === 'policy' && g['--pretty'] && !g['--json']) info.push('`govern policy --pretty` indents the policy JSON (no `--json` needed here).');
+      }
+      return { errors, warns, info };
+    }
+
+    // ── Command rendering ────────────────────────────────────────────
+    function shellEscape(v) {
+      if (typeof v !== 'string') v = String(v);
+      if (v === '') return "''";
+      if (/^[A-Za-z0-9_./:@,=+-]+$/.test(v)) return v;
+      return "'" + v.replace(/'/g, "'\\''") + "'";
+    }
+    function buildCommand() {
+      const cmd = state.cmd, spec = byName[cmd], b = state.bags[cmd], pos = state.pos[cmd];
+      const parts = [$('prefix').value, cmd];
+      if (spec.positional && spec.positional.kind === 'enum') parts.push(pos.positional || spec.positional.default);
+      if (spec.positional2 && pos.positional2) parts.push(shellEscape(pos.positional2));
+      if (spec.positional && spec.positional.kind !== 'enum' && pos.positional) {
+        for (const p of pos.positional.split('\n').map((s) => s.trim()).filter(Boolean)) parts.push(shellEscape(p));
+      }
+      const emit = (flag, v, def) => {
+        if (v === true) parts.push(flag);
+        else if (Array.isArray(v)) {
+          if (def && def.kind === 'multi') parts.push(flag, shellEscape(v.join(def.join || ',')));
+          else for (const item of v) parts.push(flag, shellEscape(item));
+        } else if (typeof v === 'string') parts.push(flag, shellEscape(v));
+      };
+      for (const f of spec.flags) if (b[f.flag] !== undefined) emit(f.flag, b[f.flag], f);
+      for (const f of SURFACE.global) {
+        if (state.global[f.flag] === undefined) continue;
+        if (f.flag === '--dry-run' && !SURFACE.dryRunCommands.includes(cmd)) continue;
+        emit(f.flag, state.global[f.flag], f);
+      }
+      const pipe = $('pipe').value.trim();
+      const prefixParts = pipe ? [pipe.replace(/\|\s*$/, '').trim() + ' |'] : [];
+      const single = [...prefixParts, ...parts].join(' ');
+      if (single.length <= 84) return single;
+      let out = [...prefixParts, ...parts.slice(0, 2)].join(' ');
+      let line = '';
+      for (let i = 2; i < parts.length; i++) {
+        const tok = parts[i];
+        if (tok.startsWith('--') && line.length > 0) { out += ' \\\n  ' + line.trim(); line = ''; }
+        line += tok + ' ';
+      }
+      if (line.trim()) out += ' \\\n  ' + line.trim();
+      return out;
+    }
+    function render() {
+      const spec = byName[state.cmd];
+      $('summary').innerHTML = `<strong>${esc(state.cmd)}</strong> — ${esc(spec.summary)}`;
+      const out = $('cmd-output');
+      out.textContent = buildCommand();
+      if (window.Prism) window.Prism.highlightElement(out);
+      const { errors, warns, info } = validate();
+      const v = $('validation');
+      const li = (arr) => '<ul>' + arr.map((e) => '<li>' + e.replace(/`([^`]+)`/g, '<code>$1</code>') + '</li>').join('') + '</ul>';
+      if (errors.length) { v.className = 'cli-validation error'; v.innerHTML = '<strong>The CLI refuses this:</strong>' + li(errors) + (warns.length ? '<strong style="display:block;margin-top:8px">Also:</strong>' + li(warns) : ''); }
+      else if (warns.length || info.length) { v.className = 'cli-validation warn'; v.innerHTML = '<strong>Heads up:</strong>' + li([...warns, ...info]); }
+      else { v.className = 'cli-validation'; v.innerHTML = ''; }
+    }
+
+    // ── Copy / reset ─────────────────────────────────────────────────
+    $('copy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('cmd-output').textContent); const b = $('copy'); b.textContent = 'Copied!'; setTimeout(() => { b.textContent = 'Copy'; }, 1500); }
+      catch (e) { alert('Clipboard write failed: ' + (e && e.message ? e.message : e)); }
+    });
+    function reset() {
+      for (const c of SURFACE.commands) { state.bags[c.name] = {}; state.pos[c.name] = {}; }
+      state.global = {};
+      $('pipe').value = '';
+      $('preset').value = '';
+      syncDom();
+      $$('select[data-scope="pos"]').forEach((el) => { const spec = byName[el.dataset.cmd]; const p = el.dataset.pos === 'positional' ? spec.positional : spec.positional2; el.value = p.default; });
+      render();
+    }
+    $('reset').addEventListener('click', reset);
+
+    // ── Presets: state-level, so every preset is exact by construction ──
+    const PRESETS = [
+      ['create-deterministic', 'create · reproducible release archive', { cmd: 'create', pos: { positional: 'src/\ndocs/\nREADME.md' }, bag: { '--output': 'release.zip', '--deterministic': true, '--exclude': ['**/*.map'] } }],
+      ['create-epub', 'create · EPUB (mimetype first, stored)', { cmd: 'create', pos: { positional: 'mimetype\nMETA-INF/\nOEBPS/' }, bag: { '--output': 'book.epub', '--order': 'insertion', '--store-ext': 'mimetype,png,jpg', '--deterministic': true } }],
+      ['create-stdin', 'create · archive a pipe with --stream', { cmd: 'create', pipe: 'pg_dump mydb', bag: { '--stdin-name': 'dump.sql', '--output': 'dump.zip', '--stream': true, '--chunk-size': '1m' } }],
+      ['create-parallel', 'create · worker-parallel deflate', { cmd: 'create', pos: { positional: 'assets/' }, bag: { '--output': 'assets.zip', '--parallel': true, '--workers': '4', '--min-job-size': '64k', '--deterministic': true } }],
+      ['create-manifest', 'create · from a JSON manifest, dry run', { cmd: 'create', bag: { '--from-manifest': 'entries.json', '--output': 'out.zip' }, global: { '--dry-run': true, '--json': true } }],
+      ['create-encrypt-first', 'create · encrypt-first packaging (Case 5)', { cmd: 'create', pos: { positional: 'sealed/' }, bag: { '--output': 'release.zip', '--deterministic': true, '--store-ext': 'pdf,xlsx' } }],
+      ['modify-compact', 'modify · replace + remove, compact', { cmd: 'modify', bag: { '--input': 'release.zip', '--output': 'release-v2.zip', '--replace': ['config.json=./config.json'], '--remove': ['obsolete.log'], '--compact': true } }],
+      ['modify-in-place', 'modify · add a changelog in place', { cmd: 'modify', bag: { '--input': 'release.zip', '--in-place': true, '--add': ['CHANGELOG.md=./CHANGELOG.md'], '--deterministic': true } }],
+      ['list-ndjson', 'list · NDJSON of the JSON files only', { cmd: 'list', bag: { '--input': 'release.zip', '--format': 'ndjson', '--include': ['**/*.json'] } }],
+      ['list-summary', 'list · token-frugal summary', { cmd: 'list', bag: { '--input': 'release.zip', '--summary': true }, global: { '--json': true } }],
+      ['inspect-ci-gate', 'inspect · CI gate (deterministic, no encryption, safe names)', { cmd: 'inspect', bag: { '--input': 'release.zip', '--check': ['deterministic', 'no-encryption', 'no-symlinks', 'safe-names', 'max-entries=1000'], '__extra': { '--check': ['max-entries=1000'] } }, global: { '--json': true } }],
+      ['inspect-forensic', 'inspect · full forensic dump', { cmd: 'inspect', bag: { '--input': 'suspicious.zip', '--entries': true, '--extra': true, '--format': 'json' }, global: { '--pretty': true, '--json': true } }],
+      ['cat-entry', 'cat · one entry to a file', { cmd: 'cat', bag: { '--input': 'release.zip', '--entry': ['manifest.json'], '--output': 'manifest.json' } }],
+      ['cat-raw', 'cat · the compressed payload, raw', { cmd: 'cat', bag: { '--input': 'release.zip', '--entry': ['data/big.bin'], '--raw': true, '--output': 'big.deflate' } }],
+      ['extract-dry-run', 'extract · dry run of an untrusted upload', { cmd: 'extract', bag: { '--input': 'upload.zip', '--output-dir': './quarantine' }, global: { '--dry-run': true, '--json': true } }],
+      ['extract-tight', 'extract · tight bounds, skip unsafe', { cmd: 'extract', bag: { '--input': 'upload.zip', '--output-dir': './out', '--skip-unsafe': true, '--skip-unsupported': true }, global: { '--max-entries': '5000', '--max-total-size': '512m', '--max-ratio': '100' } }],
+      ['stream-curl', 'stream · list a download as it arrives', { cmd: 'stream', pipe: 'curl -sL https://example.com/big.zip', bag: { '--format': 'ndjson' } }],
+      ['stream-extract', 'stream · extract from stdin', { cmd: 'stream', pipe: 'cat a.zip', bag: { '--output-dir': './out', '--skip-unsafe': true } }],
+      ['verify-strict', 'verify · strict, machine-readable', { cmd: 'verify', bag: { '--input': 'release.zip', '--format': 'json' }, global: { '--strict': true, '--json': true } }],
+      ['crc32-expect', 'crc32 · assert a known checksum', { cmd: 'crc32', pos: { positional: 'release.zip' }, bag: { '--expect': '0d4a1185' } }],
+      ['inflate-bounded', 'inflate · bounded decompression', { cmd: 'inflate', bag: { '--input': 'payload.deflate', '--output': 'payload.bin', '--max-output': '64m' } }],
+      ['batch-directory', 'batch · one archive per subfolder', { cmd: 'batch', bag: { '--input-dir': './packages', '--output-dir': './dist', '--task': 'create', '--deterministic': true, '--concurrency': '8' } }],
+      ['batch-manifest', 'batch · manifest pipeline', { cmd: 'batch', bag: { '--manifest': 'tasks.json', '--continue-on-error': true }, global: { '--json': true } }],
+      ['doctor-json', 'doctor · preflight as JSON', { cmd: 'doctor', bag: { '--format': 'json' } }],
+      ['schema-manifest', 'schema · the capability manifest', { cmd: 'schema', pos: { positional: 'manifest' } }],
+      ['completion-bash', 'completion · bash', { cmd: 'completion', pos: { positional: 'bash' } }],
+      ['govern-verify', 'govern · verify an issue draft', { cmd: 'govern', pos: { positional: 'verify-issue', positional2: '.github/drafts/issue.md' }, bag: { '--format': 'json' } }],
+    ];
+    const presetSel = $('preset');
+    for (const [key, label] of PRESETS) { const o = document.createElement('option'); o.value = key; o.textContent = label; presetSel.appendChild(o); }
+    presetSel.addEventListener('change', () => {
+      const p = PRESETS.find((x) => x[0] === presetSel.value);
+      if (!p) return;
+      const key = presetSel.value;
+      reset();
+      presetSel.value = key;
+      const def = p[2];
+      state.bags[def.cmd] = Object.assign({}, def.bag || {});
+      state.pos[def.cmd] = Object.assign({}, def.pos || {});
+      state.global = Object.assign({}, def.global || {});
+      if (def.pipe) $('pipe').value = def.pipe;
+      syncDom();
+      selectTab(def.cmd);
+    });
+
+    render();
+  })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+</body>
+</html>

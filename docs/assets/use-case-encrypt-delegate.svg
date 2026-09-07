@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ued-title ued-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ued-title">Encrypt first, then archive — confidentiality delegated to the document layer</title>
+  <desc id="ued-desc">Architecture: plain documents flow into a document-layer encryption step — pdfnative's mergePdfs with an AES-256 encrypt option, an Office workbook password, or any tool that owns the secret — and come out as encrypted files whose bytes are opaque. Those files flow into zipnative's createZip with deterministic compression, which packages them into a release archive: names and sizes visible, payloads opaque, identical SHA-256 on every runtime, checkable with verifyZip and inspect --check no-encryption. A red struck edge from a "ZIP password?" card shows that no secret ever enters the archive layer — none, by design, because ZipCrypto is broken and AES-in-ZIP is not in 1.x. A green band states what you gain: every payload is opaque without the document password while the archive stays deterministic, verifiable and safe to extract with any ZIP tool. The closing band states the honest limits — entry names and sizes stay visible, a ZIP is an envelope not a vault, and encrypted payloads do not compress, so store them.</desc>
+
+  <marker id="ued-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+  </marker>
+  <marker id="ued-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+  </marker>
+
+  <rect x="0" y="0" width="960" height="560" fill="#F8FAFC"/>
+
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Encrypt first, then archive</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">Confidentiality belongs to the document layer — the archive stays deterministic, verifiable and tool-agnostic</text>
+
+  <!-- Plain documents (neutral) -->
+  <rect x="40" y="154" width="150" height="72" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="115" y="181" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">Plain documents</text>
+  <text x="115" y="201" text-anchor="middle" font-size="11.5" fill="#64748B">report.pdf · ledger.xlsx</text>
+
+  <line x1="192" y1="190" x2="226" y2="190" stroke="#475569" stroke-width="1.75" marker-end="url(#ued-ah)"/>
+
+  <!-- Document-layer encryption (indigo) -->
+  <rect x="230" y="136" width="240" height="108" rx="12" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.5"/>
+  <text x="350" y="161" text-anchor="middle" font-size="14" font-weight="700" fill="#3730A3">Document-layer encryption</text>
+  <text x="350" y="183" text-anchor="middle" font-size="11.5" fill="#4F46E5">pdfnative — mergePdfs(…, { encrypt: aes256 })</text>
+  <text x="350" y="201" text-anchor="middle" font-size="11.5" fill="#4F46E5">Office — workbook / document password</text>
+  <text x="350" y="219" text-anchor="middle" font-size="11.5" fill="#4F46E5">any tool that owns the secret</text>
+
+  <line x1="472" y1="190" x2="506" y2="190" stroke="#475569" stroke-width="1.75" marker-end="url(#ued-ah)"/>
+
+  <!-- Encrypted files (neutral) -->
+  <rect x="510" y="154" width="150" height="72" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="585" y="181" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">Encrypted files</text>
+  <text x="585" y="201" text-anchor="middle" font-size="11.5" fill="#64748B">opaque bytes, still *.pdf / *.xlsx</text>
+
+  <line x1="662" y1="190" x2="696" y2="190" stroke="#475569" stroke-width="1.75" marker-end="url(#ued-ah)"/>
+
+  <!-- zipnative (cyan) -->
+  <rect x="700" y="136" width="220" height="108" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="810" y="161" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">createZip — deterministic</text>
+  <text x="810" y="183" text-anchor="middle" font-size="11.5" fill="#0E7490">compression: { deterministic: true }</text>
+  <text x="810" y="201" text-anchor="middle" font-size="11.5" fill="#0E7490">method 'store' for the encrypted payloads</text>
+  <text x="810" y="219" text-anchor="middle" font-size="11.5" fill="#0E7490">names &amp; sizes visible · payloads opaque</text>
+
+  <!-- down to the archive -->
+  <line x1="810" y1="246" x2="810" y2="286" stroke="#16A34A" stroke-width="2" marker-end="url(#ued-ah-green)"/>
+
+  <!-- Release archive (green) -->
+  <rect x="700" y="290" width="220" height="84" rx="10" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1.25"/>
+  <text x="810" y="316" text-anchor="middle" font-size="13.5" font-weight="700" fill="#166534">release.zip</text>
+  <text x="810" y="336" text-anchor="middle" font-size="11.5" fill="#16A34A">same SHA-256 on every runtime</text>
+  <text x="810" y="354" text-anchor="middle" font-size="11.5" fill="#16A34A">verifyZip · inspect --check no-encryption</text>
+
+  <!-- ZIP password? (red) -->
+  <rect x="40" y="290" width="240" height="84" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="160" y="316" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">A ZIP password?</text>
+  <text x="160" y="336" text-anchor="middle" font-size="11.5" fill="#B91C1C">none, by design — ZipCrypto is broken</text>
+  <text x="160" y="354" text-anchor="middle" font-size="11.5" fill="#B91C1C">(Biham–Kocher); AES-in-ZIP is not in 1.x</text>
+
+  <!-- struck edge: no secret enters the archive layer -->
+  <line x1="282" y1="332" x2="696" y2="332" stroke="#DC2626" stroke-width="1.75" stroke-dasharray="6 5"/>
+  <line x1="481" y1="322" x2="497" y2="342" stroke="#DC2626" stroke-width="2.5"/>
+  <line x1="497" y1="322" x2="481" y2="342" stroke="#DC2626" stroke-width="2.5"/>
+  <text x="489" y="312" text-anchor="middle" font-size="11" fill="#64748B">no secret ever enters the archive layer</text>
+  <text x="489" y="360" text-anchor="middle" font-size="11" fill="#64748B">encrypted entries are detected (isEncrypted), never decrypted</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="398" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="422" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">Every payload is opaque without the document password — and the archive is still deterministic, verifiable and safe to extract.</text>
+  <text x="480" y="442" text-anchor="middle" font-size="12.5" fill="#16A34A">Any ZIP tool can list and extract it; only the key holder can open the documents. The secret never touches zipnative.</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="470" width="880" height="56" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="494" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">Honest limits: entry names and sizes stay visible — a ZIP is an envelope, not a vault.</text>
+  <text x="480" y="514" text-anchor="middle" font-size="12.5" fill="#475569">Encrypted payloads do not compress: store them (method 'store', or the CLI's --store-ext pdf,xlsx) — deflating ciphertext only costs time.</text>
+</svg>

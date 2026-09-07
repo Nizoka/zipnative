@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guides — zipnative</title>
-  <meta name="description" content="zipnative guides: quickstart, security model, determinism contract, error codes, and four production use cases.">
+  <meta name="description" content="zipnative guides: quickstart, choosing your surface, the CLI and MCP references, security model, determinism contract, error codes, conformance, and five production use cases.">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:locale" content="en_US">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
@@ -49,15 +49,34 @@
         the four core workflows in about five minutes. For the full export surface, see
         <a href="../assets/api.json">api.json</a> (mechanically extracted, never guessed).</p>
       </blockquote>
-      <p>Hands-on guides covering installation, the security model, the determinism
-      contract and the frozen error vocabulary. Every guide is written as Markdown
-      (the source of truth for the llms pipeline) and pre-rendered — use the
-      “Copy page as Markdown” button on any guide to feed it to an agent.</p>
+      <p>Hands-on guides covering installation, the three surfaces (library, CLI, MCP
+      server), the security model, the determinism contract and the frozen error
+      vocabulary. Every guide is written as Markdown (the source of truth for the llms
+      pipeline) and pre-rendered — use the “Copy page as Markdown” button on any guide
+      to feed it to an agent.</p>
       <ul class="guide-toc-list">
         <li>
           <a href="quickstart.html">Quickstart →</a>
           <span class="guide-toc-desc">Install zipnative and cover the four core workflows — random-access
           reading, secure extraction, deterministic creation and incremental modification — in about five minutes.</span>
+        </li>
+        <li>
+          <a href="choose.html">Choosing your surface →</a>
+          <span class="guide-toc-desc">Library, CLI or MCP server? The decision in prose, the capability ×
+          surface matrix for all three packages (machine-readable twin in <code>docs/data/surfaces.json</code>),
+          and the honest notes — including why no surface encrypts.</span>
+        </li>
+        <li>
+          <a href="cli.html">CLI guide →</a>
+          <span class="guide-toc-desc"><code>zipnative-cli</code> 1.0.0: the fifteen commands with every flag, the
+          agent contract (<code>--json</code> envelope, <code>E_*</code> codes, <code>--dry-run</code>,
+          <code>--summary</code> / <code>--fields</code>), global options, environment and the filesystem trust boundary.</span>
+        </li>
+        <li>
+          <a href="mcp.html">MCP guide →</a>
+          <span class="guide-toc-desc"><code>zipnative-mcp</code> 1.0.0 for AI assistants: client configuration,
+          the thirteen tools with their inputs and outputs, seven prompts, sandboxed resources, the seven
+          environment variables, the error model and the security model.</span>
         </li>
         <li>
           <a href="security.html">Security model →</a>
@@ -76,10 +95,11 @@
         </li>
         <li>
           <a href="use-cases.html">Use cases →</a>
-          <span class="guide-toc-desc">Four production architectures with diagrams, each built from shipped
+          <span class="guide-toc-desc">Five production architectures with diagrams, each built from shipped
           APIs — the manifest peek (<code>openZip</code>), untrusted-upload intake (<code>extractZip</code>),
-          the reproducibility gate (<code>deterministic: true</code>), and streaming intake at the edge
-          (<code>iterateZipEntries</code>).</span>
+          the reproducibility gate (<code>deterministic: true</code>), streaming intake at the edge
+          (<code>iterateZipEntries</code>), and encrypt-first packaging (confidentiality delegated to
+          pdfnative or Office — the archive layer has no password by design).</span>
         </li>
         <li>
           <a href="conformance.html">Conformance and validation →</a>
@@ -110,6 +130,9 @@
           <h4>Guides</h4>
           <ul>
             <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="choose.html">Choosing your surface</a></li>
+            <li><a href="cli.html">CLI guide</a></li>
+            <li><a href="mcp.html">MCP guide</a></li>
             <li><a href="security.html">Security model</a></li>
             <li><a href="determinism.html">Determinism contract</a></li>
             <li><a href="errors.html">Errors and error codes</a></li>

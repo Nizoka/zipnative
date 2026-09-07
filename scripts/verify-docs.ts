@@ -217,7 +217,8 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
         ...walk('docs').filter((p) => /\.(html|md|svg)$/.test(p) && !p.includes('llms-full') && !p.includes('llms-recipes')),
         'README.md', 'AGENTS.md', 'ROADMAP.md', 'CONTRIBUTING.md', 'llms.txt',
     ];
-    const pattern = /\b(\d+)\s+(?:production\s+|MCP\s+|CLI\s+)?(commands|tools|prompts)\b/gi;
+    // (?<![\d.]) keeps "zipnative-cli 1.0.0 commands" from reading as "0 commands".
+    const pattern = /(?<![\d.])(\d+)\s+(?:production\s+|MCP\s+|CLI\s+)?(commands|tools|prompts)\b/gi;
     for (const path of corpus) {
         const text = read(path);
         for (const m of text.matchAll(pattern)) {
@@ -328,6 +329,153 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
         for (const limit of surface.limits ?? []) {
             if (limit.flag !== undefined && !(surface.globalFlags ?? []).includes(limit.flag)) {
                 report(path, 1, 'cli-surface-parity', `limit flag ${limit.flag} missing from globalFlags`);
+            }
+        }
+        // Part 2: the CLI guide documents every command (a `zipnative <name>`
+        // heading) and names every flag — global and per command — literally,
+        // plus every environment variable the manifest lists.
+        const guidePath = 'docs/guides/cli.md';
+        if (!existsSync(resolve(ROOT, guidePath))) {
+            report(guidePath, 1, 'cli-surface-parity', 'missing — the CLI reference guide');
+        } else {
+            const guide = read(guidePath);
+            for (const c of surface.commands ?? []) {
+                if (!guide.includes(`\`zipnative ${String(c.name)}\``)) {
+                    report(guidePath, 1, 'cli-surface-parity', `no heading for command '${String(c.name)}'`);
+                }
+                for (const flag of c.flags ?? []) {
+                    if (!guide.includes(flag)) report(guidePath, 1, 'cli-surface-parity', `command '${String(c.name)}': flag ${flag} is not documented`);
+                }
+            }
+            for (const flag of surface.globalFlags ?? []) {
+                if (!guide.includes(flag)) report(guidePath, 1, 'cli-surface-parity', `global flag ${flag} is not documented`);
+            }
+            for (const envVar of cliPkg?.envVars ?? []) {
+                if (!guide.includes(envVar)) report(guidePath, 1, 'cli-surface-parity', `environment variable ${envVar} is not documented`);
+            }
+        }
+    }
+}
+
+// ── Rule: cli-surface-parity, part 3 — the CLI playground ────────────
+// docs/playgrounds/cli.html embeds its command table as JSON. Per
+// command the flag SET must equal the snapshot's (every flag exposed,
+// none invented), the global set must equal the snapshot's globals minus
+// --help/--version, and `kind: "bool"` must coincide with the CLI's
+// boolean-flag table (a value flag rendered as a checkbox would emit a
+// command the CLI parses differently).
+{
+    const pagePath = 'docs/playgrounds/cli.html';
+    const snapPath = 'docs/data/cli-surface.json';
+    if (existsSync(resolve(ROOT, pagePath)) && existsSync(resolve(ROOT, snapPath))) {
+        const page = read(pagePath);
+        const block = page.match(/<script type="application\/json" id="cli-surface">([\s\S]*?)<\/script>/);
+        if (block === null) {
+            report(pagePath, 1, 'cli-surface-parity', 'missing the #cli-surface JSON block');
+        } else {
+            interface PageFlag { flag: string; kind: string }
+            interface PageSurface { version?: string; dryRunCommands?: string[]; global?: PageFlag[]; commands?: Array<{ name: string; flags: PageFlag[] }> }
+            const snap = JSON.parse(read(snapPath)) as {
+                version?: string; globalFlags?: string[]; globalBooleanFlags?: string[]; dryRunCommands?: string[];
+                commands?: Array<{ name?: string; flags?: string[]; booleanFlags?: string[] }>;
+            };
+            let surface: PageSurface;
+            try { surface = JSON.parse(block[1]) as PageSurface; } catch { report(pagePath, lineOf(page, block.index ?? 0), 'cli-surface-parity', 'invalid JSON in #cli-surface'); surface = {}; }
+            const line = lineOf(page, block.index ?? 0);
+            if (surface.version !== snap.version) report(pagePath, line, 'cli-surface-parity', `page version ${String(surface.version)} != snapshot ${String(snap.version)}`);
+            const same = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x) => b.includes(x));
+            if (!same(surface.dryRunCommands ?? [], snap.dryRunCommands ?? [])) report(pagePath, line, 'cli-surface-parity', 'dryRunCommands differ from the snapshot');
+            const pageGlobals = (surface.global ?? []).map((f) => f.flag);
+            const snapGlobals = (snap.globalFlags ?? []).filter((f) => f !== '--help' && f !== '--version');
+            for (const f of snapGlobals) if (!pageGlobals.includes(f)) report(pagePath, line, 'cli-surface-parity', `global flag ${f} is not in the builder`);
+            for (const f of pageGlobals) if (!snapGlobals.includes(f)) report(pagePath, line, 'cli-surface-parity', `builder global flag ${f} is not in the snapshot`);
+            for (const f of surface.global ?? []) {
+                const isBool = (snap.globalBooleanFlags ?? []).includes(f.flag);
+                if ((f.kind === 'bool') !== isBool) report(pagePath, line, 'cli-surface-parity', `global flag ${f.flag}: kind ${f.kind} but the CLI says ${isBool ? 'boolean' : 'value'}`);
+            }
+            const snapByName = new Map((snap.commands ?? []).map((c) => [c.name ?? '', c]));
+            for (const c of surface.commands ?? []) {
+                const s = snapByName.get(c.name);
+                if (s === undefined) { report(pagePath, line, 'cli-surface-parity', `builder command '${c.name}' is not in the snapshot`); continue; }
+                const pageFlags = c.flags.map((f) => f.flag);
+                for (const f of s.flags ?? []) if (!pageFlags.includes(f)) report(pagePath, line, 'cli-surface-parity', `command '${c.name}': flag ${f} is not in the builder`);
+                for (const f of pageFlags) if (!(s.flags ?? []).includes(f)) report(pagePath, line, 'cli-surface-parity', `command '${c.name}': builder flag ${f} is not in the snapshot`);
+                for (const f of c.flags) {
+                    const isBool = (s.booleanFlags ?? []).includes(f.flag);
+                    if ((f.kind === 'bool') !== isBool) report(pagePath, line, 'cli-surface-parity', `command '${c.name}': ${f.flag} kind ${f.kind} but the CLI says ${isBool ? 'boolean' : 'value'}`);
+                }
+            }
+            for (const name of snapByName.keys()) if (!(surface.commands ?? []).some((c) => c.name === name)) report(pagePath, line, 'cli-surface-parity', `snapshot command '${name}' is not in the builder`);
+        }
+    }
+}
+
+// ── Rule: switcher-parity ────────────────────────────────────────────
+// Every playground page carries the same switcher: every playground
+// linked, the current page marked aria-current, and no entry pointing to
+// a page that does not exist (pdfnative rule, ported).
+{
+    const pages = walk('docs/playgrounds').filter((p) => p.endsWith('.html') && !p.endsWith('/index.html'));
+    const expected = new Set(pages.map((p) => './' + p.split('/').pop()));
+    for (const page of pages) {
+        const html = read(page);
+        const nav = html.match(/<nav class="playground-switcher"[\s\S]*?<\/nav>/);
+        if (nav === null) { report(page, 1, 'switcher-parity', 'missing the playground switcher'); continue; }
+        const links = [...nav[0].matchAll(/<a href="(\.\/[^"]+\.html)"([^>]*)>/g)];
+        const found = new Set(links.map((m) => m[1]));
+        for (const e of expected) if (!found.has(e)) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher lacks ${e}`);
+        for (const f of found) if (!expected.has(f)) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher links to a page that does not exist: ${f}`);
+        const self = './' + page.split('/').pop();
+        const current = links.find((m) => m[2].includes('aria-current="page"'));
+        if (current === undefined || current[1] !== self) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `aria-current must mark ${self}`);
+    }
+}
+
+// ── Rule: mcp-surface-parity ─────────────────────────────────────────
+// The MCP guide documents every tool (a `### \`tool\`` heading), names
+// every prompt, resource template and environment variable the manifest
+// lists — the inventory the ecosystem manifest declares is the inventory
+// the site describes.
+{
+    const guidePath = 'docs/guides/mcp.md';
+    if (!existsSync(resolve(ROOT, guidePath))) {
+        report(guidePath, 1, 'mcp-surface-parity', 'missing — the MCP reference guide');
+    } else {
+        const guide = read(guidePath);
+        for (const tool of mcpPkg?.tools ?? []) {
+            if (!guide.includes(`### \`${tool}\``)) report(guidePath, 1, 'mcp-surface-parity', `no heading for tool '${tool}'`);
+        }
+        for (const prompt of mcpPkg?.prompts ?? []) {
+            if (!guide.includes(`\`${prompt}\``)) report(guidePath, 1, 'mcp-surface-parity', `prompt '${prompt}' is not documented`);
+        }
+        for (const template of mcpPkg?.resourceTemplates ?? []) {
+            if (!guide.includes(template)) report(guidePath, 1, 'mcp-surface-parity', `resource template ${template} is not documented`);
+        }
+        for (const envVar of mcpPkg?.envVars ?? []) {
+            if (!guide.includes(envVar)) report(guidePath, 1, 'mcp-surface-parity', `environment variable ${envVar} is not documented`);
+        }
+        // Part 3: the MCP playground's card catalogue names exactly the
+        // manifest's tools, in tools/list order, and lists every prompt.
+        const pagePath = 'docs/playgrounds/mcp.html';
+        if (existsSync(resolve(ROOT, pagePath))) {
+            const page = read(pagePath);
+            const ids = [...page.matchAll(/^\s*id: '([a-z0-9_]+)',/gm)].map((m) => m[1]);
+            const want = mcpPkg?.tools ?? [];
+            if (ids.join(',') !== want.join(',')) {
+                report(pagePath, 1, 'mcp-surface-parity', `card ids [${ids.join(', ')}] != manifest tools in order [${want.join(', ')}]`);
+            }
+            for (const prompt of mcpPkg?.prompts ?? []) {
+                if (!page.includes(`<code>${prompt}</code>`)) report(pagePath, 1, 'mcp-surface-parity', `prompt '${prompt}' is not listed on the playground`);
+            }
+        }
+        // Tool names that look real but are not in the manifest are phantoms.
+        for (const m of guide.matchAll(/`([a-z]+_[a-z_]+)`/g)) {
+            const name = m[1];
+            const known = [...(mcpPkg?.tools ?? []), ...(mcpPkg?.prompts ?? [])];
+            const nonTools = ['server_discover', 'tools_list', 'prompts_list', 'resources_list', 'resources_read', 'resources_templates_list', 'tools_call', 'prompts_get'];
+            if (/^(inspect|list|read|verify|extract|scan|sanitize|create|modify|compute|inflate|describe|draft)_/.test(name)
+                && !known.includes(name) && !nonTools.includes(name) && !allowed(guide, m.index ?? 0, 'mcp-surface-parity')) {
+                report(guidePath, lineOf(guide, m.index ?? 0), 'mcp-surface-parity', `'${name}' looks like a tool but is not in the manifest`);
             }
         }
     }
