@@ -501,7 +501,7 @@
       const tabHtml = [];
       for (const c of SURFACE.commands) {
         if (c.group !== group) { group = c.group; tabHtml.push(`<span class="cli-group">${esc(group)}</span>`); }
-        tabHtml.push(`<button class="cli-tab" role="tab" type="button" data-tab="${c.name}" aria-selected="${c.name === state.cmd}">${c.name}</button>`);
+        tabHtml.push(`<button class="cli-tab" role="tab" type="button" data-tab="${esc(c.name)}" aria-selected="${c.name === state.cmd}">${esc(c.name)}</button>`);
       }
       tabs.innerHTML = tabHtml.join('');
       const panels = $('panels');
@@ -511,7 +511,7 @@
         const flags = c.flags.map((f) => fieldHtml('cmd', c.name, f)).join('');
         const dry = SURFACE.dryRunCommands.includes(c.name)
           ? `<div><label class="check"><input type="checkbox" data-scope="global" data-cmd="" data-flag="--dry-run" data-mirror="1"><span><code>--dry-run</code><span class="hint">Validate and plan; write nothing.</span></span></label></div>` : '';
-        return `<section class="cli-panel${c.name === state.cmd ? ' active' : ''}" data-panel="${c.name}"><div class="cli-form">${pos}${pos2}${flags}${dry}</div></section>`;
+        return `<section class="cli-panel${c.name === state.cmd ? ' active' : ''}" data-panel="${esc(c.name)}"><div class="cli-form">${pos}${pos2}${flags}${dry}</div></section>`;
       }).join('');
       $('global-form').innerHTML = SURFACE.global.map((f) => fieldHtml('global', '', f)).join('');
     })();
@@ -768,7 +768,9 @@
       if (window.Prism) window.Prism.highlightElement(out);
       const { errors, warns, info } = validate();
       const v = $('validation');
-      const li = (arr) => '<ul>' + arr.map((e) => '<li>' + e.replace(/`([^`]+)`/g, '<code>$1</code>') + '</li>').join('') + '</ul>';
+      // Messages quote user-typed values (flag values, entry names): escape
+      // first, then turn the `backtick` spans into <code>.
+      const li = (arr) => '<ul>' + arr.map((e) => '<li>' + esc(e).replace(/`([^`]+)`/g, '<code>$1</code>') + '</li>').join('') + '</ul>';
       if (errors.length) { v.className = 'cli-validation error'; v.innerHTML = '<strong>The CLI refuses this:</strong>' + li(errors) + (warns.length ? '<strong style="display:block;margin-top:8px">Also:</strong>' + li(warns) : ''); }
       else if (warns.length || info.length) { v.className = 'cli-validation warn'; v.innerHTML = '<strong>Heads up:</strong>' + li([...warns, ...info]); }
       else { v.className = 'cli-validation'; v.innerHTML = ''; }

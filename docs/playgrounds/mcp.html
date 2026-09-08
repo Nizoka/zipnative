@@ -347,7 +347,7 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
       const rows = [], seen = new Set(), counts = {}; let truncated = false;
       const onDiagnostic = (d) => {
         counts[d.code] = (counts[d.code] || 0) + 1;
-        const key = d.code + ' ' + (d.entryName ?? '');
+        const key = d.code + '\u0000' + (d.entryName ?? '');
         if (seen.has(key)) return; seen.add(key);
         if (rows.length >= 200) { truncated = true; return; }
         rows.push({ code: d.code, severity: d.severity, message: d.message, ...(d.entryName !== undefined ? { entryName: d.entryName } : {}) });
@@ -769,7 +769,7 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
       const runBtns = t.run ? [`<button class="primary" type="button" data-action="run" data-tool="${idx}" disabled>Run</button>`]
         .concat((t.variants || []).map((v, vi) => `<button class="primary" type="button" data-action="run" data-tool="${idx}" data-variant="${vi}" disabled>${escapeHtml(v.label)}</button>`)).join('') : '';
       card.innerHTML = `
-        <h3><code>${t.id}</code><span class="badge${t.ro ? ' ro' : ''}">${t.ro ? 'read-only' : 'writes'}</span></h3>
+        <h3><code>${escapeHtml(t.id)}</code><span class="badge${t.ro ? ' ro' : ''}">${t.ro ? 'read-only' : 'writes'}</span></h3>
         <p class="purpose">${escapeHtml(t.purpose)}</p>
         <div class="prompt">${escapeHtml(t.prompt)}</div>
         <details><summary>MCP tool-call payload</summary><div><pre><code class="language-json">${escapeHtml(JSON.stringify(t.args, null, 2))}</code></pre></div></details>
