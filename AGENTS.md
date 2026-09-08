@@ -96,16 +96,22 @@ dependencies — a PR or AI draft proposing one fails review mechanically
 
 ## Ecosystem context
 
-`zipnative` (this repo, core) → planned satellites: `zipnative-cli`,
-`zipnative-mcp`, each in its own repo pinning `zipnative ^x.y.0`. The core
-stays dependency-free by exiling integrations there. Cross-repo version
-facts live in `docs/assets/ecosystem.json` (single source of truth).
+`zipnative` (this repo, core) → two published satellites, each in its own
+repo pinning `zipnative ^1.0.0`: `zipnative-cli` 1.0.0 (binary
+`zipnative`, 15 commands) and `zipnative-mcp` 1.0.0 (binary
+`zipnative-mcp`, 13 tools, 7 prompts). The core stays dependency-free by
+exiling integrations there — filesystem sinks, process I/O, the MCP SDK.
+Cross-repo version facts, command groups, tool and prompt inventories
+live in `docs/assets/ecosystem.json` (single source of truth; the
+`satellite-counts` verify-docs rule ties every count in the prose to it).
 
-Satellite agent contract (committed for their design, like pdfnative's):
-a global `--json` envelope carrying `err.code` verbatim, plus
-token-economy output projection — compact JSON by default, `--summary`
-for a minimal verdict, `--fields a,b.c` dot-path projection. The library
-side of token economy ships today: `docs/agent-brief.md` (paste-ready
+Satellite agent contract (shipped, mirroring pdfnative's): the CLI's
+global `--json` envelope carries `err.code` verbatim (13 `E_*` classes
+mapped from the 39 frozen codes), plus token-economy projection —
+compact JSON by default, `--summary` for a minimal verdict, `--fields
+a,b.c` dot-path projection; the MCP server exposes the same projection
+as `verbosity: 'summary'` and `fields: […]` on every read tool. The
+library side of token economy: `docs/agent-brief.md` (paste-ready
 briefing) and `docs/llms-index.json` (byte + approximate token budget per
 artefact, so agents choose what to fetch before spending the tokens).
 

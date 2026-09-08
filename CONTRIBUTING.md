@@ -44,13 +44,16 @@ sibling [pdfnative](https://github.com/Nizoka/pdfnative). The short version:
    binaries must have foreign provenance, be < 20 KB, and be protected by
    `.gitattributes`.
 
-## Playground bundle
+## Playground engine (CDN)
 
-The interactive playgrounds run a committed copy of the engine's own
-bundle (`docs/playgrounds/zipnative.js`). After any `src/` change, refresh
-it with `npm run build && npm run docs:playground` — the `playground-bundle`
-verify-docs rule byte-compares it against `dist/index.js` in CI and fails
-on drift.
+The interactive playgrounds import the **published** `zipnative` package
+from a version-pinned CDN (esm.sh, then jsDelivr) through the shared
+loader `docs/playgrounds/load-engine.js` — no local bundle, so what runs
+in the browser is the npm artefact byte for byte. At each release, bump
+the loader's `VERSION` constant with the manifest; the `cdn-pin`
+verify-docs rule fails on drift and on any reintroduced local fallback.
+Consequence: a playground change that needs unreleased engine behaviour
+must wait for the release that ships it.
 
 ## Docs local preview
 

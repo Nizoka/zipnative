@@ -1,11 +1,12 @@
 # Use cases
 
-> **Four production architectures, each built from parts zipnative
+> **Five production architectures, each built from parts the ecosystem
 > already ships** — one-entry reads that never touch the payload,
 > extraction behind always-on guards, byte-reproducible release
-> artifacts, and forward streaming with no Node in sight. Every arrow in
-> the diagrams below is a public, shipped API — nothing here is
-> aspirational.
+> artifacts, forward streaming with no Node in sight, and confidentiality
+> delegated to the document layer because the archive layer has no
+> password by design. Every arrow in the diagrams below is a public,
+> shipped API — nothing here is aspirational.
 
 The [quickstart](quickstart.html) tells you *what* each call does; this
 guide shows *how they compose*. Each case names its exact building
@@ -173,14 +174,99 @@ guide](security.html) spells out the trust caveat. store+bit3 and
 encrypted+bit3 entries are structurally undelimitable and are refused
 with `ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR`.
 
+## Case 5 — Encrypt first, then archive
+
+"Does zipnative support password-protected archives?" is the first
+question many teams ask, and the answer is a deliberate **no** — in
+every surface, read or write. ZipCrypto, the format's legacy cipher, is
+cryptographically broken (Biham–Kocher, a known-plaintext attack that
+recovers the keys from a few kilobytes), so shipping it would be harm
+dressed as a feature; AES-in-ZIP is a vendor extension, not part of the
+ISO/IEC 21320-1 profile the engine writes, and is not in 1.x. Yet
+confidentiality is a real requirement. The pattern that satisfies it is
+to **encrypt the documents, not the envelope** — with the tool that
+already owns the secret — and let zipnative package the ciphertext:
+**the archive stays deterministic, verifiable and readable by any ZIP
+tool, while every payload stays opaque to anyone without the document
+password**.
+
+![Architecture: plain documents flow into a document-layer encryption step — pdfnative's mergePdfs with an AES-256 encrypt option, an Office workbook password, or any tool that owns the secret — and come out as encrypted files whose bytes are opaque. Those files flow into zipnative's createZip with deterministic compression, which packages them into a release archive: names and sizes visible, payloads opaque, identical SHA-256 on every runtime, checkable with verifyZip and inspect --check no-encryption. A red struck edge from a "ZIP password?" card shows that no secret ever enters the archive layer — none, by design, because ZipCrypto is broken and AES-in-ZIP is not in 1.x. A green band states what you gain: every payload is opaque without the document password while the archive stays deterministic, verifiable and safe to extract with any ZIP tool. The closing band states the honest limits — entry names and sizes stay visible, a ZIP is an envelope not a vault, and encrypted payloads do not compress, so store them.](../assets/use-case-encrypt-delegate.svg)
+
+In application code, [pdfnative](https://pdfnative.dev) (the sibling
+engine, zero dependencies too) encrypts a PDF with AES-256 in one call,
+and zipnative packages the result — the two never exchange a secret:
+
+```ts
+import { mergePdfs } from 'pdfnative';
+import { createZip, verifyZip } from 'zipnative';
+
+// 1. Confidentiality — the document layer owns the password (mergePdfs is synchronous).
+const sealed = mergePdfs([{ bytes: reportPdf }], {
+  encrypt: { ownerPassword: process.env.OWNER_PASS!, userPassword: process.env.USER_PASS!,
+             algorithm: 'aes256', permissions: { print: true, copy: false } },
+});
+
+// 2. Packaging — zipnative sees ciphertext and nothing else.
+const zip = createZip({ compression: { deterministic: true } });
+zip.add('report.pdf', sealed, { compression: { method: 'store' } }); // ciphertext does not compress
+zip.add('ledger.xlsx', workbookEncryptedByOffice, { compression: { method: 'store' } });
+const archive = zip.toBytes();                 // same SHA-256 on every runtime
+
+// 3. Proof — structure and integrity, without a single key.
+const report = verifyZip(archive);
+if (!report.ok) throw new Error(report.error!.code);
+```
+
+The same pipeline from a shell, with the two CLIs — the password travels
+in an environment variable, never on a command line, and the archive is
+gated before it ships:
+
+```bash
+export PDFNATIVE_ENCRYPT_OWNER_PASS="$(cat /run/secrets/owner)"
+# the pdfnative-cli package installs the `pdfnative` binary (or: npx pdfnative-cli encrypt …)
+pdfnative encrypt --input report.pdf --output sealed/report.pdf --algorithm aes-256 --permissions print
+zipnative create sealed/ --output release.zip --deterministic --store-ext pdf,xlsx
+zipnative inspect release.zip --check deterministic,no-encryption,safe-names --json
+zipnative verify release.zip --json
+```
+
+What you gain, concretely:
+
+- **Real cryptography** — AES-256 from a document engine that was
+  designed for it, with owner and user passwords and a permission set,
+  instead of a 1990s stream cipher bolted onto the container.
+- **A deterministic, verifiable archive** — `deterministic: true` still
+  holds because the ciphertext is just bytes; `verifyZip()` and
+  `inspect --check no-encryption` prove the envelope without any key,
+  so the reproducibility gate of Case 3 applies unchanged.
+- **Tool-agnostic delivery** — every ZIP tool on every platform lists and
+  extracts the archive; only the recipients with the document password
+  open the documents. No "which unzip supports AES?" support ticket.
+- **One secret owner** — the key never touches the archive layer, the
+  CI job or the MCP server; `entry.isEncrypted` stays `false` and the
+  CLI's `--check no-encryption` asserts it.
+
+Honest limits: entry names and sizes stay visible — a ZIP is an
+envelope, not a vault; if the *existence* of `severance-terms.pdf` is
+the secret, encrypt the whole archive with `age`, GPG or your KMS, not
+its entries. Encrypted payloads do not compress, so store them
+(`method: 'store'`, or the CLI's `--store-ext`) rather than paying
+deflate for nothing. And the pattern needs a document format with real
+encryption: PDF and OOXML have one; a plain `.csv` does not, and belongs
+in the whole-archive case.
+
 ## Picking parts, not a platform
 
 Each case is assembled from surfaces that also work alone, so none of
 them locks you in: the manifest peek (Case 1) is just `openZip` +
 `readEntry`; the reproducibility gate (Case 3) adds nothing but a hash
 of `createZip`'s output; the edge intake (Case 4) is one async iterator
-over the same entries the buffered reader would yield. Start with the
-case closest to your bottleneck and borrow pieces from the others.
+over the same entries the buffered reader would yield; the encrypt-first
+pipeline (Case 5) is Case 3 fed with ciphertext. Every case also runs
+from the [CLI](cli.html) or an [MCP client](mcp.html) — the
+[choosing guide](choose.html) maps each call to its command and tool.
+Start with the case closest to your bottleneck and borrow pieces from
+the others.
 
 ## See also
 
@@ -189,8 +275,10 @@ case closest to your bottleneck and borrow pieces from the others.
 - [Security model](security.html) — the threat table and CWE-tagged
   bounds Case 2 leans on, and Case 4's trust caveat in full.
 - [The determinism contract](determinism.html) — the three guarantee
-  levels behind Case 3's one-hash assertion.
+  levels behind Case 3's one-hash assertion, unchanged in Case 5.
 - [Errors and error codes](errors.html) — the frozen `err.code`
   vocabulary Case 2 dispatches on.
+- [CLI guide](cli.html) · [MCP guide](mcp.html) — the two other surfaces
+  Case 5 runs on.
 - [api.json](../assets/api.json) — the mechanically extracted export
   surface every case is built from.

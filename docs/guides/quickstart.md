@@ -102,6 +102,6 @@ console.log(report.ok, report.entryCount);
   frozen codes) — branch on it, never on message text: see
   [Errors and error codes](errors.html). The message itself still starts
   with `zipnative:` and names the remedy.
-- Four production architectures, with diagrams and honest limits:
+- Five production architectures, with diagrams and honest limits:
   [Use cases](use-cases.html). Try the engine live in your browser:
   [Playgrounds](../playgrounds/).

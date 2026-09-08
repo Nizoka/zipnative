@@ -24,7 +24,7 @@ functions 85, lines 85 — the measured numbers sit well above them).
    every foreign tool available on the machine.
 7. `npm run verify:docs` — all documentation-integrity rules green.
 
-After any `src/` change also refresh the committed playground bundle
-(`npm run docs:playground`) — rule `playground-bundle` byte-compares it
-in CI. Report intentional byte changes to deterministic output loudly:
-they are semver-major by contract.
+At each release also bump the CDN pin in `docs/playgrounds/load-engine.js`
+(the playgrounds run the published package; rule `cdn-pin` checks the pin
+against the manifest). Report intentional byte changes to deterministic
+output loudly: they are semver-major by contract.

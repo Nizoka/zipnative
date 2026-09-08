@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP tool explorer — zipnative-mcp playground</title>
+  <meta name="description" content="The thirteen tools an AI assistant gets from zipnative-mcp 1.0.0 — inspect, list, read, verify, extract, scan, sanitise, create, modify, CRC-32, inflate, describe, draft — with their real MCP payloads, client configuration for Claude Desktop, Claude Code, Cursor, VS Code and Streamable HTTP, and most of them executable in your browser against the published engine.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/mcp.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/mcp.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/mcp.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <style>
+    .mcp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 18px; margin-top: 20px; }
+    .mcp-card { border: 1px solid var(--c-border); border-radius: 10px; padding: 18px 20px 16px; background: var(--c-bg-card); display: flex; flex-direction: column; gap: 10px; }
+    .mcp-card h3 { font-size: 16px; font-weight: 700; margin: 0; color: var(--c-text); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .mcp-card h3 code { background: var(--c-surface); padding: 2px 8px; border-radius: 4px; font-size: 13px; color: var(--c-primary); overflow-wrap: anywhere; }
+    .mcp-card h3 .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--c-surface); color: var(--c-text-dim); letter-spacing: .04em; text-transform: uppercase; }
+    .mcp-card h3 .badge.ro { background: #dcfce7; color: #166534; }
+    [data-theme="dark"] .mcp-card h3 .badge.ro { background: #052e16; color: #bbf7d0; }
+    .mcp-card .purpose { font-size: 13px; color: var(--c-text-dim); line-height: 1.5; margin: 0; }
+    .mcp-card details { font-size: 13px; }
+    .mcp-card details summary { cursor: pointer; font-weight: 600; color: var(--c-text); padding: 4px 0; }
+    .mcp-card details > div { margin-top: 8px; }
+    .mcp-card .prompt { background: var(--c-surface); border-left: 3px solid var(--c-primary); padding: 10px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5; font-style: italic; }
+    .mcp-card pre { background: var(--c-code-bg); color: var(--c-code-text); padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; line-height: 1.45; max-height: 260px; margin: 0; }
+    .mcp-card pre[data-result] { max-height: 340px; white-space: pre-wrap; word-break: break-word; }
+    .mcp-card .actions { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+    .mcp-card button { padding: 6px 12px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .mcp-card button.primary { background: var(--c-primary); color: #fff; }
+    .mcp-card button.primary:hover { background: var(--c-accent); }
+    .mcp-card button.secondary { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); }
+    .mcp-card button.secondary:hover { background: var(--c-bg-alt); }
+    .mcp-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .mcp-card .status { font-size: 12px; color: var(--c-text-dim); padding: 4px 0; min-height: 18px; }
+    .mcp-card .status.success { color: var(--c-success); font-weight: 600; }
+    .mcp-card .status.error { color: #b91c1c; font-weight: 600; white-space: pre-wrap; }
+    [data-theme="dark"] .mcp-card .status.error { color: #fca5a5; }
+    .mcp-card .note { font-size: 12px; color: var(--c-text-dim); border-top: 1px dashed var(--c-border); padding-top: 8px; line-height: 1.45; }
+    .mcp-config-block { margin: 26px 0; padding: 20px 24px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-bg-card); }
+    .mcp-config-block h2 { margin-top: 0; font-size: 18px; }
+    .mcp-config-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--c-border); }
+    .mcp-config-tabs button { padding: 8px 14px; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--c-text-dim); font-family: inherit; }
+    .mcp-config-tabs button[aria-selected="true"] { color: var(--c-primary); border-bottom-color: var(--c-primary); }
+    .mcp-config-block pre { position: relative; background: var(--c-code-bg); color: var(--c-code-text); padding: 14px; border-radius: 6px; font-size: 12.5px; overflow-x: auto; }
+    .mcp-config-block .copy-btn { position: absolute; top: 8px; right: 8px; padding: 4px 10px; font-size: 12px; background: var(--c-primary); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .mcp-sample { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0 4px; font-size: 13px; }
+    .mcp-sample select { padding: 6px 10px; border: 1px solid var(--c-border); border-radius: 6px; font-size: 13px; background: var(--c-bg); color: var(--c-text); font-family: inherit; }
+    .mcp-sample .pg-drop { padding: 10px 16px; flex: 1 1 260px; font-size: 13px; }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative-mcp tool explorer",
+    "url": "https://zipnative.dev/playgrounds/mcp.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "description": "Interactive explorer for the thirteen zipnative-mcp tools: real MCP payloads, client configuration, and in-browser execution of the underlying engine.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "zipnative-mcp",
+      "softwareVersion": "1.0.0",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Node.js >= 22",
+      "url": "https://github.com/Nizoka/zipnative-mcp"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › MCP tool explorer</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html">Incremental modify</a>
+      <a href="./stream.html">Forward streaming</a>
+      <a href="./cli.html">CLI builder</a>
+      <a href="./mcp.html" aria-current="page">MCP explorer</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>zipnative-mcp tool explorer</h1>
+      <p>The tools an AI assistant gets when you wire
+      <a href="https://github.com/Nizoka/zipnative-mcp" rel="noopener" target="_blank">zipnative-mcp</a> 1.0.0
+      into Claude Desktop, Claude Code, Cursor, VS Code or any other Model Context Protocol client.
+      The server exposes <strong>13 tools</strong> — the read side (<code>inspect_zip</code>,
+      <code>list_zip_entries</code>, <code>read_zip_entry</code>, <code>verify_zip</code>,
+      <code>scan_zip_forward</code>, <code>sanitize_entry_paths</code>), the write side
+      (<code>extract_zip</code>, <code>create_zip</code>, <code>modify_zip</code>), the utilities
+      (<code>compute_crc32</code>, <code>inflate_raw</code>) and the meta tools
+      (<code>describe_engine</code>, <code>draft_governance_issue</code>) — plus <strong>7 prompts</strong>
+      and sandboxed <code>zipnative://output/</code> resources. Each card shows a real example prompt,
+      the <strong>MCP tool-call payload</strong> as the assistant would send it, and a <strong>Run</strong>
+      button that executes the same operation on the published <a href="https://www.npmjs.com/package/zipnative" rel="noopener" target="_blank">zipnative</a>
+      engine directly in your browser — no install, no LLM, nothing uploaded. The
+      <a href="../guides/mcp.html">MCP guide</a> holds the exact schemas.</p>
+
+      <div class="mcp-config-block">
+        <h2>1. Configure your client</h2>
+        <p style="font-size: 14px; color: var(--c-text-dim);">Pick your client and paste the snippet into its MCP configuration. <code>npx -y</code> fetches zipnative-mcp on first use. <code>ZIPNATIVE_MCP_OUTPUT_DIR</code> is optional — without it the tools work on base64 only; with it, <code>zipPath</code> / <code>sourcePath</code> inputs, <code>outputMode: "file"</code> and the resources light up.</p>
+        <div class="mcp-config-tabs" role="tablist">
+          <button role="tab" type="button" aria-selected="true"  data-client="claude">Claude Desktop</button>
+          <button role="tab" type="button" aria-selected="false" data-client="claude-code">Claude Code</button>
+          <button role="tab" type="button" aria-selected="false" data-client="cursor">Cursor</button>
+          <button role="tab" type="button" aria-selected="false" data-client="vscode">VS Code</button>
+          <button role="tab" type="button" aria-selected="false" data-client="http">Streamable HTTP</button>
+        </div>
+<pre><code class="language-json" id="config-output"></code><button class="copy-btn" id="copy-config" type="button">Copy</button></pre>
+        <p style="font-size: 13px; color: var(--c-text-dim); margin-top: 10px;"><strong>Other clients:</strong> Continue, Zed, Windsurf, Cline, Roo Code, the MCP Inspector and anything built on the MCP SDKs take the same <code>command: "npx"</code> / <code>args: ["-y", "zipnative-mcp"]</code> pair in whatever JSON shape they expect. The server speaks MCP 2026-07-28 and falls back to every 2024–2025 revision automatically.</p>
+      </div>
+
+      <h2 style="margin-top: 32px;">2. Try the tools</h2>
+      <p id="loader-status" class="pg-status info" role="status" aria-live="polite">Loading <code>zipnative</code> from the CDN… this happens once per page load.</p>
+      <div class="mcp-sample">
+        <label>archive under test
+          <select id="sample">
+            <option value="clean">sample: clean 6-entry archive (built here with createZip)</option>
+            <option value="hostile">sample: hostile — zip-slip name + a clean entry</option>
+            <option value="own" disabled>your file (drop one →)</option>
+          </select>
+        </label>
+        <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop a .zip file or click to choose">Drop any <code>.zip</code> here — it never leaves your browser</div>
+        <input type="file" id="file" accept=".zip,.jar,.docx,.xlsx,.pptx,.epub,.vsix,.nupkg,.whl" hidden>
+        <span id="sample-info" style="color:var(--c-text-dim)"></span>
+      </div>
+      <p style="font-size: 13px; color: var(--c-text-dim);">Every card runs the <em>engine</em> call behind its tool on the archive above and shows the result in the tool's output vocabulary — the shared inputs (<code>strict</code>, <code>limits</code>, <code>verbosity</code>, <code>fields</code>) are applied as the server applies them. What a browser cannot reproduce is stated on the card and refused with <code>BROWSER_LIMITATION</code> rather than ignored: the sandbox (<code>zipPath</code>, <code>sourcePath</code>, <code>outputMode: "file"</code>, <code>outputDir</code>, resources), the worker pool behind <code>create_zip.parallel</code>, the operator ceilings (<code>LIMIT_CEILING_EXCEEDED</code>), the inline caps (<code>ENTRY_TOO_LARGE</code>), the response cache (<code>_meta.cached</code>) and the server half of <code>describe_engine</code> — all of which need the Node process. <code>draft_governance_issue</code> has no engine equivalent at all (it is the server's own policy engine) and offers <em>Copy args</em> only. The seven prompts are listed in section 3; they are text, not code.</p>
+
+      <div class="mcp-cards" id="cards"></div>
+
+      <h2 style="margin-top: 40px;">3. The prompts, and what to ask</h2>
+      <p>Seven read-only prompts teach the assistant the workflows and the rules — <code>secure_extraction</code>,
+      <code>reproducible_archive</code>, <code>incremental_update</code>, <code>forensic_scan</code>,
+      <code>verify_before_trust</code>, <code>governance_contract</code>, <code>draft_issue_workflow</code>.
+      Once the config is pasted and the client restarted, ask it anything archive-shaped:</p>
+      <ul>
+        <li><em>"Verify this build artefact, confirm it is reproducible with no encrypted or unsafe entries, then extract only the manifest."</em></li>
+        <li><em>"Build a deterministic EPUB from these three files — mimetype first, stored — and give me its SHA-256."</em></li>
+        <li><em>"This download is truncated. Scan it forward and tell me which entries survived, without trusting the result."</em></li>
+        <li><em>"Remove <code>.env</code> from this archive so that it is truly gone, not just unlisted."</em></li>
+      </ul>
+
+      <h2>Resources</h2>
+      <ul>
+        <li><a href="../guides/mcp.html">MCP guide</a> — configuration, every tool's inputs and outputs, prompts, resources, environment, the error and security models</li>
+        <li><a href="https://github.com/Nizoka/zipnative-mcp" rel="noopener" target="_blank">zipnative-mcp on GitHub</a> · <a href="https://www.npmjs.com/package/zipnative-mcp" rel="noopener" target="_blank">on npm</a></li>
+        <li><a href="../guides/cli.html">CLI guide</a> · <a href="./cli.html">CLI builder</a></li>
+        <li><a href="https://modelcontextprotocol.io" rel="noopener" target="_blank">Model Context Protocol specification</a></li>
+      </ul>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · your file never leaves the browser · engine: <span id="engine-source">…</span></span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { loadEngine } from './load-engine.js';
+
+    // ── 1. Client configuration snippets ────────────────────────────
+    const CONFIGS = {
+      claude: `{
+  "mcpServers": {
+    "zipnative": {
+      "command": "npx",
+      "args": ["-y", "zipnative-mcp"],
+      "env": { "ZIPNATIVE_MCP_OUTPUT_DIR": "/Users/you/Documents/mcp-archives" }
+    }
+  }
+}`,
+      'claude-code': `// one command, or commit the same "mcpServers" shape as .mcp.json
+claude mcp add zipnative --env ZIPNATIVE_MCP_OUTPUT_DIR=/path/to/mcp-archives -- npx -y zipnative-mcp`,
+      cursor: `// ~/.cursor/mcp.json (or the project's .cursor/mcp.json)
+{
+  "mcpServers": {
+    "zipnative": {
+      "command": "npx",
+      "args": ["-y", "zipnative-mcp"],
+      "env": { "ZIPNATIVE_MCP_OUTPUT_DIR": "/Users/you/Documents/mcp-archives" }
+    }
+  }
+}`,
+      vscode: `// .vscode/mcp.json
+{
+  "servers": {
+    "zipnative": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "zipnative-mcp"],
+      "env": { "ZIPNATIVE_MCP_OUTPUT_DIR": "\${workspaceFolder}/.mcp-archives" }
+    }
+  }
+}`,
+      http: `# loopback only, POST /mcp; the token is optional but without it the port has NO authentication
+ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -y zipnative-mcp
+# → http://127.0.0.1:3000/mcp   Authorization: Bearer <token>`,
+    };
+    const cfgOut = document.getElementById('config-output');
+    function setConfig(client) {
+      cfgOut.textContent = CONFIGS[client] || '';
+      cfgOut.className = client === 'http' || client === 'claude-code' ? 'language-bash' : 'language-json';
+      if (window.Prism) window.Prism.highlightElement(cfgOut);
+    }
+    document.querySelectorAll('.mcp-config-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mcp-config-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
+        setConfig(btn.dataset.client);
+      });
+    });
+    setConfig('claude');
+    document.getElementById('copy-config').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(cfgOut.textContent); const b = document.getElementById('copy-config'); b.textContent = 'Copied!'; setTimeout(() => { b.textContent = 'Copy'; }, 1500); }
+      catch { alert('Clipboard write failed.'); }
+    });
+
+    // ── 2. Engine + archive under test ───────────────────────────────
+    const $ = (id) => document.getElementById(id);
+    const te = new TextEncoder();
+    const status = $('loader-status');
+    const ZIP_PLACEHOLDER = '<zip-base64>';
+    let mod = null;
+    let current = { label: 'sample: clean', bytes: null };
+
+    function b64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+    function toB64(u) { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+    function fmtBytes(n) { return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB'; }
+    function hex8(n) { return (n >>> 0).toString(16).padStart(8, '0'); }
+    async function sha256Hex(bytes) {
+      if (!(crypto && crypto.subtle)) return null;
+      const d = await crypto.subtle.digest('SHA-256', bytes);
+      return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Crafted by tests/helpers/raw-zip-builder.ts: '../evil.txt' (zip-slip) + 'ok.txt'.
+    const HOSTILE = 'UEsDBBQAAAAAAAAAIQB+UwTZBQAAAAUAAAALAAAALi4vZXZpbC50eHRwd25lZFBLAwQUAAAAAAAAACEAZo1BSA0AAAANAAAABgAAAG9rLnR4dGxlZ2l0IGNvbnRlbnRQSwECHgMUAAAAAAAAACEAflME2QUAAAAFAAAACwAAAAAAAAAAAAAAAAAAAAAALi4vZXZpbC50eHRQSwECHgMUAAAAAAAAACEAZo1BSA0AAAANAAAABgAAAAAAAAAAAAAAAAAuAAAAb2sudHh0UEsFBgAAAAACAAIAbQAAAF8AAAAAAA==';
+
+    function buildCleanSample() {
+      const zip = createZipCompat({ compression: { deterministic: true }, comment: 'zipnative-mcp explorer sample' });
+      zip.add('README.md', '# sample\n\nBuilt in the browser by createZip({ deterministic: true }).\n');
+      zip.add('src/index.ts', 'export const answer = 42;\n'.repeat(40));
+      zip.add('src/util.ts', 'export function twice(n: number): number { return n * 2; }\n'.repeat(30));
+      zip.add('data/config.json', JSON.stringify({ version: 1, deterministic: true, entries: 6 }, null, 2));
+      zip.addDirectory('assets/');
+      zip.add('assets/logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#1D4ED8"/></svg>', { compression: { method: 'store' } });
+      return zip.toBytes();
+    }
+    function createZipCompat(opts) { return mod.createZip(opts); }
+
+    function setSample(kind, file) {
+      if (kind === 'own' && file) {
+        return file.arrayBuffer().then((buf) => { current = { label: file.name, bytes: new Uint8Array(buf) }; $('sample').value = 'own'; $('sample').querySelector('[value="own"]').disabled = false; showSample(); });
+      }
+      current = kind === 'hostile' ? { label: 'sample: hostile (zip-slip)', bytes: b64(HOSTILE) } : { label: 'sample: clean', bytes: buildCleanSample() };
+      showSample();
+      return Promise.resolve();
+    }
+    function showSample() { $('sample-info').textContent = `${current.label} · ${fmtBytes(current.bytes.length)}`; }
+    $('sample').addEventListener('change', () => { if ($('sample').value !== 'own') setSample($('sample').value); });
+    const drop = $('drop'), file = $('file');
+    drop.addEventListener('click', () => file.click());
+    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+    file.addEventListener('change', () => { if (file.files[0]) setSample('own', file.files[0]); });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('dragover'); if (e.dataTransfer.files[0]) setSample('own', e.dataTransfer.files[0]); });
+
+    // ── Shared helpers mirroring the server's vocabulary ─────────────
+    function methodName(m) { return m === 0 ? 'store' : m === 8 ? 'deflate' : `method ${m}`; }
+    function globToRe(g) {
+      // The server's glob: * within a segment, ** across, ? one char; no '/' = any depth; trailing '/' = subtree.
+      let s = g;
+      if (s.endsWith('/')) return new RegExp('^' + s.replace(/[.+^${}()|[\]\\]/g, '\\$&') + '.*$');
+      const anyDepth = !s.includes('/');
+      s = s.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]').replace(/\u0000/g, '.*');
+      return new RegExp((anyDepth ? '(^|/)' : '^') + s + '$');
+    }
+    function applyFilter(entries, filter, includeDirsDefault) {
+      if (!filter) return entries.filter((e) => includeDirsDefault || !e.isDirectory);
+      const res = (filter.glob || []).map(globToRe);
+      return entries.filter((e) => {
+        if (e.isDirectory && !filter.includeDirectories) return false;
+        if (filter.names && !filter.names.includes(e.name)) return false;
+        if (filter.prefix && !e.name.startsWith(filter.prefix)) return false;
+        if (res.length && !res.some((r) => r.test(e.name))) return false;
+        return true;
+      });
+    }
+    function entryRow(e, full) {
+      const row = {
+        name: e.name, nameEncoding: e.nameEncoding, isDirectory: e.isDirectory, isSymlink: mod.isSymlinkEntry(e),
+        method: e.compressionMethod, methodName: methodName(e.compressionMethod),
+        compressedSize: e.compressedSize, uncompressedSize: e.uncompressedSize,
+        ratio: e.compressedSize > 0 ? Number((e.uncompressedSize / e.compressedSize).toFixed(2)) : null,
+        crc32: hex8(e.crc32), lastModified: e.lastModified.toISOString(), isEncrypted: e.isEncrypted,
+        usesZip64: e.usesZip64, usesDataDescriptor: e.usesDataDescriptor, unixMode: mod.getUnixMode(e),
+        sanitizedPath: mod.sanitizeEntryPath(e.name),
+      };
+      if (full) Object.assign(row, { localHeaderOffset: e.localHeaderOffset, flags: e.flags, versionMadeBy: e.versionMadeBy, versionNeeded: e.versionNeeded, extraFields: e.extraFields.map((x) => ({ id: '0x' + x.id.toString(16).padStart(4, '0'), bytes: x.data.length })), comment: new TextDecoder().decode(e.comment) });
+      return row;
+    }
+    function isEpoch(e) { return e.dosDate === 0x21 && e.dosTime === 0; }
+    function canonicalOrder(entries) {
+      for (let i = 1; i < entries.length; i++) { const a = entries[i - 1].rawName, b = entries[i].rawName; let c = 0; const n = Math.min(a.length, b.length); for (let k = 0; k < n && c === 0; k++) c = a[k] - b[k]; if (c === 0) c = a.length - b.length; if (c > 0) return false; }
+      return true;
+    }
+    // The server's diagnostic sink: de-duplicated by (code, entryName), 200 kept,
+    // plus per-code counts — and its `strict` / `limits` pass-through.
+    function withDiagnostics(fn, a) {
+      const rows = [], seen = new Set(), counts = {}; let truncated = false;
+      const onDiagnostic = (d) => {
+        counts[d.code] = (counts[d.code] || 0) + 1;
+        const key = d.code + '\u0000' + (d.entryName ?? '');
+        if (seen.has(key)) return; seen.add(key);
+        if (rows.length >= 200) { truncated = true; return; }
+        rows.push({ code: d.code, severity: d.severity, message: d.message, ...(d.entryName !== undefined ? { entryName: d.entryName } : {}) });
+      };
+      const r = fn(onDiagnostic, engineOpts(a || {}, onDiagnostic));
+      return { r, diagnostics: rows, diagnosticCounts: counts, ...(truncated ? { diagnosticsTruncated: true } : {}), report: { diagnostics: rows, diagnosticCounts: counts, ...(truncated ? { diagnosticsTruncated: true } : {}) } };
+    }
+    // ZipCommonOptions as the tool would pass them: `strict` and `limits` verbatim.
+    function engineOpts(a, onDiagnostic) { return { onDiagnostic, ...(a.strict ? { strict: true } : {}), ...(a.limits ? { limits: a.limits } : {}) }; }
+    // The server's projection (src/projection.ts): verbosity:'summary' swaps in the
+    // tool's scalar summary, then `fields` picks dot-paths (array segments map).
+    function pick(value, segments) {
+      if (segments.length === 0) return value;
+      if (Array.isArray(value)) return value.map((el) => pick(el, segments));
+      if (value !== null && typeof value === 'object') { const [head, ...rest] = segments; if (!(head in value)) return undefined; const p = pick(value[head], rest); return p === undefined ? undefined : { [head]: p }; }
+      return undefined;
+    }
+    function deepMerge(x, y) {
+      if (y === undefined) return x; if (x === undefined) return y;
+      if (Array.isArray(x) && Array.isArray(y)) { const out = []; for (let i = 0; i < Math.max(x.length, y.length); i++) out.push(deepMerge(x[i], y[i])); return out; }
+      if (x && y && typeof x === 'object' && typeof y === 'object' && !Array.isArray(x) && !Array.isArray(y)) { const out = { ...x }; for (const [k, v] of Object.entries(y)) out[k] = k in out ? deepMerge(out[k], v) : v; return out; }
+      return y;
+    }
+    function project(full, summary, a) {
+      const base = a.verbosity === 'summary' ? summary : full;
+      const fields = Array.isArray(a.fields) ? a.fields.map((f) => String(f).trim()).filter(Boolean) : [];
+      if (!fields.length) return base;
+      let result;
+      for (const f of fields) result = deepMerge(result, pick(base, f.split('.').map((s) => s.trim()).filter(Boolean)));
+      const unmatched = fields.filter((f) => !(f.split('.')[0].trim() in base));
+      return { ...(result === undefined ? {} : result), ...(unmatched.length ? { _meta: { unmatchedFields: unmatched, availableFields: Object.keys(base) } } : {}) };
+    }
+    // Per-entry options as create_zip / modify_zip map them (src/entry-spec.ts):
+    // date, comment, unixMode → externalAttributes ((S_IFREG|mode) << 16, + 0x10 for a directory), extraFields.
+    function entryOptions(e, isDirectory) {
+      const opts = {};
+      if (e.compression) opts.compression = e.compression;
+      if (e.date) opts.date = new Date(e.date);
+      if (e.comment !== undefined) opts.comment = e.comment;
+      if (e.externalAttributes !== undefined && e.unixMode !== undefined) throw Object.assign(new Error('externalAttributes and unixMode are exclusive'), { code: 'VALIDATION_ERROR' });
+      if (e.externalAttributes !== undefined) opts.externalAttributes = e.externalAttributes;
+      if (e.unixMode !== undefined) { const m = /^(?:0o)?([0-7]{3,4})$/.exec(String(e.unixMode)); if (!m) throw Object.assign(new Error(`unixMode must be 3–4 octal digits such as '0644' (got ${JSON.stringify(e.unixMode)})`), { code: 'VALIDATION_ERROR' }); const mode = parseInt(m[1], 8) & 0o7777; opts.externalAttributes = ((((isDirectory ? 0o040000 : 0o100000) | mode) << 16) | (isDirectory ? 0x10 : 0)) >>> 0; }
+      if (e.extraFields) opts.extraFields = e.extraFields.map((f, i) => { if (f.id === 1) throw Object.assign(new Error(`extraFields[${i}].id 0x0001 is the Zip64 record — the engine emits it itself.`), { code: 'VALIDATION_ERROR' }); return { id: f.id, data: f.dataBase64 ? b64(f.dataBase64) : new Uint8Array(0) }; });
+      if (e.sourcePath !== undefined) throw Object.assign(new Error('sourcePath reads a file from the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — a Node-side capability this browser page cannot reproduce; use text or dataBase64 here.'), { code: 'BROWSER_LIMITATION' });
+      if (e.stream) throw Object.assign(new Error('stream: true feeds a sandbox file through addStream — needs the server; the bytes would be identical apart from the data-descriptor layout.'), { code: 'BROWSER_LIMITATION' });
+      return opts;
+    }
+    function payloadOf(e) { return e.dataBase64 !== undefined ? b64(e.dataBase64) : (e.text ?? ''); }
+    function download(bytes, name, mime) {
+      const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/zip' }));
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    }
+    // The server's pull-on-demand delivery (scan-zip-forward.ts): chunks of `size`,
+    // the tail sliced 16 bytes at a time, and a counter of bytes actually handed to
+    // the reader — so `stoppedAt` can be derived from byte accounting, as the server does.
+    function chunkStream(bytes, size) {
+      const counter = { delivered: 0 };
+      let off = 0;
+      const stream = new ReadableStream({ pull(c) {
+        if (off >= bytes.length) { c.close(); return; }
+        const isTail = off + size >= bytes.length;
+        const n = Math.min(isTail ? 16 : size, bytes.length - off);
+        c.enqueue(bytes.subarray(off, off + n)); off += n; counter.delivered += n;
+      } });
+      return { stream, counter };
+    }
+
+    // ── 3. The tool catalogue — registration order of tools/list ─────
+    // `args` is the real MCP payload (zipBase64 stands for the archive
+    // under test); `run` executes the engine call behind the tool.
+    const TOOLS = [
+      {
+        id: 'inspect_zip', ro: true,
+        purpose: 'One-call forensic report with a determinism verdict and CI assertions — the zipnative inspect --json shape. Opens eagerly.',
+        prompt: 'Is this build artefact reproducible, free of encrypted entries and safe to extract? Give me the verdict, not the listing.',
+        args: { zipBase64: ZIP_PLACEHOLDER, check: ['deterministic', 'no-encryption', 'safe-names', 'no-symlinks'], assert: { maxEntries: 5000, has: ['README.md'] }, verbosity: 'summary', fields: ['checksPassed', 'checks'] },
+        note: 'Browser approximation: the counts, the determinism verdict, every check and the <code>verbosity</code> / <code>fields</code> projection are computed here from the same engine facts; the server\'s <code>structuredContent</code> also carries the date range, the named method rows and the prepended-data offsets. <code>strict</code> and <code>limits</code> are passed to the engine exactly as the tool passes them.',
+        run(a, bytes) {
+          const { r: reader, diagnostics, report } = withDiagnostics((onDiagnostic, opts) => mod.openZip(bytes, { validate: a.validate || 'eager', ...opts }), a);
+          const entries = [...reader.entries()];
+          const files = entries.filter((e) => !e.isDirectory);
+          const names = new Set(); let duplicates = 0;
+          for (const e of entries) { if (names.has(e.name)) duplicates++; names.add(e.name); }
+          const facts = {
+            archiveBytes: bytes.length, entryCount: entries.length, fileCount: files.length, directoryCount: entries.length - files.length,
+            isZip64: reader.isZip64, comment: new TextDecoder().decode(reader.comment),
+            compressedBytes: entries.reduce((s, e) => s + e.compressedSize, 0), uncompressedBytes: entries.reduce((s, e) => s + e.uncompressedSize, 0),
+            encryptedCount: entries.filter((e) => e.isEncrypted).length, symlinkCount: entries.filter((e) => mod.isSymlinkEntry(e)).length,
+            dataDescriptorCount: entries.filter((e) => e.usesDataDescriptor).length, zip64Count: entries.filter((e) => e.usesZip64).length,
+            cp437Count: entries.filter((e) => e.nameEncoding === 'cp437').length, duplicateNameCount: duplicates,
+            unsafeNameCount: entries.filter((e) => mod.sanitizeEntryPath(e.name) === null).length,
+            methods: Object.fromEntries([...new Set(entries.map((e) => e.compressionMethod))].map((m) => [methodName(m), entries.filter((e) => e.compressionMethod === m).length])),
+          };
+          const det = {
+            epochTimestamps: entries.every(isEpoch), canonicalOrder: canonicalOrder(entries), utf8Flags: entries.every((e) => (e.flags & mod.FLAG_UTF8) !== 0),
+            noDataDescriptors: facts.dataDescriptorCount === 0,
+          };
+          det.canonicalLayout = det.noDataDescriptors; det.deterministic = det.epochTimestamps && det.canonicalOrder && det.utf8Flags;
+          // As inspect-zip.ts: the worst ratio over EVERY entry with a non-zero compressed size;
+          // store-only / deflate-only / method over every entry, directories included.
+          const worstRatio = entries.reduce((m, e) => (e.compressedSize > 0 ? Math.max(m, e.uncompressedSize / e.compressedSize) : m), 0);
+          const CHECKS = {
+            'deterministic': () => det.deterministic, 'epoch-timestamps': () => det.epochTimestamps, 'canonical-order': () => det.canonicalOrder, 'utf8-names': () => det.utf8Flags,
+            'no-data-descriptor': () => det.noDataDescriptors, 'canonical-layout': () => det.canonicalLayout, 'no-zip64': () => !reader.isZip64 && facts.zip64Count === 0, 'zip64': () => reader.isZip64 || facts.zip64Count > 0,
+            'no-encryption': () => facts.encryptedCount === 0, 'no-symlinks': () => facts.symlinkCount === 0, 'safe-names': () => facts.unsafeNameCount === 0, 'no-duplicates': () => duplicates === 0,
+            'no-diagnostics': () => diagnostics.length === 0, 'store-only': () => entries.every((e) => e.compressionMethod === 0), 'deflate-only': () => entries.every((e) => e.compressionMethod === 8),
+          };
+          const checks = [];
+          for (const c of a.check || []) checks.push({ check: c, ok: CHECKS[c] ? CHECKS[c]() : false, detail: CHECKS[c] ? undefined : 'unknown check' });
+          const as = a.assert || {};
+          if (as.maxEntries !== undefined) checks.push({ check: `max-entries=${as.maxEntries}`, ok: entries.length <= as.maxEntries, detail: `${entries.length} entries (max ${as.maxEntries})` });
+          if (as.minEntries !== undefined) checks.push({ check: `min-entries=${as.minEntries}`, ok: entries.length >= as.minEntries, detail: `${entries.length} entries (min ${as.minEntries})` });
+          if (as.maxUncompressedBytes !== undefined) checks.push({ check: `max-uncompressed=${as.maxUncompressedBytes}`, ok: facts.uncompressedBytes <= as.maxUncompressedBytes, detail: `${facts.uncompressedBytes} bytes uncompressed (max ${as.maxUncompressedBytes})` });
+          if (as.maxRatio !== undefined) checks.push({ check: `max-ratio=${as.maxRatio}`, ok: worstRatio <= as.maxRatio, detail: `worst entry ratio ${worstRatio.toFixed(1)}:1 (max ${as.maxRatio}:1)` });
+          for (const n of as.has || []) { const present = entries.some((e) => e.name === n); checks.push({ check: `has=${n}`, ok: present, detail: present ? `entry "${n}" present` : `entry "${n}" missing` }); }
+          if (as.method) { const want = as.method === 'store' ? 0 : 8; const ok = entries.every((e) => e.compressionMethod === want); checks.push({ check: `method=${as.method}`, ok, detail: `all entries use ${as.method}: ${ok}` }); }
+          const checksPassed = checks.every((c) => c.ok);
+          const full = { ...facts, determinism: det, ...(a.check || a.assert ? { checks, checksPassed } : {}), ...report };
+          const summary = { archiveBytes: facts.archiveBytes, entryCount: facts.entryCount, isZip64: facts.isZip64, compressedBytes: facts.compressedBytes, uncompressedBytes: facts.uncompressedBytes, encryptedCount: facts.encryptedCount, unsafeNameCount: facts.unsafeNameCount, duplicateNameCount: facts.duplicateNameCount, deterministic: det.deterministic, canonicalLayout: det.canonicalLayout, diagnosticCount: diagnostics.length, ...(a.check || a.assert ? { checksPassed, checks } : {}) };
+          return project(full, summary, a);
+        },
+      },
+      {
+        id: 'list_zip_entries', ro: true,
+        purpose: 'Paged central-directory inventory, nothing decompressed: full rows with the sanitized path each entry would extract to (null = the gate would refuse it).',
+        prompt: 'List the TypeScript files under src/ — names and sizes only, first page.',
+        args: { zipBase64: ZIP_PLACEHOLDER, filter: { prefix: 'src/', glob: ['**/*.ts'] }, limit: 50, fields: ['entries.name', 'entries.uncompressedSize', 'hasMore'] },
+        note: 'The <code>fields</code> projection is applied here as the server applies it (array segments map over the rows). With no <code>filter</code> at all, directories are listed; any <code>filter</code> drops them unless it says <code>includeDirectories: true</code> — the server\'s asymmetry, reproduced.',
+        run(a, bytes) {
+          const { r: reader, report } = withDiagnostics((onDiagnostic, opts) => mod.openZip(bytes, { validate: a.validate || 'lazy', ...opts }), a);
+          const all = [...reader.entries()];
+          const matched = applyFilter(all, a.filter, true);
+          const offset = a.offset || 0, limit = Math.min(a.limit || 200, 2000);
+          const page = matched.slice(offset, offset + limit);
+          const full = { entryCount: all.length, matchedCount: matched.length, offset, limit, returnedCount: page.length, hasMore: offset + page.length < matched.length, isZip64: reader.isZip64, entries: page.map((e) => entryRow(e, !!a.includeExtraData)), ...report };
+          const summary = { entryCount: full.entryCount, matchedCount: full.matchedCount, returnedCount: full.returnedCount, hasMore: full.hasMore, isZip64: full.isZip64, names: page.map((e) => e.name), diagnosticCount: report.diagnostics.length };
+          return project(full, summary, a);
+        },
+      },
+      {
+        id: 'read_zip_entry', ro: true,
+        purpose: 'One entry by name or index — decompressed and CRC-verified (data), the compressed payload verbatim (raw), or its verification only (verify). Ranges read a window.',
+        prompt: 'Show me the README of this archive as text.',
+        args: { zipBase64: ZIP_PLACEHOLDER, name: 'README.md', mode: 'data', encoding: 'utf8' },
+        variants: [{ label: 'Run raw', args: { zipBase64: ZIP_PLACEHOLDER, name: 'src/index.ts', mode: 'raw' } }, { label: 'Run verify', args: { zipBase64: ZIP_PLACEHOLDER, index: 0, mode: 'verify' } }],
+        note: 'A <code>range</code> is emulated here by slicing the decompressed entry; the server reads the window through the chunked stream without inflating the rest. Not emulated: the 16 MiB inline cap (<code>ENTRY_TOO_LARGE</code> — on the compressed size for <code>raw</code>, the decompressed size for <code>data</code>; the remedy is a <code>range</code> or <code>extract_zip</code> file mode). Payloads are truncated for display only.',
+        run(a, bytes) {
+          const { r: reader, report } = withDiagnostics((onDiagnostic, opts) => mod.openZip(bytes, opts), a);
+          const entry = a.index !== undefined ? [...reader.entries()][a.index] : reader.getEntry(a.name);
+          if (!entry) throw Object.assign(new Error(`entry not found (${a.name ?? 'index ' + a.index})`), { code: 'ZIP_ENTRY_NOT_FOUND' });
+          const row = entryRow(entry, false);
+          const finish = (full) => project({ ...full, ...report }, { name: row.name, mode: full.mode, sizeBytes: full.sizeBytes, crcVerified: full.crcVerified, ...(full.textLength !== undefined ? { textLength: full.textLength } : {}), ...(full.range ? { range: full.range } : {}), ...(full.verification ? { verification: full.verification } : {}), diagnosticCount: report.diagnostics.length }, a);
+          if (a.mode === 'verify') { const v = reader.verifyEntry(entry); return finish({ entry: row, mode: 'verify', sizeBytes: entry.uncompressedSize, crcVerified: v.crcMatch, verification: v }); }
+          if (a.mode === 'raw') { const raw = reader.readEntryRaw(entry); return finish({ entry: row, mode: 'raw', sizeBytes: raw.length, crcVerified: false, encoding: 'base64', dataBase64: toB64(raw.subarray(0, 512)) + (raw.length > 512 ? '… (truncated for display)' : '') }); }
+          let data = reader.readEntry(entry, { verifyCrc: a.verifyCrc !== false && !a.range });
+          let range;
+          if (a.range) { range = { offset: a.range.offset, length: a.range.length, returned: Math.max(0, Math.min(a.range.length, data.length - a.range.offset)) }; data = data.subarray(a.range.offset, a.range.offset + a.range.length); }
+          const crcVerified = !a.range && a.verifyCrc !== false;
+          if (a.encoding === 'utf8') { const text = new TextDecoder('utf-8', { fatal: true }).decode(data); return finish({ entry: row, mode: 'data', sizeBytes: data.length, crcVerified, encoding: 'utf8', text: text.length > 2000 ? text.slice(0, 2000) + '…' : text, textLength: text.length, ...(range ? { range } : {}) }); }
+          return finish({ entry: row, mode: 'data', sizeBytes: data.length, crcVerified, encoding: 'base64', dataBase64: toB64(data.subarray(0, 512)) + (data.length > 512 ? '…' : ''), ...(range ? { range } : {}) });
+        },
+      },
+      {
+        id: 'verify_zip', ro: true,
+        purpose: "The engine's verifyZip report verbatim: eager structural validation, then every entry's CRC-32 / size / local-header agreement. Never fails for an archive problem — it reports.",
+        prompt: 'Verify this archive before I extract it. Only show me what failed.',
+        args: { zipBase64: ZIP_PLACEHOLDER, entries: 'failed', verbosity: 'summary' },
+        variants: [{ label: 'Run (all rows)', args: { zipBase64: ZIP_PLACEHOLDER, entries: 'all' } }],
+        note: 'The one exact twin: this card calls <code>verifyZip()</code>, the same function the server calls (with the same <code>limits</code>), reshapes the counts and applies the same <code>verbosity</code> / <code>fields</code> projection. There is no <code>strict</code> here — <code>verify_zip</code> reports, it never throws for the archive.',
+        run(a, bytes) {
+          const report = mod.verifyZip(bytes, a.limits ? { limits: a.limits } : undefined);
+          const rows = report.entries;
+          const failed = rows.filter((e) => !e.ok && !e.skipped), skipped = rows.filter((e) => e.skipped);
+          const sel = a.entries === 'failed' ? failed : a.entries === 'skipped' ? skipped : a.entries === 'none' ? [] : rows;
+          const max = a.maxEntries || 1000;
+          const full = { ok: report.ok, error: report.error, entryCount: report.entryCount, verifiedCount: rows.length - failed.length - skipped.length, failedCount: failed.length, skippedCount: skipped.length, entries: sel.slice(0, max), entriesTruncated: sel.length > max, diagnostics: report.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message, ...(d.entryName !== undefined ? { entryName: d.entryName } : {}) })) };
+          const summary = { ok: full.ok, error: full.error, entryCount: full.entryCount, verifiedCount: full.verifiedCount, failedCount: full.failedCount, skippedCount: full.skippedCount, diagnosticCount: full.diagnostics.length };
+          return project(full, summary, a);
+        },
+      },
+      {
+        id: 'extract_zip',
+        purpose: 'Extract with every engine guard on unless you name the relaxation: unsafe names, symlinks, duplicates and bombs are refused with their ZIP_* code; includeData: false is the dry run.',
+        prompt: 'Extract this upload — but first show me the plan without decompressing anything.',
+        args: { zipBase64: ZIP_PLACEHOLDER, includeData: false, filter: { glob: ['src/', '*.md'] } },
+        variants: [{ label: 'Run with data', args: { zipBase64: ZIP_PLACEHOLDER, includeData: true } }, { label: 'Run rejectTraversal: false', args: { zipBase64: ZIP_PLACEHOLDER, includeData: false, rejectTraversal: false } }],
+        note: 'Browser: base64 mode only. <code>outputMode: "file"</code>, <code>outputDir</code>, <code>emptyDirectories</code> and the <code>resource_link</code> blocks need the sandbox (<code>ZIPNATIVE_MCP_OUTPUT_DIR</code>). Try the hostile sample above to watch <code>ZIP_PATH_TRAVERSAL</code> fire, then relax it and see the entry land in <code>skipped[]</code> instead.',
+        run(a, bytes) {
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — a Node-side capability this browser page cannot reproduce; run the base64 mode here.'), { code: 'BROWSER_LIMITATION' });
+          const { r: files, report } = withDiagnostics((onDiagnostic, engine) => {
+            const opts = { ...engine, rejectTraversal: a.rejectTraversal !== false, rejectSymlinks: a.rejectSymlinks !== false, onDuplicate: a.onDuplicate || 'error' };
+            if (a.filter) { const keep = new Set(applyFilter([...mod.openZip(bytes).entries()], a.filter, false).map((e) => e.name)); opts.filter = (e) => keep.has(e.name); }
+            return mod.extractZip(bytes, opts);
+          }, a);
+          const reader = mod.openZip(bytes);
+          const emitted = new Set(files.map((f) => f.entry.name));
+          const skipped = [...reader.entries()].filter((e) => !e.isDirectory && mod.sanitizeEntryPath(e.name) === null && !emitted.has(e.name)).map((e) => ({ entryName: e.name, reason: 'unsafe-path' }));
+          const entries = files.map((f, i) => ({ path: f.path, entryName: f.entry.name, index: i, sizeBytes: f.data.length, crc32: hex8(f.entry.crc32), method: methodName(f.entry.compressionMethod), ...(a.includeData !== false ? { dataBase64: toB64(f.data.subarray(0, 96)) + (f.data.length > 96 ? '…' : '') } : {}) }));
+          const full = { mode: 'base64', dryRun: a.includeData === false, fileCount: entries.length, totalBytes: files.reduce((s, f) => s + f.data.length, 0), entries, skipped, ...report };
+          const summary = { mode: full.mode, dryRun: full.dryRun, fileCount: full.fileCount, totalBytes: full.totalBytes, skippedCount: skipped.length, paths: entries.map((e) => e.path), diagnosticCount: report.diagnostics.length };
+          return project(full, summary, a);
+        },
+      },
+      {
+        id: 'scan_zip_forward', ro: true,
+        purpose: "Walk LOCAL headers in stream order with bounded memory (iterateZipEntries) — the only tool that works on a truncated download, and the only one whose result is NOT authoritative.",
+        prompt: 'This download was cut off. Scan what survived, without trusting it.',
+        args: { zipBase64: '<base64 of a truncated download>', tolerateTruncation: true, data: 'verify', verbosity: 'summary' },
+        variants: [{ label: 'Run on a copy truncated at 40 %', truncate: 0.4, args: { zipBase64: '<truncated>', tolerateTruncation: true, data: 'verify' } }],
+        note: 'The browser feeds the bytes as an unseekable <code>ReadableStream</code> — 512-byte chunks, the tail sliced 16 bytes at a time, as the server\'s own delivery does — and counts every byte the reader actually pulls. <code>stoppedAt</code> is then derived from that count as the server derives it (undelivered bytes remain ⇒ a central directory was reached), never from reading a signature; a header the reader happened to pull with the last slice can still tip the verdict, the same approximation the server accepts. <code>filter</code>, <code>strict</code> and <code>limits</code> are honoured; the operator ceiling on <code>maxEntries</code> (<code>LIMIT_CEILING_EXCEEDED</code>) needs the server.',
+        async run(a, bytes, opt) {
+          const src = opt && opt.truncate ? bytes.subarray(0, Math.floor(bytes.length * opt.truncate)) : bytes;
+          const entries = []; let entryCount = 0, keptCount = 0, stoppedAt = 'eof', error;
+          const max = a.maxEntries || 10000;
+          const keepDirs = !a.filter;
+          const { stream, counter } = chunkStream(src, 512);
+          const diag = withDiagnostics((onDiagnostic, opts) => opts, a);
+          let cleanStop = false;
+          try {
+            const gen = mod.iterateZipEntries(stream, diag.r);
+            for (;;) {
+              const next = await gen.next();
+              if (next.done) { cleanStop = true; break; }
+              const entry = next.value;
+              if (entryCount >= max) { stoppedAt = 'max-entries'; break; }
+              entryCount++;
+              const h = entry.header;
+              const kept = keepDirs ? true : applyFilter([{ name: h.name, isDirectory: h.isDirectory }], a.filter, false).length > 0;
+              const row = { name: h.name, isDirectory: h.isDirectory, kept, methodName: methodName(h.compressionMethod), compressedSize: h.compressedSize, uncompressedSize: h.uncompressedSize, crc32: hex8(h.crc32), isEncrypted: h.isEncrypted, usesDataDescriptor: (h.flags & mod.FLAG_DATA_DESCRIPTOR) !== 0, sanitizedPath: mod.sanitizeEntryPath(h.name), isSymlink: null, usesZip64: null, unixMode: null, data: { verified: false, bytesProduced: 0 } };
+              if (!kept || a.data === 'none' || a.data === undefined) { await entry.skip(); }
+              else { const parts = []; for await (const p of entry.data()) { row.data.bytesProduced += p.length; if (a.data === 'include') parts.push(p); } row.data.verified = true; if (a.data === 'include') { const all = new Uint8Array(row.data.bytesProduced); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } row.data.dataBase64 = toB64(all.subarray(0, 96)) + (all.length > 96 ? '…' : ''); } }
+              if (kept) { keptCount++; entries.push(row); }
+            }
+          } catch (e) {
+            if (!a.tolerateTruncation) throw e;
+            stoppedAt = 'error'; error = { code: e.code || 'ERROR', message: e.message };
+          }
+          // classifyCleanStop(): the engine stopped on its own — if bytes remain undelivered it saw the central directory.
+          if (cleanStop) stoppedAt = counter.delivered >= src.length ? 'eof' : 'central-directory';
+          const full = { trust: 'local-headers-only', entryCount, keptCount, entries, stoppedAt, truncated: stoppedAt !== 'central-directory', inputBytes: src.length, bytesDelivered: counter.delivered, maxEntries: max, ...(error ? { error } : {}), ...diag.report };
+          const summary = { trust: full.trust, entryCount, keptCount, stoppedAt, truncated: full.truncated, names: entries.map((e) => e.name), ...(error ? { error } : {}), diagnosticCount: diag.diagnostics.length };
+          return project(full, summary, a);
+        },
+      },
+      {
+        id: 'sanitize_entry_paths', ro: true,
+        purpose: "The engine's single traversal gate, sanitizeEntryPath(), applied to a list of names — the safe relative form each maps to, or null. No archive needed.",
+        prompt: 'I am extracting with another tool. Which of these entry names are safe to join under my output directory?',
+        args: { names: ['docs/readme.md', '../../etc/passwd', 'C:\\Windows\\win.ini', 'aux.txt', 'a/./b//c.txt', '/absolute/path', 'file\u0000name'] },
+        note: 'The engine returns <code>null</code> for an unsafe name; the <code>reason</code> (<code>traversal</code>, <code>drive</code>, <code>device-name</code>, …) is classified by the server and is not reproduced here.',
+        run(a) {
+          const results = a.names.map((name) => { const s = mod.sanitizeEntryPath(name); return { name, sanitized: s, rejected: s === null }; });
+          const full = { count: results.length, rejectedCount: results.filter((r) => r.rejected).length, results };
+          return project(full, { count: full.count, rejectedCount: full.rejectedCount, rejectedNames: results.filter((r) => r.rejected).map((r) => r.name) }, a);
+        },
+      },
+      {
+        id: 'create_zip',
+        purpose: 'Write a reproducible archive from inline entries — canonical order, DOS-epoch timestamps, UTF-8 names; deterministic: true pins the encoder so the bytes are identical on every runtime.',
+        prompt: 'Build a deterministic EPUB skeleton — mimetype first and stored — and give me its SHA-256.',
+        args: { entries: [{ name: 'mimetype', text: 'application/epub+zip', compression: { method: 'store' } }, { name: 'META-INF/container.xml', text: '<container/>' }, { name: 'OEBPS/', directory: true }, { name: 'OEBPS/chapter1.xhtml', text: '<html><body><h1>Chapter 1</h1></body></html>' }], order: 'insertion', compression: { deterministic: true }, includeSha256: true },
+        note: 'Browser: inline entries only, single-threaded — per-entry <code>compression</code>, <code>date</code>, <code>comment</code>, <code>unixMode</code> / <code>externalAttributes</code> and <code>extraFields</code> are mapped exactly as the server maps them, and <code>strict</code> / <code>limits</code> reach the writer. <code>sourcePath</code> / <code>stream: true</code> / <code>outputMode: "file"</code> need the sandbox; <code>parallel</code> needs the worker pool (<code>zipnative/worker</code>); <code>chunkSize</code> only shapes file-mode streaming and never changes the bytes — all four are refused here with <code>BROWSER_LIMITATION</code> rather than silently ignored. The download button gives you the very bytes the assistant would receive as an embedded <code>resource</code>.',
+        async run(a) {
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — needs the Node process.'), { code: 'BROWSER_LIMITATION' });
+          if (a.parallel !== undefined) throw Object.assign(new Error('parallel compresses through zipnative/worker — a worker pool this page does not ship; the bytes are identical to the sequential writer per tier.'), { code: 'BROWSER_LIMITATION' });
+          if (a.chunkSize !== undefined) throw Object.assign(new Error('chunkSize only shapes file-mode streaming (never the bytes) — needs the sandbox.'), { code: 'BROWSER_LIMITATION' });
+          const { r: bytes, report } = withDiagnostics((onDiagnostic, opts) => {
+            const zip = mod.createZip({ ...opts, order: a.order, compression: a.compression, comment: a.comment, defaultDate: a.defaultDate === 'now' ? 'now' : a.defaultDate ? new Date(a.defaultDate) : undefined });
+            for (const e of a.entries) {
+              const isDir = !!e.directory;
+              const opts2 = entryOptions(e, isDir);
+              if (isDir) zip.addDirectory(e.name, opts2);
+              else zip.add(e.name, payloadOf(e), opts2);
+            }
+            return zip.toBytes();
+          }, a);
+          const sha256 = a.includeSha256 ? await sha256Hex(bytes) : undefined;
+          const det = !!(a.compression && a.compression.deterministic) && a.defaultDate !== 'now';
+          return { _download: { bytes, name: 'create_zip.zip' }, mode: 'base64', sizeBytes: bytes.length, summary: { entryCount: a.entries.length, fileCount: a.entries.filter((e) => !e.directory).length, directoryCount: a.entries.filter((e) => e.directory).length, streamedCount: 0, uncompressedBytes: a.entries.reduce((s, e) => s + (e.directory ? 0 : payloadOf(e).length), 0), order: a.order || 'canonical', deterministic: det, deflateTier: mod.activeDeflateTier(det), parallel: { requested: false, workers: 0 }, ...(sha256 ? { sha256 } : {}) }, ...report };
+        },
+      },
+      {
+        id: 'modify_zip',
+        purpose: 'Edit an existing archive without recompressing anything: add / replace / remove / rename / setComment, append-only (save) or compact (saveCompact — removed data truly gone).',
+        prompt: 'Remove the config file from this archive so that it is truly gone, and rename the README.',
+        args: { zipBase64: ZIP_PLACEHOLDER, operations: [{ op: 'remove', name: 'data/config.json' }, { op: 'rename', from: 'README.md', to: 'docs/README.md' }, { op: 'add', name: 'CHANGELOG.md', text: '## 1.0.1\n- edited by modify_zip\n' }], mode: 'compact', includeSha256: true },
+        variants: [{ label: 'Run mode: append', args: { zipBase64: ZIP_PLACEHOLDER, operations: [{ op: 'remove', name: 'data/config.json' }, { op: 'setComment', comment: 'edited in append mode' }], mode: 'append', includeSha256: true } }],
+        note: 'Compare the two modes on the same edit: append keeps the removed payload in the file (data remanence — <code>grewByBytes</code> is never negative), compact rewrites without it. Per-op <code>date</code>, <code>comment</code>, <code>unixMode</code> / <code>externalAttributes</code>, <code>extraFields</code> and an <code>add</code> with <code>directory: true</code> (an empty entry with a trailing slash, as the server does it) are honoured; <code>sourcePath</code> and <code>outputMode: "file"</code> need the sandbox.',
+        async run(a, bytes) {
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — needs the Node process.'), { code: 'BROWSER_LIMITATION' });
+          const { r, report } = withDiagnostics((onDiagnostic, opts) => {
+            const reader = mod.openZip(bytes, opts);
+            const m = mod.createZipModifier(reader, { ...opts, compression: a.compression, defaultDate: a.defaultDate === 'now' ? 'now' : a.defaultDate ? new Date(a.defaultDate) : undefined });
+            for (const op of a.operations) {
+              if (op.op === 'add') { if (op.directory) m.addEntry(op.name.endsWith('/') ? op.name : `${op.name}/`, new Uint8Array(0), entryOptions(op, true)); else m.addEntry(op.name, payloadOf(op), entryOptions(op, false)); }
+              else if (op.op === 'replace') { if (op.directory) throw Object.assign(new Error('replace cannot target a directory entry'), { code: 'VALIDATION_ERROR' }); m.replaceEntry(op.name, payloadOf(op), entryOptions(op, false)); }
+              else if (op.op === 'remove') m.removeEntry(op.name);
+              else if (op.op === 'rename') m.renameEntry(op.from, op.to);
+              else if (op.op === 'setComment') m.setComment(op.comment);
+            }
+            const out = a.mode === 'compact' ? m.saveCompact() : m.save();
+            return { out, before: reader.entryCount, after: mod.openZip(out, { validate: 'eager' }).entryCount, noOp: out === reader.bytes };
+          }, a);
+          const sha256 = a.includeSha256 ? await sha256Hex(r.out) : undefined;
+          return { _download: { bytes: r.out, name: `modify_zip-${a.mode || 'append'}.zip` }, mode: 'base64', sizeBytes: r.out.length, summary: { saveMode: a.mode || 'append', operationsApplied: a.operations.length, entryCountBefore: r.before, entryCountAfter: r.after, inputBytes: bytes.length, outputBytes: r.out.length, grewByBytes: r.out.length - bytes.length, noOp: r.noOp, ...(sha256 ? { sha256 } : {}) }, ...report };
+        },
+      },
+      {
+        id: 'compute_crc32', ro: true,
+        purpose: "The ZIP checksum (IEEE CRC-32, the engine's slice-by-8 implementation) of inline bytes or text; seed continues a running CRC, expect compares.",
+        prompt: 'Does the CRC-32 of "hello world" match 0d4a1185?',
+        args: { text: 'hello world', expect: '0d4a1185' },
+        variants: [{ label: 'Run seeded (two chunks)', args: { text: ' world', seed: 907060870, expect: '0d4a1185' } }],
+        note: '<code>seed</code> is an integer (0–4294967295), as the schema says: <code>907060870</code> is <code>crc32("hello")</code> = <code>0x3610a686</code>, so the seeded call over <code>" world"</code> must reproduce <code>crc32("hello world")</code> = <code>0d4a1185</code> — the chaining the tool exists for. <code>sourcePath</code> (a sandbox file streamed in 1 MiB chunks) needs the server.',
+        run(a) {
+          if (a.sourcePath !== undefined) throw Object.assign(new Error('sourcePath streams a sandbox file — needs the Node process; pass text or dataBase64 here.'), { code: 'BROWSER_LIMITATION' });
+          const seed = a.seed === undefined ? 0 : a.seed;
+          if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw Object.assign(new Error('seed must be an integer between 0 and 4294967295'), { code: 'VALIDATION_ERROR' });
+          const data = a.dataBase64 !== undefined ? b64(a.dataBase64) : te.encode(a.text ?? '');
+          const value = mod.crc32(data, seed) >>> 0;
+          const out = { crc32: value, hex: hex8(value), byteLength: data.length, seed };
+          if (a.expect) out.matches = hex8(value) === a.expect.replace(/^0x/, '').toLowerCase().padStart(8, '0');
+          return out;
+        },
+      },
+      {
+        id: 'inflate_raw',
+        purpose: "Decompress a raw DEFLATE stream — for instance the payload from read_zip_entry mode: 'raw' — through the resumable inflater under a MANDATORY maxOutput bound.",
+        prompt: 'Inflate this raw deflate payload, but never let it expand past 1 MiB.',
+        args: { dataBase64: '<raw deflate payload: read_zip_entry src/index.ts mode raw>', maxOutput: 1048576 },
+        variants: [{ label: 'Run with maxOutput: 64 (overflow)', args: { dataBase64: '<raw deflate payload>', maxOutput: 64 } }],
+        note: 'While <code>dataBase64</code> is the placeholder shown, the payload is lifted live from the archive under test with <code>readEntryRaw()</code>; paste real base64 into the args and that is what gets inflated. The stream is fed to <code>createInflator(maxOutput)</code> in 64-byte pushes — the counters are the inflater\'s own; <code>ZIP_INFLATE_OUTPUT_OVERFLOW</code> is the engine refusing to exceed the bound. <code>method: "store"</code> is the bounded pass-through, a numeric method is <code>ZIP_UNSUPPORTED_METHOD</code> (no codec beyond 0 / 8 here either), and trailing bytes produce the server\'s <code>trailingWarning</code> unless <code>allowTrailing</code>. <code>sourcePath</code> and file output need the sandbox.',
+        run(a, bytes) {
+          if (a.sourcePath !== undefined) throw Object.assign(new Error('sourcePath streams a sandbox file — needs the Node process; pass dataBase64 here.'), { code: 'BROWSER_LIMITATION' });
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — needs the Node process.'), { code: 'BROWSER_LIMITATION' });
+          const bound = Math.min(a.maxOutput, 52428800);
+          let payload, source;
+          if (typeof a.dataBase64 === 'string' && !a.dataBase64.startsWith('<')) { payload = b64(a.dataBase64); source = { from: 'dataBase64' }; }
+          else {
+            const reader = mod.openZip(bytes);
+            const src = [...reader.entries()].find((e) => !e.isDirectory && e.compressionMethod === 8);
+            if (!src) throw new Error('the archive under test has no deflated entry to lift a raw payload from');
+            payload = reader.readEntryRaw(src); source = { from: 'readEntryRaw', entry: src.name, compressedBytes: payload.length };
+          }
+          const method = a.method === undefined || a.method === 'deflate' ? 8 : a.method === 'store' ? 0 : Number(a.method);
+          let bytesOut = 0, bytesConsumed, leftover = 0, finished, pushes = 0;
+          if (method === 8) {
+            const inflator = mod.createInflator(bound);
+            for (let off = 0; off < payload.length; off += 64) {
+              const chunk = payload.subarray(off, off + 64);
+              if (inflator.finished) { leftover += chunk.length; continue; }
+              for (const piece of inflator.push(chunk)) bytesOut += piece.length;
+              if (inflator.finished) leftover += inflator.leftover.length;
+              pushes++;
+            }
+            inflator.end();
+            bytesConsumed = inflator.bytesConsumed; finished = inflator.finished;
+          } else if (method === 0) {
+            if (payload.length > bound) throw Object.assign(new Error(`Input (${payload.length} bytes) exceeds maxOutput (${bound}).`), { code: 'ZIP_INFLATE_OUTPUT_OVERFLOW' });
+            bytesOut = payload.length; bytesConsumed = payload.length; finished = true;
+          } else {
+            if (mod.getCodec(method) === null) throw Object.assign(new Error(`No codec is registered for method ${method} (this server registers none beyond store and deflate).`), { code: 'ZIP_UNSUPPORTED_METHOD' });
+            throw Object.assign(new Error(`method ${method} is not demonstrated here`), { code: 'BROWSER_LIMITATION' });
+          }
+          const trailingWarning = leftover > 0 && !a.allowTrailing ? `${leftover} trailing byte(s) after the end of the deflate stream (pass allowTrailing:true to accept silently).` : undefined;
+          return { source, mode: 'base64', sizeBytes: bytesOut, summary: { method, methodName: method === 8 ? 'deflate' : 'store', bytesIn: payload.length, bytesOut, bytesConsumed, leftover, finished, maxOutput: bound, ...(trailingWarning ? { trailingWarning } : {}), pushes }, diagnostics: [] };
+        },
+      },
+      {
+        id: 'describe_engine', ro: true,
+        purpose: 'Offline preflight, no archive needed: server / engine / tool-API versions, the deflate tiers, codecs, default limits, operator ceilings, caps, sandbox and cache state, the code registries.',
+        prompt: 'What can this archive server do, and what are its limits, before I send anything?',
+        args: { fields: ['engine', 'defaultLimits', 'ceilings', 'caps', 'sandbox', 'network'] },
+        note: 'The result has the server\'s exact shape and key names. The <strong>engine half</strong> (<code>engine</code>, <code>codecs</code>, <code>defaultLimits</code>, the streaming probes in <code>capabilities</code>) is live from the CDN build running on this page. The <strong>server half</strong> (<code>server</code>, <code>ceilings</code> at their defaults, the 25 <code>caps</code>, <code>sandbox</code>, <code>unexposed</code>, the two code registries) is reproduced from the 1.0.0 source — ceilings, sandbox and cache state depend on the operator\'s environment; <code>_static</code> lists which keys those are. <code>capabilities.nodeZlib</code> and <code>workerThreads</code> are honest browser answers, not the server\'s.',
+        async run(a) {
+          const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 1;
+          const full = {
+            server: { name: 'zipnative-mcp', version: '1.0.0', toolApiVersion: '1.0.0', protocol: 'MCP 2026-07-28 + legacy 2024/2025 initialize', toolCount: 13 },
+            engine: { name: 'zipnative', version: mod.VERSION, deflateTier: { default: mod.activeDeflateTier(false), deterministic: mod.activeDeflateTier(true) } },
+            capabilities: { nodeZlib: false, compressionStream: typeof CompressionStream === 'function', decompressionStream: typeof DecompressionStream === 'function', workerThreads: false, cpuCount: cores, defaultWorkers: Math.max(1, Math.min(cores - 1, 8)) },
+            codecs: [0, 8].map((id) => { const c = mod.getCodec(id); return { id, name: methodName(id), sync: !!(c && c.decompressSync), stream: !!(c && c.decompressStream) }; }),
+            defaultLimits: { ...mod.DEFAULT_ZIP_LIMITS },
+            ceilings: { maxUncompressedBytes: 8589934592, maxEntries: 100000, maxWorkers: 8, env: ['ZIPNATIVE_MCP_MAX_UNCOMPRESSED_BYTES', 'ZIPNATIVE_MCP_MAX_ENTRIES', 'ZIPNATIVE_MCP_WORKERS'] },
+            caps: { stdioMaxFrameBytes: 268435456, maxBase64InputBytes: 134217728, maxPathInputBytes: 1073741824, maxBase64OutputBytes: 52428800, maxFileOutputBytes: 4294967296, maxEntryInlineBytes: 16777216, maxExtractInlineTotalBytes: 33554432, maxListLimit: 2000, defaultListLimit: 200, maxCreateEntries: 100000, maxModifyOperations: 1000, maxSanitizeNames: 10000, maxDiagnostics: 200, maxFilterNames: 1000, maxFilterGlobs: 32, maxExtraFields: 16, maxFieldsPaths: 16, defaultScanMaxEntries: 10000, maxResourceLinks: 50, maxRangeLength: 16777216, maxListedResources: 1000, maxResourceWalkDepth: 8, maxResourceReadBytes: 52428800, cacheTtlSeconds: 3600, cacheMaxBytes: 268435456 },
+            sandbox: { enabled: false, cacheEnabled: false },
+            network: 'none',
+            errorCodes: ['ZIP_INVALID_OPTION', 'ZIP_INPUT_TOO_LARGE', 'ZIP_ENTRY_NOT_FOUND', 'ZIP_ENTRY_EXISTS', 'ZIP_API_MISUSE', 'ZIP_STRICT_DIAGNOSTIC', 'ZIP_INTERNAL', 'ZIP_EOCD_NOT_FOUND', 'ZIP_EOCD_INCONSISTENT', 'ZIP_ZIP64_LOCATOR_MISSING', 'ZIP_ZIP64_EOCD_MISPLACED', 'ZIP_CD_INCONSISTENT', 'ZIP_RECORD_TRUNCATED', 'ZIP_SIGNATURE_MISMATCH', 'ZIP_STREAM_TRUNCATED', 'ZIP_VALUE_UNREPRESENTABLE', 'ZIP_INVALID_ENTRY_NAME', 'ZIP_DUPLICATE_ENTRY_NAME', 'ZIP_DEFLATE_TRUNCATED', 'ZIP_DEFLATE_CORRUPT', 'ZIP_ENTRY_OVERLAP', 'ZIP_CD_LFH_MISMATCH', 'ZIP_ZIP64_CONTRADICTION', 'ZIP_PATH_TRAVERSAL', 'ZIP_SYMLINK_REJECTED', 'ZIP_EXTRACT_DUPLICATE_PATH', 'ZIP_CRC_MISMATCH', 'ZIP_SIZE_MISMATCH', 'ZIP_INFLATE_OUTPUT_OVERFLOW', 'ZIP_DESCRIPTOR_MISMATCH', 'ZIP_DECOMPRESSION_FAILED', 'ZIP_LIMIT_EXCEEDED', 'ZIP_LIMIT_INVALID', 'ZIP_UNSUPPORTED_ENCRYPTION', 'ZIP_UNSUPPORTED_METHOD', 'ZIP_UNSUPPORTED_MULTI_DISK', 'ZIP_UNSUPPORTED_ZIP64_STREAMING', 'ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR', 'ZIP_UNSUPPORTED_CODEC_MODE'],
+            diagnosticCodes: ['ZIP_PREPENDED_DATA', 'ZIP_MULTIPLE_EOCD', 'ZIP_NAME_MISMATCH', 'ZIP_UNICODE_PATH_CONFLICT', 'ZIP_INVALID_UTF8_NAME', 'ZIP_DUPLICATE_NAME', 'ZIP_EXTRA_FIELD_MALFORMED', 'ZIP_ZIP64_EXTRA_IGNORED', 'ZIP_TIMESTAMP_NOT_PINNED', 'ZIP_NONDETERMINISTIC_CODEC', 'ZIP_DEAD_BYTES_RATIO'],
+            unexposed: [
+              { export: 'registerCodec / ZipCodec / CodecCompressOptions', rationale: 'A codec is executable code; JSON cannot carry one and zipnative ships no extra codec by policy.' },
+              { export: 'setInflateImpl / setDeflateImpl', rationale: 'Runtime code injection; the server owns tier selection and reports it here.' },
+              { export: 'initNodeZipCodecs', rationale: 'Startup concern — called once by the server before serving.' },
+              { export: 'ParallelZipOptions.workerUrl', rationale: 'Filesystem / bundler path injection from a tool argument; the packaged worker resolves itself.' },
+              { export: 'ZipCommonOptions.onDiagnostic', rationale: 'Always installed by the server (every result carries diagnostics[]); strict IS exposed.' },
+              { export: 'ZipReader.bytes / ZipModifier.reader', rationale: 'The input itself.' },
+              { export: 'ByteSource (external ReadableStream)', rationale: 'JSON-RPC has no stream channel; the server builds ByteSources internally from zipPath / sourcePath.' },
+            ],
+            _static: ['server', 'ceilings (defaults; the operator may raise or lower them)', 'caps', 'sandbox (false here; true on a server with ZIPNATIVE_MCP_OUTPUT_DIR / ZIPNATIVE_MCP_CACHE_DIR)', 'errorCodes', 'diagnosticCodes', 'unexposed'],
+          };
+          return project(full, { server: full.server, engine: full.engine, capabilities: full.capabilities, sandbox: full.sandbox, network: full.network }, a);
+        },
+      },
+      {
+        id: 'draft_governance_issue',
+        purpose: 'Draft a governance-compliant GitHub issue LOCALLY for a human to review and submit — the server never contacts GitHub; it returns the Markdown plus a compliance report.',
+        prompt: 'scan_zip_forward reports a stored, streamed entry as truncated. Draft the bug report for the engine repository — I will file it myself.',
+        args: { title: 'scan_zip_forward mis-detects the descriptor of a stored entry', issueType: 'bug', targetRepo: 'zipnative', summary: 'A stored entry followed by a signed data descriptor is reported as truncated by the forward reader.', reproduction: { command: "scan_zip_forward on an archive written with compression.method 'store' and stream: true", result: 'ZIP_STREAM_TRUNCATED' }, expectedBehavior: 'The entry is read and its CRC verified.', affectedPackages: ['zipnative', 'zipnative-mcp'], duplicateSearchPerformed: true },
+        note: 'No engine equivalent: this is the server\'s own policy engine (<code>governance.ts</code>), human-in-the-loop by design — a draft that proposes a runtime dependency, omits a reproduction or sets <code>duplicateSearchPerformed: false</code> is <code>GOVERNANCE_VIOLATION</code>. Use <em>Copy args</em> and run it from your MCP client.',
+      },
+    ];
+
+    // ── Card rendering ───────────────────────────────────────────────
+    function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+    const cards = $('cards');
+    TOOLS.forEach((t, idx) => {
+      const card = document.createElement('div');
+      card.className = 'mcp-card';
+      const runBtns = t.run ? [`<button class="primary" type="button" data-action="run" data-tool="${idx}" disabled>Run</button>`]
+        .concat((t.variants || []).map((v, vi) => `<button class="primary" type="button" data-action="run" data-tool="${idx}" data-variant="${vi}" disabled>${escapeHtml(v.label)}</button>`)).join('') : '';
+      card.innerHTML = `
+        <h3><code>${escapeHtml(t.id)}</code><span class="badge${t.ro ? ' ro' : ''}">${t.ro ? 'read-only' : 'writes'}</span></h3>
+        <p class="purpose">${escapeHtml(t.purpose)}</p>
+        <div class="prompt">${escapeHtml(t.prompt)}</div>
+        <details><summary>MCP tool-call payload</summary><div><pre><code class="language-json">${escapeHtml(JSON.stringify(t.args, null, 2))}</code></pre></div></details>
+        <div class="actions">${runBtns}<button class="secondary" type="button" data-action="copy-args" data-tool="${idx}">Copy args</button></div>
+        <pre data-result hidden></pre>
+        <div class="status" data-status></div>
+        ${t.note ? `<p class="note">${t.note}</p>` : ''}`;
+      cards.appendChild(card);
+    });
+
+    cards.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button[data-action]');
+      if (!btn) return;
+      const card = btn.closest('.mcp-card');
+      const st = card.querySelector('[data-status]');
+      const out = card.querySelector('[data-result]');
+      const tool = TOOLS[Number(btn.dataset.tool)];
+      if (btn.dataset.action === 'copy-args') {
+        try { await navigator.clipboard.writeText(JSON.stringify(tool.args, null, 2)); st.textContent = 'Tool arguments copied.'; st.className = 'status success'; setTimeout(() => { st.textContent = ''; st.className = 'status'; }, 1800); }
+        catch { st.textContent = 'Clipboard write failed.'; st.className = 'status error'; }
+        return;
+      }
+      if (!mod) return;
+      const variant = btn.dataset.variant !== undefined ? tool.variants[Number(btn.dataset.variant)] : null;
+      const args = variant ? variant.args : tool.args;
+      btn.disabled = true; st.textContent = 'Running…'; st.className = 'status'; out.hidden = true;
+      try {
+        const t0 = performance.now();
+        const result = await tool.run(args, current.bytes, variant);
+        const ms = (performance.now() - t0).toFixed(1);
+        const dl = result && result._download;
+        if (dl) delete result._download;
+        out.textContent = JSON.stringify(result, null, 2);
+        out.hidden = false;
+        if (dl) download(dl.bytes, dl.name);
+        st.textContent = `${tool.id} on ${current.label} — ${ms} ms${dl ? ` · ${fmtBytes(dl.bytes.length)} downloaded` : ''}.`;
+        st.className = 'status success';
+      } catch (e) {
+        const code = e && e.code ? e.code : (e instanceof mod.ZipError ? e.code : 'ERROR');
+        out.textContent = JSON.stringify({ isError: true, _meta: { error: { code, message: e && e.message ? e.message : String(e) } } }, null, 2);
+        out.hidden = false;
+        st.textContent = `${tool.id} failed [${code}] — this is the refusal the assistant would receive.`;
+        st.className = 'status error';
+      } finally { btn.disabled = false; }
+    });
+
+    // ── Boot ─────────────────────────────────────────────────────────
+    try {
+      const engine = await loadEngine();
+      mod = engine.mod;
+      $('engine-source').textContent = engine.source;
+      await setSample('clean');
+      status.textContent = `zipnative ${mod.VERSION} loaded from the CDN — run any tool below on the archive under test.`;
+      status.className = 'pg-status ok';
+      document.querySelectorAll('button[data-action="run"]').forEach((b) => { b.disabled = false; });
+    } catch (e) {
+      // load-engine.js already wrote the failure into #status / #engine-source when present.
+      status.textContent = 'Could not load zipnative from the CDN: ' + (e && e.message ? e.message : e);
+      status.className = 'pg-status error';
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+</body>
+</html>

@@ -135,7 +135,9 @@ export function buildLlmsIndex(root: string): string {
         ['llms-recipes.txt', 'docs/llms-recipes.txt', 'Every executable recipe, fenced as TypeScript.'],
         ['assets/api.json', 'docs/assets/api.json', 'The mechanically extracted export surface — the API ground truth.'],
         ['data/errors.json', 'docs/data/errors.json', 'The frozen error-code and diagnostic registry — code, class, cause, remedy.'],
-        ['assets/ecosystem.json', 'docs/assets/ecosystem.json', 'Versions, counts and milestones — the single source of truth.'],
+        ['assets/ecosystem.json', 'docs/assets/ecosystem.json', 'Versions, counts and inventories for zipnative, zipnative-cli and zipnative-mcp — the single source of truth.'],
+        ['data/surfaces.json', 'docs/data/surfaces.json', 'The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.'],
+        ['data/cli-surface.json', 'docs/data/cli-surface.json', 'zipnative-cli 1.0.0 command and flag surface — a snapshot of `zipnative schema manifest` plus the boolean-flag table.'],
     ];
     const artefacts = artefactSources.map(([url, path, description]) => {
         const bytes = Buffer.byteLength(readLf(resolve(root, path)), 'utf8');
@@ -151,7 +153,7 @@ export function buildLlmsIndex(root: string): string {
             + 'Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. '
             + 'approxTokens = bytes/4, approximate by construction.',
         site: 'https://zipnative.dev',
-        verifiedOn: '2026-09-02',
+        verifiedOn: '2026-09-07',
         artefacts,
         guides,
     }, null, 2)}\n`;

@@ -1,25 +1,25 @@
 {
   "$comment": "Index of zipnative’s machine-readable artefacts and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. approxTokens = bytes/4, approximate by construction.",
   "site": "https://zipnative.dev",
-  "verifiedOn": "2026-09-02",
+  "verifiedOn": "2026-09-07",
   "artefacts": [
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 7858,
-      "approxTokens": 1965
+      "bytes": 9215,
+      "approxTokens": 2304
     },
     {
       "url": "agent-brief.md",
       "description": "A compact briefing for AI agents writing code with zipnative — paste it into a coding agent's context.",
-      "bytes": 3906,
-      "approxTokens": 977
+      "bytes": 4861,
+      "approxTokens": 1215
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 61777,
-      "approxTokens": 15444
+      "bytes": 159113,
+      "approxTokens": 39778
     },
     {
       "url": "llms-recipes.txt",
@@ -41,12 +41,62 @@
     },
     {
       "url": "assets/ecosystem.json",
-      "description": "Versions, counts and milestones — the single source of truth.",
-      "bytes": 1413,
-      "approxTokens": 353
+      "description": "Versions, counts and inventories for zipnative, zipnative-cli and zipnative-mcp — the single source of truth.",
+      "bytes": 3202,
+      "approxTokens": 801
+    },
+    {
+      "url": "data/surfaces.json",
+      "description": "The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.",
+      "bytes": 18647,
+      "approxTokens": 4662
+    },
+    {
+      "url": "data/cli-surface.json",
+      "description": "zipnative-cli 1.0.0 command and flag surface — a snapshot of `zipnative schema manifest` plus the boolean-flag table.",
+      "bytes": 11481,
+      "approxTokens": 2870
     }
   ],
   "guides": [
+    {
+      "title": "Choosing your surface",
+      "summary": "Write application code → the library. Drive a shell, Makefile or CI job → `zipnative-cli`. Give a conversational AI assistant tool access → `zipnative-mcp`. All three surfaces sit on the same zero-dependency engine and write the same ISO/IEC 21320-1-conformant bytes, so the choice is about *who is calling*, not about what comes out — and you can switch later without re-authoring anything.",
+      "html": "guides/choose.html",
+      "markdown": "guides/choose.md",
+      "anchors": [
+        "the-decision-in-prose",
+        "capability--surface",
+        "honest-notes",
+        "you-can-switch-later",
+        "further-reading"
+      ],
+      "bytes": 8351,
+      "approxTokens": 2088
+    },
+    {
+      "title": "zipnative-cli — Command-line reference",
+      "summary": "`zipnative-cli` 1.0.0 is the official command-line interface for the zipnative engine — fifteen commands over stdin/stdout pipelines, an agent-native automation contract (a `--json` envelope carrying the engine's `err.code` verbatim, `--dry-run`, `--summary` / `--fields` projection, JSON Schemas), and the one job the engine refuses by design: writing to the filesystem. Offline, always.",
+      "html": "guides/cli.html",
+      "markdown": "guides/cli.md",
+      "anchors": [
+        "installation",
+        "when-to-use-the-cli",
+        "quick-start",
+        "the-agent-contract",
+        "error-classes-codes-and-remedies",
+        "command-reference",
+        "global-options",
+        "environment",
+        "security-posture",
+        "conformance",
+        "not-supported",
+        "versioning",
+        "further-reading"
+      ],
+      "bytes": 45710,
+      "approxTokens": 11428
+    },
     {
       "title": "Conformance and validation",
       "summary": "ZIP has no veraPDF — so zipnative ships the closest thing: the first open clause-by-clause ISO/IEC 21320-1:2015 validator, layered over a six-parser differential extraction matrix. This page is the authority story: what \"valid\" means for a ZIP archive, who checks it, and what a pass actually proves.",
@@ -94,6 +144,27 @@
       "approxTokens": 1941
     },
     {
+      "title": "zipnative-mcp — AI client integration",
+      "summary": "`zipnative-mcp` 1.0.0 is the MCP server that gives AI assistants the zipnative engine as thirteen typed tools — inspect, list, read, verify, extract, scan, sanitise, create, modify, CRC, inflate, describe, draft — plus seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. Pins `zipnative ^1.0.0`.",
+      "html": "guides/mcp.html",
+      "markdown": "guides/mcp.md",
+      "anchors": [
+        "installation",
+        "configuration-by-client",
+        "environment-variables",
+        "protocol-and-transport",
+        "tool-reference",
+        "prompts",
+        "resources",
+        "token-frugal-reads",
+        "error-model",
+        "security-model",
+        "further-reading"
+      ],
+      "bytes": 34766,
+      "approxTokens": 8692
+    },
+    {
       "title": "Quickstart",
       "summary": "Install zipnative and cover the four core workflows — reading with random access, secure extraction, deterministic creation, and incremental modification — in about five minutes.",
       "html": "guides/quickstart.html",
@@ -127,7 +198,7 @@
     },
     {
       "title": "Use cases",
-      "summary": "Four production architectures, each built from parts zipnative already ships — one-entry reads that never touch the payload, extraction behind always-on guards, byte-reproducible release artifacts, and forward streaming with no Node in sight. Every arrow in the diagrams below is a public, shipped API — nothing here is aspirational.",
+      "summary": "Five production architectures, each built from parts the ecosystem already ships — one-entry reads that never touch the payload, extraction behind always-on guards, byte-reproducible release artifacts, forward streaming with no Node in sight, and confidentiality delegated to the document layer because the archive layer has no password by design.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -135,11 +206,12 @@
         "case-2--untrusted-upload-intake",
         "case-3--the-reproducibility-gate",
         "case-4--streaming-intake-at-the-edge",
+        "case-5--encrypt-first-then-archive",
         "picking-parts-not-a-platform",
         "see-also"
       ],
-      "bytes": 11415,
-      "approxTokens": 2854
+      "bytes": 17076,
+      "approxTokens": 4269
     }
   ]
 }

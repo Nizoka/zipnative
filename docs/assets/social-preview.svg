@@ -68,19 +68,23 @@
   <!-- Capability pills, centred -->
   <g font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
      font-size="22" fill="#cbd5e1" text-anchor="middle">
-    <rect x="222" y="502" width="184" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="314" y="533">Deterministic</text>
-    <rect x="422" y="502" width="140" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="492" y="533">Zip-safe</text>
-    <rect x="578" y="502" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="654" y="533">Streaming</text>
-    <rect x="746" y="502" width="172" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="832" y="533">Incremental</text>
-    <rect x="934" y="502" width="136" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="1002" y="533">Workers</text>
+    <rect x="118" y="502" width="184" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="210" y="533">Deterministic</text>
+    <rect x="318" y="502" width="140" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="388" y="533">Zip-safe</text>
+    <rect x="474" y="502" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="550" y="533">Streaming</text>
+    <rect x="642" y="502" width="172" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="728" y="533">Incremental</text>
+    <rect x="830" y="502" width="136" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="898" y="533">Workers</text>
+    <rect x="982" y="502" width="72" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="1018" y="533" fill="#bfdbfe">CLI</text>
+    <rect x="1070" y="502" width="88" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="1114" y="533" fill="#bfdbfe">MCP</text>
   </g>
 
   <text x="640" y="600" text-anchor="middle"
         font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="20" fill="#475569">zipnative.dev · MIT · open source</text>
+        font-size="20" fill="#475569">zipnative.dev · library · CLI · MCP server · MIT · open source</text>
 </svg>

@@ -1,14 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════
    zipnative.dev — Playground engine loader
-   The pdfnative CDN pattern: try esm.sh, then jsDelivr's +esm build,
-   each verified by a capability probe (a stale or missing CDN build
-   must fail loudly, never half-load) — then fall back to the committed
-   local copy of dist/index.js. Until the package is published on npm
-   the CDN imports 404 and every page transparently runs the local
-   bundle; after publication the CDN serves the pinned version and the
-   local file remains the offline/dev fallback.
-   The VERSION constant is stamped by scripts/copy-playground-bundle.mjs
-   and checked by the playground-bundle verify-docs rule.
+   The pdfnative CDN pattern: import the PUBLISHED package, pinned to
+   this site's version, from esm.sh and then jsDelivr's +esm build. Each
+   candidate is verified by a capability probe — a stale or missing CDN
+   build must fail loudly, never half-load. There is no local fallback:
+   what runs here is exactly the npm artefact, byte for byte.
+   The VERSION constant is checked against docs/assets/ecosystem.json by
+   the cdn-pin verify-docs rule — bump it with every release.
    ═══════════════════════════════════════════════════════════════ */
 
 const VERSION = '1.0.0';
@@ -20,9 +18,10 @@ const CDN_URLS = [
 
 let cached = null;
 
-/** Load the engine once: `{ mod, source }` where source names what ran. */
+/** Load the engine once: `{ mod, source }` where source names the CDN that served it. */
 export async function loadEngine() {
   if (cached) return cached;
+  let lastError = null;
   for (const url of CDN_URLS) {
     try {
       const m = await import(url);
@@ -32,12 +31,21 @@ export async function loadEngine() {
         : (m.default && typeof m.default.openZip === 'function') ? m.default
           : Object.assign({}, m, m.default || {});
       if (typeof mod.openZip === 'function' && typeof mod.createZip === 'function') {
-        cached = { mod, source: `CDN (${new URL(url).host})` };
+        cached = { mod, source: `CDN (${new URL(url).host}) · zipnative@${VERSION}` };
         return cached;
       }
-    } catch { /* next candidate */ }
+      lastError = new Error(`${url} loaded but does not export openZip/createZip`);
+    } catch (err) {
+      lastError = err;
+    }
   }
-  const local = await import('./zipnative.js');
-  cached = { mod: local, source: 'local bundle' };
-  return cached;
+  const message = `zipnative@${VERSION} could not be loaded from esm.sh or jsDelivr — `
+    + `check your network or content blocker and reload. (${lastError && lastError.message ? lastError.message : 'no details'})`;
+  // Surface the failure on the page: every playground has an engine-source
+  // slot in its footer and most have a #status line.
+  const slot = document.getElementById('engine-source');
+  if (slot) slot.textContent = 'unavailable — CDN unreachable';
+  const status = document.getElementById('status');
+  if (status) { status.textContent = message; status.className = 'pg-status err'; }
+  throw new Error(message);
 }

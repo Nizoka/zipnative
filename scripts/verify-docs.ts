@@ -56,8 +56,25 @@ function walk(dir: string): string[] {
 }
 
 // ── Source of truth ──────────────────────────────────────────────────
+interface EcosystemPackage {
+    version: string | null;
+    repo?: string | null;
+    status?: string;
+    binary?: string;
+    pinField?: string | null;
+    pin?: string | null;
+    commandCount?: number;
+    commandGroups?: Record<string, readonly string[]>;
+    toolCount?: number;
+    tools?: readonly string[];
+    promptCount?: number;
+    prompts?: readonly string[];
+    resourceTemplates?: readonly string[];
+    transports?: readonly string[];
+    envVars?: readonly string[];
+}
 interface Ecosystem {
-    packages: Record<string, { version: string | null }>;
+    packages: Record<string, EcosystemPackage>;
     verifiedOn?: string;
     site?: string;
     derived?: { sampleZips?: number };
@@ -67,20 +84,73 @@ const truthVersion = ecosystem.packages['zipnative']?.version ?? null;
 const verifiedOn = ecosystem.verifiedOn ?? null;
 const site = ecosystem.site ?? null;
 const pkg = JSON.parse(read('package.json')) as { version: string; name: string };
+const MANIFEST = 'docs/assets/ecosystem.json';
+const cliPkg = ecosystem.packages['zipnative-cli'];
+const mcpPkg = ecosystem.packages['zipnative-mcp'];
+const cliCommandsOf = (): readonly string[] => Object.values(cliPkg?.commandGroups ?? {}).flat();
 
 // ── Rule: manifest-shape ─────────────────────────────────────────────
+// Every package (engine + satellites) carries a coherent record; the
+// satellites additionally declare the inventories every count in the
+// prose is checked against (satellite-counts, *-surface-parity).
 if (typeof truthVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(truthVersion)) {
-    report('docs/assets/ecosystem.json', 1, 'manifest-shape', 'packages.zipnative.version must be a semver triple');
+    report(MANIFEST, 1, 'manifest-shape', 'packages.zipnative.version must be a semver triple');
 }
 if (verifiedOn === null || !/^\d{4}-\d{2}-\d{2}$/.test(verifiedOn)) {
-    report('docs/assets/ecosystem.json', 1, 'manifest-shape', 'verifiedOn must be an ISO date (documentation-audit date)');
+    report(MANIFEST, 1, 'manifest-shape', 'verifiedOn must be an ISO date (documentation-audit date)');
 }
 if (ecosystem.derived !== undefined) {
     for (const key of Object.keys(ecosystem.derived)) {
         if (key !== 'sampleZips') {
-            report('docs/assets/ecosystem.json', 1, 'manifest-shape',
+            report(MANIFEST, 1, 'manifest-shape',
                 `unknown derived.${key} — a typo here silently disables its counter`);
         }
+    }
+}
+for (const [name, entry] of Object.entries(ecosystem.packages)) {
+    const status = entry.status ?? '(missing)';
+    if (!['active', 'published', 'planned'].includes(status)) {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}.status must be active | published | planned (got ${status})`);
+    }
+    if (status === 'planned') {
+        if (entry.version !== null) report(MANIFEST, 1, 'manifest-shape', `packages.${name} is planned but carries a version`);
+    } else {
+        if (typeof entry.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(entry.version)) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.version must be a semver triple`);
+        }
+        if (typeof entry.repo !== 'string' || !entry.repo.startsWith('https://github.com/Nizoka/')) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.repo must be a https://github.com/Nizoka/ URL`);
+        }
+    }
+    const pinField = entry.pinField ?? null;
+    if (pinField !== null && !['dependencies', 'peerDependencies'].includes(pinField)) {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}.pinField must be dependencies | peerDependencies | null`);
+    }
+    if ((pinField === null) !== ((entry.pin ?? null) === null)) {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}: pin and pinField must be both present or both null`);
+    }
+    if (name !== 'zipnative' && status !== 'planned' && typeof entry.binary !== 'string') {
+        report(MANIFEST, 1, 'manifest-shape', `packages.${name}.binary (the bin name) is required once published`);
+    }
+    const dupes = (list: readonly string[]): string[] => list.filter((x, i) => list.indexOf(x) !== i);
+    if (entry.commandGroups !== undefined) {
+        const flat = Object.values(entry.commandGroups).flat();
+        if (entry.commandCount !== flat.length) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.commandCount ${String(entry.commandCount)} != ${flat.length} commands listed in commandGroups`);
+        }
+        for (const d of dupes(flat)) report(MANIFEST, 1, 'manifest-shape', `packages.${name}: duplicate command ${d}`);
+    }
+    if (entry.tools !== undefined) {
+        if (entry.toolCount !== entry.tools.length) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.toolCount ${String(entry.toolCount)} != ${entry.tools.length} tools listed`);
+        }
+        for (const d of dupes(entry.tools)) report(MANIFEST, 1, 'manifest-shape', `packages.${name}: duplicate tool ${d}`);
+    }
+    if (entry.prompts !== undefined) {
+        if (entry.promptCount !== entry.prompts.length) {
+            report(MANIFEST, 1, 'manifest-shape', `packages.${name}.promptCount ${String(entry.promptCount)} != ${entry.prompts.length} prompts listed`);
+        }
+        for (const d of dupes(entry.prompts)) report(MANIFEST, 1, 'manifest-shape', `packages.${name}: duplicate prompt ${d}`);
     }
 }
 
@@ -109,36 +179,352 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
     }
 }
 
-// ── Rule: playground-bundle ──────────────────────────────────────────
-// The playgrounds run a committed copy of the engine's own dist bundle.
-// It must match dist/index.js byte-for-byte (minus the sourceMappingURL
-// line dropped by `docs:playground`) and carry the manifest version, or
-// the playgrounds silently run stale code. dist/ is gitignored, so this
-// only checks when a build is present (CI builds before verifying).
+// ── Rule: cdn-pin ────────────────────────────────────────────────────
+// The playgrounds run the PUBLISHED package from a version-pinned CDN
+// (esm.sh → jsDelivr) — the pdfnative pattern, no local bundle. The pin
+// in the shared loader must track the manifest, and the pre-1.0 fallback
+// (a committed copy of dist/index.js) must not creep back in.
 {
-    const bundlePath = 'docs/playgrounds/zipnative.js';
-    if (existsSync(resolve(ROOT, bundlePath))) {
-        const committed = read(bundlePath);
-        const versionMatch = committed.match(/VERSION = "([^"]+)"/);
-        if (versionMatch === null || versionMatch[1] !== pkg.version) {
-            report(bundlePath, 1, 'playground-bundle',
-                `bundle VERSION ${versionMatch?.[1] ?? '(missing)'} != package.json ${pkg.version} — run \`npm run docs:playground\``);
+    const loaderPath = 'docs/playgrounds/load-engine.js';
+    if (!existsSync(resolve(ROOT, loaderPath))) {
+        report(loaderPath, 1, 'cdn-pin', 'missing — every playground imports the shared CDN loader');
+    } else {
+        const loader = read(loaderPath);
+        const pin = loader.match(/const VERSION = '([^']+)';/);
+        if (pin === null || pin[1] !== truthVersion) {
+            report(loaderPath, 1, 'cdn-pin', `CDN pin ${pin?.[1] ?? '(missing)'} != manifest ${String(truthVersion)} — edit the VERSION constant`);
         }
-        if (existsSync(resolve(ROOT, 'dist/index.js'))) {
-            const dist = read('dist/index.js').split('\n').filter((l) => !l.startsWith('//# sourceMappingURL=')).join('\n');
-            if (dist !== committed) {
-                report(bundlePath, 1, 'playground-bundle', 'differs from dist/index.js — run `npm run docs:playground`');
+        if (loader.includes('./zipnative.js')) {
+            report(loaderPath, 1, 'cdn-pin', 'the loader must not import a local bundle — the playgrounds are CDN-only since 1.0');
+        }
+    }
+    if (existsSync(resolve(ROOT, 'docs/playgrounds/zipnative.js'))) {
+        report('docs/playgrounds/zipnative.js', 1, 'cdn-pin', 'stale local bundle — the playgrounds load the published package; delete it');
+    }
+}
+
+// ── Rule: versions-widget ────────────────────────────────────────────
+// assets/versions.js renders live npm versions and falls back to a
+// hard-coded map when the registry is unreachable; that map must equal
+// the manifest, or an offline visitor reads a stale version.
+{
+    const path = 'docs/assets/versions.js';
+    if (existsSync(resolve(ROOT, path))) {
+        const js = read(path);
+        for (const [name, entry] of Object.entries(ecosystem.packages)) {
+            const m = js.match(new RegExp(`'${name}':\\s*\\{\\s*version:\\s*'([^']+)',\\s*pin:\\s*(null|'([^']+)')`));
+            if (m === null) { report(path, 1, 'versions-widget', `FALLBACK lacks an entry for ${name}`); continue; }
+            if (m[1] !== entry.version) report(path, 1, 'versions-widget', `FALLBACK ${name} version ${m[1]} != manifest ${String(entry.version)}`);
+            const pin = m[3] ?? null;
+            if (pin !== (entry.pin ?? null)) report(path, 1, 'versions-widget', `FALLBACK ${name} pin ${String(pin)} != manifest ${String(entry.pin ?? null)}`);
+        }
+    }
+}
+
+// ── Rule: satellite-counts ───────────────────────────────────────────
+// "15 commands", "13 tools", "7 prompts": every such literal anywhere in
+// the prose (HTML, Markdown, SVG <desc>, root docs) must equal the
+// manifest inventory — the pdfnative count-drift lesson (docs.yml header).
+{
+    const expected: Record<string, number | undefined> = {
+        commands: cliPkg?.commandCount,
+        tools: mcpPkg?.toolCount,
+        prompts: mcpPkg?.promptCount,
+    };
+    const corpus = [
+        ...walk('docs').filter((p) => /\.(html|md|svg)$/.test(p) && !p.includes('llms-full') && !p.includes('llms-recipes')),
+        'README.md', 'AGENTS.md', 'ROADMAP.md', 'CONTRIBUTING.md', 'llms.txt',
+    ];
+    // (?<![\d.]) keeps "zipnative-cli 1.0.0 commands" from reading as "0 commands".
+    const pattern = /(?<![\d.])(\d+)\s+(?:production\s+|MCP\s+|CLI\s+)?(commands|tools|prompts)\b/gi;
+    for (const path of corpus) {
+        const text = read(path);
+        for (const m of text.matchAll(pattern)) {
+            const noun = m[2].toLowerCase();
+            const want = expected[noun];
+            if (want === undefined) continue;
+            if (Number(m[1]) !== want && !allowed(text, m.index ?? 0, 'satellite-counts')) {
+                report(path, lineOf(text, m.index ?? 0), 'satellite-counts',
+                    `"${m[0]}" but the manifest declares ${want} ${noun} — fix the prose or the manifest`);
             }
         }
-        // The CDN loader's version pin must track the manifest too.
-        const loaderPath = 'docs/playgrounds/load-engine.js';
-        if (existsSync(resolve(ROOT, loaderPath))) {
-            const pin = read(loaderPath).match(/const VERSION = '([^']+)';/);
-            if (pin === null || pin[1] !== pkg.version) {
-                report(loaderPath, 1, 'playground-bundle',
-                    `CDN pin ${pin?.[1] ?? '(missing)'} != package.json ${pkg.version} — run \`npm run docs:playground\``);
+    }
+}
+
+// ── Rule: surfaces-shape ─────────────────────────────────────────────
+// docs/data/surfaces.json (the capability × surface matrix) must name
+// only things that exist: library calls that are real exports (api.json),
+// CLI commands from the manifest's command groups, MCP tools from the
+// manifest's tool list. Its verifiedOn rides with the manifest's.
+{
+    interface Cell { supported?: boolean; call?: string; command?: string; tool?: string; notes?: string }
+    interface Surfaces { verifiedOn?: string; capabilities?: ReadonlyArray<{ id?: string; label?: string; library?: Cell; cli?: Cell; mcp?: Cell }> }
+    const path = 'docs/data/surfaces.json';
+    if (!existsSync(resolve(ROOT, path))) {
+        report(path, 1, 'surfaces-shape', 'missing — the choose guide needs its machine-readable twin');
+    } else {
+        const surfaces = JSON.parse(read(path)) as Surfaces;
+        const apiNames = new Set((JSON.parse(read('docs/assets/api.json')) as { exports?: ReadonlyArray<{ name?: string }> }).exports?.map((e) => e.name ?? '') ?? []);
+        const commands = new Set(cliCommandsOf());
+        const tools = new Set(mcpPkg?.tools ?? []);
+        if (surfaces.verifiedOn !== verifiedOn) {
+            report(path, 1, 'surfaces-shape', `verifiedOn ${String(surfaces.verifiedOn)} != manifest ${String(verifiedOn)}`);
+        }
+        const ids = new Set<string>();
+        for (const cap of surfaces.capabilities ?? []) {
+            const id = cap.id ?? '(no id)';
+            if (ids.has(id)) report(path, 1, 'surfaces-shape', `duplicate capability id ${id}`);
+            ids.add(id);
+            for (const surface of ['library', 'cli', 'mcp'] as const) {
+                const cell = cap[surface];
+                if (cell === undefined || typeof cell.supported !== 'boolean') {
+                    report(path, 1, 'surfaces-shape', `${id}.${surface} must carry a boolean supported`);
+                    continue;
+                }
+                if (!cell.supported) continue;
+                if (surface === 'library') {
+                    // Every `name()` token must be a real export; bare prose is allowed.
+                    for (const m of (cell.call ?? '').matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\(\)/g)) {
+                        const readerMethods = ['entries', 'readEntry', 'readEntryStream', 'readEntryRaw', 'verifyEntry', 'addStream', 'stream', 'save', 'saveCompact', 'add', 'addDirectory'];
+                        if (!apiNames.has(m[1]) && !readerMethods.includes(m[1])) {
+                            report(path, 1, 'surfaces-shape', `${id}.library names ${m[1]}() — not an export in api.json`);
+                        }
+                    }
+                } else if (surface === 'cli') {
+                    // The first token is a command (or a global flag, which starts with --).
+                    const first = (cell.command ?? '').split(/[\s/]+/)[0] ?? '';
+                    if (!first.startsWith('--') && !commands.has(first)) {
+                        report(path, 1, 'surfaces-shape', `${id}.cli names command '${first}' — not in the manifest's commandGroups`);
+                    }
+                } else {
+                    const first = (cell.tool ?? '').split(/\s+/)[0] ?? '';
+                    // Protocol-level or operator-level facts that are not a tool name: the
+                    // wire methods, the shared inputs, the transports and the ZIPNATIVE_MCP_*
+                    // environment variables the manifest lists.
+                    const protocolLevel = ['tools/list', 'prompts/list', 'limits', 'strict:', 'outputMode:', 'stdio', ...(mcpPkg?.envVars ?? [])];
+                    if (!tools.has(first) && !protocolLevel.includes(first)) {
+                        report(path, 1, 'surfaces-shape', `${id}.mcp names tool '${first}' — not in the manifest's tools`);
+                    }
+                }
             }
         }
+    }
+}
+
+// ── Rule: cli-surface-parity ─────────────────────────────────────────
+// docs/data/cli-surface.json is the snapshot of `zipnative schema
+// manifest` (itself derived from the CLI's own command table). Part 1:
+// the snapshot agrees with the ecosystem manifest — same version, same
+// command set, and every --max-* limit flag present among the globals.
+{
+    const path = 'docs/data/cli-surface.json';
+    if (!existsSync(resolve(ROOT, path))) {
+        report(path, 1, 'cli-surface-parity', 'missing — snapshot `npx -y zipnative-cli@<version> schema manifest`');
+    } else {
+        const surface = JSON.parse(read(path)) as {
+            version?: string; globalFlags?: readonly string[]; globalBooleanFlags?: readonly string[];
+            commands?: ReadonlyArray<{ name?: string; group?: string; flags?: readonly string[]; booleanFlags?: readonly string[] }>;
+            limits?: ReadonlyArray<{ flag?: string }>;
+        };
+        if (surface.version !== cliPkg?.version) {
+            report(path, 1, 'cli-surface-parity', `version ${String(surface.version)} != manifest zipnative-cli ${String(cliPkg?.version)}`);
+        }
+        const snapshotNames = (surface.commands ?? []).map((c) => c.name ?? '');
+        const manifestNames = cliCommandsOf();
+        for (const name of manifestNames) {
+            if (!snapshotNames.includes(name)) report(path, 1, 'cli-surface-parity', `manifest command '${name}' missing from the snapshot`);
+        }
+        for (const name of snapshotNames) {
+            if (!manifestNames.includes(name)) report(path, 1, 'cli-surface-parity', `snapshot command '${name}' missing from ecosystem.json commandGroups`);
+        }
+        for (const c of surface.commands ?? []) {
+            const group = cliPkg?.commandGroups ?? {};
+            const declared = Object.entries(group).find(([, names]) => names.includes(c.name ?? ''))?.[0];
+            if (declared !== undefined && c.group !== declared) {
+                report(path, 1, 'cli-surface-parity', `command '${String(c.name)}' is in group '${String(c.group)}' but the manifest says '${declared}'`);
+            }
+            for (const b of c.booleanFlags ?? []) {
+                if (!(c.flags ?? []).includes(b)) report(path, 1, 'cli-surface-parity', `command '${String(c.name)}': boolean flag ${b} is not among its flags`);
+            }
+        }
+        for (const limit of surface.limits ?? []) {
+            if (limit.flag !== undefined && !(surface.globalFlags ?? []).includes(limit.flag)) {
+                report(path, 1, 'cli-surface-parity', `limit flag ${limit.flag} missing from globalFlags`);
+            }
+        }
+        // Part 2: the CLI guide documents every command (a `zipnative <name>`
+        // heading) and names every flag — global and per command — literally,
+        // plus every environment variable the manifest lists.
+        const guidePath = 'docs/guides/cli.md';
+        if (!existsSync(resolve(ROOT, guidePath))) {
+            report(guidePath, 1, 'cli-surface-parity', 'missing — the CLI reference guide');
+        } else {
+            const guide = read(guidePath);
+            for (const c of surface.commands ?? []) {
+                if (!guide.includes(`\`zipnative ${String(c.name)}\``)) {
+                    report(guidePath, 1, 'cli-surface-parity', `no heading for command '${String(c.name)}'`);
+                }
+                for (const flag of c.flags ?? []) {
+                    if (!guide.includes(flag)) report(guidePath, 1, 'cli-surface-parity', `command '${String(c.name)}': flag ${flag} is not documented`);
+                }
+            }
+            for (const flag of surface.globalFlags ?? []) {
+                if (!guide.includes(flag)) report(guidePath, 1, 'cli-surface-parity', `global flag ${flag} is not documented`);
+            }
+            for (const envVar of cliPkg?.envVars ?? []) {
+                if (!guide.includes(envVar)) report(guidePath, 1, 'cli-surface-parity', `environment variable ${envVar} is not documented`);
+            }
+        }
+    }
+}
+
+// ── Rule: cli-surface-parity, part 3 — the CLI playground ────────────
+// docs/playgrounds/cli.html embeds its command table as JSON. Per
+// command the flag SET must equal the snapshot's (every flag exposed,
+// none invented), the global set must equal the snapshot's globals minus
+// --help/--version, and `kind: "bool"` must coincide with the CLI's
+// boolean-flag table (a value flag rendered as a checkbox would emit a
+// command the CLI parses differently).
+{
+    const pagePath = 'docs/playgrounds/cli.html';
+    const snapPath = 'docs/data/cli-surface.json';
+    if (existsSync(resolve(ROOT, pagePath)) && existsSync(resolve(ROOT, snapPath))) {
+        const page = read(pagePath);
+        const block = page.match(/<script type="application\/json" id="cli-surface">([\s\S]*?)<\/script>/);
+        if (block === null) {
+            report(pagePath, 1, 'cli-surface-parity', 'missing the #cli-surface JSON block');
+        } else {
+            interface PageFlag { flag: string; kind: string }
+            interface PageSurface { version?: string; dryRunCommands?: string[]; global?: PageFlag[]; commands?: Array<{ name: string; flags: PageFlag[] }> }
+            const snap = JSON.parse(read(snapPath)) as {
+                version?: string; globalFlags?: string[]; globalBooleanFlags?: string[]; dryRunCommands?: string[];
+                commands?: Array<{ name?: string; flags?: string[]; booleanFlags?: string[] }>;
+            };
+            let surface: PageSurface;
+            try { surface = JSON.parse(block[1]) as PageSurface; } catch { report(pagePath, lineOf(page, block.index ?? 0), 'cli-surface-parity', 'invalid JSON in #cli-surface'); surface = {}; }
+            const line = lineOf(page, block.index ?? 0);
+            if (surface.version !== snap.version) report(pagePath, line, 'cli-surface-parity', `page version ${String(surface.version)} != snapshot ${String(snap.version)}`);
+            const same = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x) => b.includes(x));
+            if (!same(surface.dryRunCommands ?? [], snap.dryRunCommands ?? [])) report(pagePath, line, 'cli-surface-parity', 'dryRunCommands differ from the snapshot');
+            const pageGlobals = (surface.global ?? []).map((f) => f.flag);
+            const snapGlobals = (snap.globalFlags ?? []).filter((f) => f !== '--help' && f !== '--version');
+            for (const f of snapGlobals) if (!pageGlobals.includes(f)) report(pagePath, line, 'cli-surface-parity', `global flag ${f} is not in the builder`);
+            for (const f of pageGlobals) if (!snapGlobals.includes(f)) report(pagePath, line, 'cli-surface-parity', `builder global flag ${f} is not in the snapshot`);
+            for (const f of surface.global ?? []) {
+                const isBool = (snap.globalBooleanFlags ?? []).includes(f.flag);
+                if ((f.kind === 'bool') !== isBool) report(pagePath, line, 'cli-surface-parity', `global flag ${f.flag}: kind ${f.kind} but the CLI says ${isBool ? 'boolean' : 'value'}`);
+            }
+            const snapByName = new Map((snap.commands ?? []).map((c) => [c.name ?? '', c]));
+            for (const c of surface.commands ?? []) {
+                const s = snapByName.get(c.name);
+                if (s === undefined) { report(pagePath, line, 'cli-surface-parity', `builder command '${c.name}' is not in the snapshot`); continue; }
+                const pageFlags = c.flags.map((f) => f.flag);
+                for (const f of s.flags ?? []) if (!pageFlags.includes(f)) report(pagePath, line, 'cli-surface-parity', `command '${c.name}': flag ${f} is not in the builder`);
+                for (const f of pageFlags) if (!(s.flags ?? []).includes(f)) report(pagePath, line, 'cli-surface-parity', `command '${c.name}': builder flag ${f} is not in the snapshot`);
+                for (const f of c.flags) {
+                    const isBool = (s.booleanFlags ?? []).includes(f.flag);
+                    if ((f.kind === 'bool') !== isBool) report(pagePath, line, 'cli-surface-parity', `command '${c.name}': ${f.flag} kind ${f.kind} but the CLI says ${isBool ? 'boolean' : 'value'}`);
+                }
+            }
+            for (const name of snapByName.keys()) if (!(surface.commands ?? []).some((c) => c.name === name)) report(pagePath, line, 'cli-surface-parity', `snapshot command '${name}' is not in the builder`);
+        }
+    }
+}
+
+// ── Rule: switcher-parity ────────────────────────────────────────────
+// Every playground page carries the same switcher: every playground
+// linked, the current page marked aria-current, and no entry pointing to
+// a page that does not exist (pdfnative rule, ported).
+{
+    const pages = walk('docs/playgrounds').filter((p) => p.endsWith('.html') && !p.endsWith('/index.html'));
+    const expected = new Set(pages.map((p) => './' + p.split('/').pop()));
+    for (const page of pages) {
+        const html = read(page);
+        const nav = html.match(/<nav class="playground-switcher"[\s\S]*?<\/nav>/);
+        if (nav === null) { report(page, 1, 'switcher-parity', 'missing the playground switcher'); continue; }
+        const links = [...nav[0].matchAll(/<a href="(\.\/[^"]+\.html)"([^>]*)>/g)];
+        const found = new Set(links.map((m) => m[1]));
+        for (const e of expected) if (!found.has(e)) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher lacks ${e}`);
+        for (const f of found) if (!expected.has(f)) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher links to a page that does not exist: ${f}`);
+        const self = './' + page.split('/').pop();
+        const current = links.find((m) => m[2].includes('aria-current="page"'));
+        if (current === undefined || current[1] !== self) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `aria-current must mark ${self}`);
+    }
+}
+
+// ── Rule: mcp-surface-parity ─────────────────────────────────────────
+// The MCP guide documents every tool (a `### \`tool\`` heading), names
+// every prompt, resource template and environment variable the manifest
+// lists — the inventory the ecosystem manifest declares is the inventory
+// the site describes.
+{
+    const guidePath = 'docs/guides/mcp.md';
+    if (!existsSync(resolve(ROOT, guidePath))) {
+        report(guidePath, 1, 'mcp-surface-parity', 'missing — the MCP reference guide');
+    } else {
+        const guide = read(guidePath);
+        for (const tool of mcpPkg?.tools ?? []) {
+            if (!guide.includes(`### \`${tool}\``)) report(guidePath, 1, 'mcp-surface-parity', `no heading for tool '${tool}'`);
+        }
+        for (const prompt of mcpPkg?.prompts ?? []) {
+            if (!guide.includes(`\`${prompt}\``)) report(guidePath, 1, 'mcp-surface-parity', `prompt '${prompt}' is not documented`);
+        }
+        for (const template of mcpPkg?.resourceTemplates ?? []) {
+            if (!guide.includes(template)) report(guidePath, 1, 'mcp-surface-parity', `resource template ${template} is not documented`);
+        }
+        for (const envVar of mcpPkg?.envVars ?? []) {
+            if (!guide.includes(envVar)) report(guidePath, 1, 'mcp-surface-parity', `environment variable ${envVar} is not documented`);
+        }
+        // Part 3: the MCP playground's card catalogue names exactly the
+        // manifest's tools, in tools/list order, and lists every prompt.
+        const pagePath = 'docs/playgrounds/mcp.html';
+        if (existsSync(resolve(ROOT, pagePath))) {
+            const page = read(pagePath);
+            const ids = [...page.matchAll(/^\s*id: '([a-z0-9_]+)',/gm)].map((m) => m[1]);
+            const want = mcpPkg?.tools ?? [];
+            if (ids.join(',') !== want.join(',')) {
+                report(pagePath, 1, 'mcp-surface-parity', `card ids [${ids.join(', ')}] != manifest tools in order [${want.join(', ')}]`);
+            }
+            for (const prompt of mcpPkg?.prompts ?? []) {
+                if (!page.includes(`<code>${prompt}</code>`)) report(pagePath, 1, 'mcp-surface-parity', `prompt '${prompt}' is not listed on the playground`);
+            }
+        }
+        // Tool names that look real but are not in the manifest are phantoms.
+        for (const m of guide.matchAll(/`([a-z]+_[a-z_]+)`/g)) {
+            const name = m[1];
+            const known = [...(mcpPkg?.tools ?? []), ...(mcpPkg?.prompts ?? [])];
+            const nonTools = ['server_discover', 'tools_list', 'prompts_list', 'resources_list', 'resources_read', 'resources_templates_list', 'tools_call', 'prompts_get'];
+            if (/^(inspect|list|read|verify|extract|scan|sanitize|create|modify|compute|inflate|describe|draft)_/.test(name)
+                && !known.includes(name) && !nonTools.includes(name) && !allowed(guide, m.index ?? 0, 'mcp-surface-parity')) {
+                report(guidePath, lineOf(guide, m.index ?? 0), 'mcp-surface-parity', `'${name}' looks like a tool but is not in the manifest`);
+            }
+        }
+    }
+}
+
+// ── Rule: switcher-parity ────────────────────────────────────────────
+// Every playground page carries a hand-synced sub-nav listing every
+// playground page (the pdfnative pattern, ported): the link set must
+// equal the page set, the page itself is marked aria-current, and the
+// hub's card grid links every page too.
+{
+    const dir = 'docs/playgrounds';
+    const pages = walk(dir).filter((p) => p.endsWith('.html') && !p.endsWith('index.html')).map((p) => p.replace(/\\/g, '/').split('/').pop() ?? '');
+    for (const page of pages) {
+        const path = `${dir}/${page}`;
+        const html = read(path);
+        const nav = html.match(/<nav class="playground-switcher"[\s\S]*?<\/nav>/);
+        if (nav === null) { report(path, 1, 'switcher-parity', 'no <nav class="playground-switcher">'); continue; }
+        const links = [...nav[0].matchAll(/<a href="\.\/([a-z-]+\.html)"([^>]*)>/g)];
+        const linked = links.map((m) => m[1]);
+        for (const p of pages) if (!linked.includes(p)) report(path, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher lacks ${p}`);
+        for (const l of linked) if (!pages.includes(l)) report(path, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher links ${l}, which is not a playground page`);
+        const current = links.filter((m) => m[2].includes('aria-current="page"')).map((m) => m[1]);
+        if (current.length !== 1 || current[0] !== page) report(path, lineOf(html, nav.index ?? 0), 'switcher-parity', `aria-current="page" must mark exactly ${page} (got ${current.join(', ') || 'none'})`);
+    }
+    const hub = read(`${dir}/index.html`);
+    for (const p of pages) {
+        if (!hub.includes(`class="pg-card" href="${p}"`)) report(`${dir}/index.html`, 1, 'switcher-parity', `hub has no card for ${p}`);
     }
 }
 
@@ -373,12 +759,27 @@ for (const page of htmlPages) {
             report(page, lineOf(html, m.index ?? 0), 'jsonld-version', 'invalid JSON-LD');
             continue;
         }
-        for (const node of parsed['@graph'] ?? []) {
+        // Walk every node (top-level or @graph) plus nested `about` nodes:
+        // any node NAMED after a manifest package must carry that package's
+        // version — the #library node and the satellite `about` nodes alike.
+        const nodes: Array<Record<string, unknown>> = parsed['@graph'] ?? [parsed as Record<string, unknown>];
+        const checkVersion = (node: Record<string, unknown>): void => {
             const id = typeof node['@id'] === 'string' ? node['@id'] : '';
-            if (id.endsWith('#library') && node['softwareVersion'] !== truthVersion) {
+            const name = typeof node['name'] === 'string' ? node['name'] : '';
+            const pkgEntry = ecosystem.packages[name];
+            const expected = id.endsWith('#library') ? truthVersion : (pkgEntry?.version ?? null);
+            if (expected !== null && node['softwareVersion'] !== undefined && node['softwareVersion'] !== expected) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version',
-                    `#library softwareVersion ${String(node['softwareVersion'])} != manifest ${String(truthVersion)}`);
+                    `${name || id} softwareVersion ${String(node['softwareVersion'])} != manifest ${expected}`);
             }
+            if (id.endsWith('#library') && node['softwareVersion'] === undefined) {
+                report(page, lineOf(html, m.index ?? 0), 'jsonld-version', '#library node lacks softwareVersion');
+            }
+        };
+        for (const node of nodes) {
+            checkVersion(node);
+            const about = node['about'];
+            if (about !== null && typeof about === 'object') checkVersion(about as Record<string, unknown>);
             const type = node['@type'];
             if ((type === 'WebSite' || type === 'SoftwareSourceCode' || type === 'TechArticle') && node['inLanguage'] === undefined) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `${String(type)} node lacks inLanguage`);

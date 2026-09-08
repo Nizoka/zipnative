@@ -16,7 +16,7 @@
     <loc>https://zipnative.dev/playgrounds/</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/"/>
-    <lastmod>2026-09-01</lastmod>
+    <lastmod>2026-09-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -61,10 +61,26 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://zipnative.dev/playgrounds/cli.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/cli.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/cli.html"/>
+    <lastmod>2026-09-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/playgrounds/mcp.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/mcp.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/mcp.html"/>
+    <lastmod>2026-09-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://zipnative.dev/guides/</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/"/>
-    <lastmod>2026-09-01</lastmod>
+    <lastmod>2026-09-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -73,6 +89,30 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/quickstart.html"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/quickstart.html"/>
     <lastmod>2026-09-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/choose.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/choose.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/choose.html"/>
+    <lastmod>2026-09-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/cli.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/cli.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/cli.html"/>
+    <lastmod>2026-09-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://zipnative.dev/guides/mcp.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/mcp.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/mcp.html"/>
+    <lastmod>2026-09-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -96,7 +136,7 @@
     <loc>https://zipnative.dev/guides/use-cases.html</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/use-cases.html"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/use-cases.html"/>
-    <lastmod>2026-09-01</lastmod>
+    <lastmod>2026-09-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
