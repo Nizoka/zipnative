@@ -172,9 +172,12 @@ triple. Cursor (<code>~/.cursor/mcp.json</code> or the project <code>.cursor/mcp
 <pre><code class="language-bash">ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN=&quot;$(openssl rand -hex 24)&quot; npx -y zipnative-mcp
 # → POST http://127.0.0.1:3000/mcp   (Authorization: Bearer &lt;token&gt;)
 </code></pre>
-<p>The endpoint binds <strong>loopback only</strong> and accepts <code>POST /mcp</code> alone:
-<code>GET</code> / <code>DELETE</code> answer 405, a foreign <code>Host</code> / <code>Origin</code> answers 403
-(DNS-rebinding guard), bodies above 256 MiB answer 413. <strong>Without
+<p>The endpoint binds <strong>loopback only</strong> and accepts <code>POST /mcp</code> alone: any
+other path answers 404, <code>GET</code> / <code>DELETE</code> answer 405, a foreign <code>Host</code> /
+<code>Origin</code> answers 403 (DNS-rebinding guard — and because the SDK&#39;s own
+check is port-agnostic, an <code>Origin</code> whose port differs from the server&#39;s
+port is refused too, so a local web page on another port is still
+cross-site), bodies above 256 MiB answer 413. <strong>Without
 <code>ZIPNATIVE_MCP_HTTP_TOKEN</code> the endpoint has no authentication</strong> — other
 local processes can reach it; with the token, a missing or wrong bearer
 answers 401 + <code>WWW-Authenticate</code>.</p>
@@ -195,7 +198,7 @@ answers 401 + <code>WWW-Authenticate</code>.</p>
 <tr>
 <td><code>ZIPNATIVE_MCP_CACHE_DIR</code></td>
 <td><em>(unset)</em></td>
-<td>Opt-in SHA-256-keyed result cache (1 h TTL, 256 MiB LRU, <strong>plaintext at rest</strong>). Never caches path inputs, file output, <code>defaultDate: &#39;now&#39;</code>, <code>parallel</code>, <code>describe_engine</code> or <code>draft_governance_issue</code>; a hit carries <code>_meta.cached: true</code></td>
+<td>Opt-in SHA-256-keyed result cache (1 h TTL, 256 MiB LRU, <strong>plaintext at rest</strong>). Keys are namespaced by tool API version, package version and engine version, so an upgrade never serves bytes written by the previous engine. Never caches path inputs, file output, <code>defaultDate: &#39;now&#39;</code>, <code>parallel</code>, <code>describe_engine</code> or <code>draft_governance_issue</code>; a hit carries <code>_meta.cached: true</code>. A directory that cannot be created disables the cache with one <code>[zipnative-mcp] cache disabled: …</code> line on stderr rather than failing</td>
 </tr>
 <tr>
 <td><code>ZIPNATIVE_MCP_PORT</code></td>
@@ -225,13 +228,37 @@ answers 401 + <code>WWW-Authenticate</code>.</p>
 </tbody></table>
 <p>An invalid ceiling refuses to start with one <code>[zipnative-mcp] fatal:</code>
 line and exit 1.</p>
+<p>The same seven variables are declared in the package&#39;s MCP registry
+manifest, <code>server.json</code> (<code>runtimeHint: &quot;npx&quot;</code> with <code>-y zipnative-mcp</code>,
+transport <code>stdio</code>): each carries <code>isRequired: false</code>, a <code>format</code>
+(<code>filepath</code> for the two directories, <code>number</code> for the port and the
+three ceilings) and <code>isSecret: true</code> on <code>ZIPNATIVE_MCP_HTTP_TOKEN</code>
+alone, so a registry-driven host can prompt for them correctly.</p>
 <h2 id="protocol-and-transport">Protocol and transport<a class="heading-anchor" href="#protocol-and-transport" aria-label="Link to this section">#</a></h2>
 <ul>
 <li><strong>MCP 2026-07-28</strong> on the MCP TypeScript SDK v2: stateless serving
-(<code>server/discover</code>), the <code>_meta</code> envelope, cache hints (<code>tools/list</code>
-and <code>prompts/list</code> public for 24 h, <code>server/discover</code> public for 1 h,
-the resource methods private with <code>ttlMs: 0</code>), and every
-<code>structuredContent</code> validated against the tool&#39;s <code>outputSchema</code>.</li>
+(<code>server/discover</code>), the <code>_meta</code> envelope, and cache hints
+(<code>tools/list</code> and <code>prompts/list</code> public for 24 h, <code>server/discover</code>
+public for 1 h, the resource methods private with <code>ttlMs: 0</code>).</li>
+<li><strong>Schemas are declared, not re-validated on the way out.</strong> Every tool
+advertises an <code>inputSchema</code> and an <code>outputSchema</code>; inputs are
+enforced at the boundary by Zod twins of those schemas, and
+<code>structuredContent</code> is built to follow the output schema — but the
+server deliberately stays on the SDK&#39;s low-level <code>Server</code> surface and
+does <strong>not</strong> run a runtime validator over its own results (the
+<code>McpServer</code> helper that would do so cannot express the <code>verbosity</code> /
+<code>fields</code> projections, hence the read tools&#39; output schemas mark every
+property optional). A validating host is free to check.</li>
+<li><strong><code>instructions</code>.</strong> The <code>initialize</code> / <code>server/discover</code> response
+carries a server-instructions block — a decision tree (which tool for
+which question), the security posture and the common pitfalls — that
+a host may inject into the assistant&#39;s context; the seven prompts
+repeat the same material on demand.</li>
+<li><strong><code>tools/list</code> <code>_meta</code>.</strong> Every tool entry carries
+<code>_meta.apiVersion</code> (the tool-API version, <code>1.0.0</code>, independent from
+the package version and bumped only when a schema changes) and
+<code>_meta.examples</code> — one or two self-contained, executable inputs per
+tool (<code>&lt;zip-base64&gt;</code> stands for the archive).</li>
 <li><strong>Automatic legacy fallback</strong> for clients that open with <code>initialize</code>:
 2024-10-07, 2024-11-05, 2025-03-26, 2025-06-18 and 2025-11-25 are
 negotiated on both transports; the <code>tools/call</code> payload is identical
@@ -248,75 +275,148 @@ tool, resource or prompt), as the specification requires; <code>isError: true</c
 archive-consuming tool takes exactly one of <code>zipBase64</code> (the raw archive
 as base64, a <code>data:…;base64,</code> prefix tolerated, decoded ≤ 128 MiB) or
 <code>zipPath</code> (a relative path inside the sandbox, container extensions
-only — <code>.zip .jar .war .ear .docx .xlsx .pptx .odt .ods .odp .epub .vsix .nupkg .whl .apk .ipa .xpi .crx .kmz</code>; ≤ 1 GiB). Every engine-touching
-tool takes <code>limits</code> (the eight <code>ZipLimits</code> bounds — <code>maxEntries</code>,
+only — <code>.zip .jar .war .ear .docx .xlsx .pptx .odt .ods .odp .epub .vsix .nupkg .whl .apk .ipa .xpi .crx .kmz</code>; ≤ 1 GiB).</p>
+<p>The shared inputs are not on every tool — the table below says which:</p>
+<ul>
+<li><code>limits</code> (the eight <code>ZipLimits</code> bounds — <code>maxEntries</code>,
 <code>maxEntryUncompressedSize</code>, <code>maxTotalUncompressedSize</code>,
 <code>maxCompressionRatio</code>, <code>maxNameBytes</code>, <code>maxExtraFieldBytes</code>,
 <code>maxCommentBytes</code>, <code>maxCentralDirectoryBytes</code>; above the operator
-ceilings → <code>LIMIT_CEILING_EXCEEDED</code>) and <code>strict</code> (escalate the first
-diagnostic to <code>ZIP_STRICT_DIAGNOSTIC</code>). The read tools take <code>verbosity</code>
-(<code>&#39;full&#39;</code> | <code>&#39;summary&#39;</code>) and <code>fields</code> (≤ 16 dot paths). Every result
-carries <code>diagnostics[]</code> and <code>diagnosticCounts</code> (200 kept after
-de-duplication). Tool annotations: the read tools are <code>readOnlyHint: true</code>; every tool is <code>idempotentHint: true</code>, <code>destructiveHint: false</code>,
-<code>openWorldHint: false</code>.</p>
+ceilings → <code>LIMIT_CEILING_EXCEEDED</code>) on the eight archive-consuming
+and archive-producing tools: <code>inspect_zip</code>, <code>list_zip_entries</code>,
+<code>read_zip_entry</code>, <code>verify_zip</code>, <code>extract_zip</code>, <code>scan_zip_forward</code>,
+<code>create_zip</code>, <code>modify_zip</code>.</li>
+<li><code>strict</code> (escalate the first diagnostic to <code>ZIP_STRICT_DIAGNOSTIC</code>)
+on seven of those — <strong>not</strong> on <code>verify_zip</code>, whose whole point is to
+report rather than throw.</li>
+<li><code>verbosity</code> (<code>&#39;full&#39;</code> | <code>&#39;summary&#39;</code>) and <code>fields</code> (≤ 16 dot paths) on
+the read tools: <code>inspect_zip</code>, <code>list_zip_entries</code>, <code>read_zip_entry</code>,
+<code>verify_zip</code>, <code>extract_zip</code>, <code>scan_zip_forward</code>,
+<code>sanitize_entry_paths</code>, <code>describe_engine</code>.</li>
+<li><code>diagnostics[]</code> <strong>and</strong> <code>diagnosticCounts</code> (de-duplicated by code and
+entry, 200 kept, <code>diagnosticsTruncated: true</code> beyond) on the seven
+<code>strict</code> tools; <code>verify_zip</code> carries <code>diagnostics[]</code> alone (the
+engine report&#39;s own list); <code>inflate_raw</code> carries an always-empty
+<code>diagnostics: []</code>; <code>compute_crc32</code>, <code>sanitize_entry_paths</code>,
+<code>describe_engine</code> and <code>draft_governance_issue</code> carry neither.</li>
+</ul>
+<p>Tool annotations: the read tools are <code>readOnlyHint: true</code>; every tool
+is <code>idempotentHint: true</code>, <code>destructiveHint: false</code>, <code>openWorldHint: false</code>. Each tool also has a human <code>title</code>, listed here as <code>tools/list</code>
+returns it.</p>
 <table>
 <thead>
 <tr>
 <th>Tool</th>
+<th>Title</th>
 <th>Purpose</th>
+<th><code>limits</code></th>
+<th><code>strict</code></th>
+<th>projection</th>
 </tr>
 </thead>
 <tbody><tr>
 <td><code>inspect_zip</code></td>
+<td>Inspect archive (facts, determinism verdict, CI checks)</td>
 <td>One-call forensic report with a determinism verdict and CI assertions (<code>check</code>, <code>assert</code>)</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>list_zip_entries</code></td>
+<td>List entries (paged inventory)</td>
 <td>Paged central-directory inventory with filters and the sanitized path each entry would extract to</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>read_zip_entry</code></td>
+<td>Read one entry (random access)</td>
 <td>One entry by name or index — decompressed, raw, or verified; byte ranges</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>verify_zip</code></td>
+<td>Verify archive integrity (one call, never throws for archive problems)</td>
 <td>The engine&#39;s <code>verifyZip</code> report verbatim — never fails for an archive problem</td>
+<td>✓</td>
+<td>—</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>extract_zip</code></td>
+<td>Extract (secure by default)</td>
 <td>Secure extraction, inline or into the sandbox, with a dry-run plan</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>scan_zip_forward</code></td>
+<td>Scan forward (truncated / unseekable streams — NOT authoritative)</td>
 <td>Forward scan of a truncated or streamed archive — explicitly not authoritative</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>sanitize_entry_paths</code></td>
+<td>Sanitize entry paths (the traversal gate)</td>
 <td>The engine&#39;s traversal gate applied to a list of names</td>
+<td>—</td>
+<td>—</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>create_zip</code></td>
+<td>Create archive (reproducible; deterministic:true for cross-runtime identical bytes)</td>
 <td>A reproducible archive from inline or sandbox entries, optionally parallel or streamed</td>
+<td>✓</td>
+<td>✓</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>modify_zip</code></td>
+<td>Modify archive (incremental, no recompression)</td>
 <td>Add, replace, remove, rename, comment — append-only or compact, no recompression</td>
+<td>✓</td>
+<td>✓</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>compute_crc32</code></td>
+<td>Compute CRC-32</td>
 <td>CRC-32 of inline bytes, text or a sandbox file, seedable</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>inflate_raw</code></td>
+<td>Inflate raw DEFLATE (bounded)</td>
 <td>Raw DEFLATE decompression under a mandatory output bound</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>describe_engine</code></td>
+<td>Describe engine &amp; server capabilities</td>
 <td>Offline preflight: versions, tiers, codecs, limits, ceilings, caps, sandbox and cache state, the code registries</td>
+<td>—</td>
+<td>—</td>
+<td>✓</td>
 </tr>
 <tr>
 <td><code>draft_governance_issue</code></td>
+<td>Draft a governance-compliant GitHub issue (HITL)</td>
 <td>A governance-compliant GitHub issue draft, produced locally for a human to submit</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 </tr>
 </tbody></table>
 <h3 id="inspect_zip"><code>inspect_zip</code><a class="heading-anchor" href="#inspect_zip" aria-label="Link to this section">#</a></h3>
@@ -432,6 +532,10 @@ gate would refuse it), comment — without decompressing anything.</p>
 <td>shared</td>
 </tr>
 </tbody></table>
+<p>One asymmetry to know: with <strong>no</strong> <code>filter</code> at all, explicit directory
+entries are listed; as soon as any <code>filter</code> object is given, its
+<code>includeDirectories</code> default of <code>false</code> applies (the default exists for
+extraction) — pass <code>includeDirectories: true</code> to keep them.</p>
 <pre><code class="language-jsonc">{ &quot;zipBase64&quot;: &quot;&lt;base64 ZIP&gt;&quot;, &quot;filter&quot;: { &quot;prefix&quot;: &quot;src/&quot;, &quot;glob&quot;: [&quot;**/*.json&quot;] }, &quot;limit&quot;: 50, &quot;fields&quot;: [&quot;entries.name&quot;, &quot;entries.uncompressedSize&quot;, &quot;hasMore&quot;] }
 </code></pre>
 <h3 id="read_zip_entry"><code>read_zip_entry</code><a class="heading-anchor" href="#read_zip_entry" aria-label="Link to this section">#</a></h3>
@@ -670,7 +774,7 @@ whenever the whole archive is available.</p>
 <td><code>maxEntries</code></td>
 <td>integer ≥ 1</td>
 <td><code>10000</code></td>
-<td>clamped to <code>ZIPNATIVE_MCP_MAX_ENTRIES</code></td>
+<td>the default is clamped to <code>ZIPNATIVE_MCP_MAX_ENTRIES</code>; an <strong>explicit</strong> value above the ceiling is refused with <code>LIMIT_CEILING_EXCEEDED</code></td>
 </tr>
 <tr>
 <td><code>tolerateTruncation</code></td>
@@ -781,7 +885,7 @@ exactly when a field overflows. Every archive it writes is ISO/IEC
 <td><code>parallel</code></td>
 <td>object</td>
 <td>—</td>
-<td><code>workers</code> 0–64 (≤ <code>ZIPNATIVE_MCP_WORKERS</code>), <code>minWorkerJobSize</code>, <code>jobTimeout</code> 1000–600000 ms</td>
+<td><code>workers</code> 0–64 (≤ <code>ZIPNATIVE_MCP_WORKERS</code>; omitted ⇒ the engine default <code>max(1, min(cores − 1, 8))</code>, bounded by the ceiling), <code>minWorkerJobSize</code> (default 32 KiB — smaller entries compress inline), <code>jobTimeout</code> 1000–600000 ms (default 60000, then inline fallback)</td>
 </tr>
 <tr>
 <td><code>includeSha256</code></td>
@@ -846,7 +950,7 @@ with duplicate names are refused.</p>
 <td><code>operations</code></td>
 <td>array 1–1000</td>
 <td>—</td>
-<td><code>{ op: &#39;add&#39; | &#39;replace&#39;, name, payload… }</code>, <code>{ op: &#39;remove&#39;, name }</code>, <code>{ op: &#39;rename&#39;, from, to }</code>, <code>{ op: &#39;setComment&#39;, comment }</code></td>
+<td><code>{ op: &#39;add&#39; | &#39;replace&#39;, name, payload… }</code> (an <code>add</code> may instead carry <code>directory: true</code> for an explicit directory entry — <code>replace</code> cannot), <code>{ op: &#39;remove&#39;, name }</code>, <code>{ op: &#39;rename&#39;, from, to }</code>, <code>{ op: &#39;setComment&#39;, comment }</code></td>
 </tr>
 <tr>
 <td><code>mode</code></td>
@@ -1100,9 +1204,16 @@ workflows and the rules:</p>
 <p>With <code>ZIPNATIVE_MCP_OUTPUT_DIR</code> set, every regular file in the sandbox
 is a resource under the <code>zipnative://output/{+path}</code> template:
 <code>resources/list</code> walks the sandbox (≤ 1000 files, depth ≤ 8),
-<code>resources/templates/list</code> advertises the template, and
-<code>resources/read</code> returns <code>{ uri, mimeType, blob }</code> up to 50 MiB, with
-the MIME type chosen by extension. Without a sandbox the list is empty.</p>
+<code>resources/templates/list</code> advertises the one template (named
+<code>sandbox-file</code>, declared <code>mimeType: application/zip</code>), and
+<code>resources/read</code> returns <code>{ uri, mimeType, blob }</code> up to 50 MiB. Without
+a sandbox both lists are empty. The MIME type is chosen by extension
+from a fixed table of 32 — the nineteen container extensions (<code>.zip</code>,
+<code>.jar</code> / <code>.war</code> / <code>.ear</code> as <code>application/java-archive</code>, the Office and
+OpenDocument types, <code>.epub</code>, <code>.apk</code>, <code>.xpi</code>, <code>.crx</code>, <code>.kmz</code>, and
+<code>.vsix</code> / <code>.nupkg</code> / <code>.whl</code> / <code>.ipa</code> as plain <code>application/zip</code>) plus
+<code>.md .txt .json .xml .html .css .js .png .jpg .jpeg .gif .svg .pdf</code> —
+and <code>application/octet-stream</code> for anything else.</p>
 <h2 id="token-frugal-reads">Token-frugal reads<a class="heading-anchor" href="#token-frugal-reads" aria-label="Link to this section">#</a></h2>
 <p>Every read tool accepts <code>verbosity: &#39;summary&#39;</code> (only the scalar summary
 fields) and <code>fields: [...]</code> (≤ 16 dot paths). When a <code>fields</code> entry

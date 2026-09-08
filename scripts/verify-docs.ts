@@ -298,7 +298,10 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
                     }
                 } else {
                     const first = (cell.tool ?? '').split(/\s+/)[0] ?? '';
-                    const protocolLevel = ['tools/list', 'limits', 'strict:', 'outputMode:'];
+                    // Protocol-level or operator-level facts that are not a tool name: the
+                    // wire methods, the shared inputs, the transports and the ZIPNATIVE_MCP_*
+                    // environment variables the manifest lists.
+                    const protocolLevel = ['tools/list', 'prompts/list', 'limits', 'strict:', 'outputMode:', 'stdio', ...(mcpPkg?.envVars ?? [])];
                     if (!tools.has(first) && !protocolLevel.includes(first)) {
                         report(path, 1, 'surfaces-shape', `${id}.mcp names tool '${first}' — not in the manifest's tools`);
                     }

@@ -26,7 +26,7 @@ parsing prose.
 | `cat` | `openZip()` → `readEntryStream()` / `readEntryRaw()` |
 | `extract` | `extractZipStream()` (default) / `extractZip()` (`--buffered`) + `sanitizeEntryPath()` re-checked at the sink |
 | `stream` | `iterateZipEntries()` — local headers only |
-| `verify` | `verifyZip()` verbatim |
+| `verify` | `verifyZip()` verbatim; with `--entry`, `openZip({ validate: 'eager' })` → `verifyEntry()` per name |
 | `crc32` | `crc32()` |
 | `inflate` | `createInflator()` (or a registered codec) |
 | `batch` | the commands above, orchestrated |
@@ -125,12 +125,103 @@ agents, other languages — without parsing prose.
   flags (`-lq`) are refused. Short aliases taking a value: `-i`, `-o`,
   `-d`, `-e`, `-f`; boolean: `-q`, `-h`, `-V`.
 
-A status envelope and an error envelope, as an agent sees them:
+A status envelope and an error envelope, as an agent sees them. The
+error `message` is the CLI's short context, a colon, then the engine's
+own message verbatim; `remedy` is the exact string from the remedy table
+below (message wording is not a contract — the codes and `remedy` are):
 
 ```json
 {"ok":true,"command":"create","dryRun":false,"output":"release.zip","entries":42,"files":40,"directories":2,"bytes":183044,"bytesIn":611203,"method":"deflate","level":6,"deterministic":true,"tier":"pure-pinned","order":"canonical","stream":false,"layout":"buffered","parallel":false,"skipped":[],"diagnostics":[]}
-{"ok":false,"command":"extract","error":{"code":"E_SECURITY","message":"zipnative: entry name escapes the extraction root: ../../etc/passwd","zipCode":"ZIP_PATH_TRAVERSAL","entryName":"../../etc/passwd","remedy":"--skip-unsafe (extract, stream) skips such entries; nothing unsafe is ever written"}}
+{"ok":false,"command":"extract","error":{"code":"E_SECURITY","message":"Failed to extract: zipnative: entry name '../../etc/passwd' escapes the extraction root (zip-slip, CWE-22) — this archive is hostile or corrupt; pass rejectTraversal: false to skip such entries instead","zipCode":"ZIP_PATH_TRAVERSAL","entryName":"../../etc/passwd","remedy":"--skip-unsafe (extract, stream)"}}
 ```
+
+Without `--json` the same failure prints the message line and then a
+`remedy: …` line on stderr, with the same text.
+
+### Refused combinations (exit 2, `E_USAGE`)
+
+Usage errors are detected **before any I/O**, so a refused combination
+never leaves a partial file behind. Beyond the obvious (an unknown flag,
+a malformed value, a missing required flag), the CLI refuses:
+
+| Command | Refused |
+|---|---|
+| `create` | `--from-manifest` together with input paths or `--stdin-name`; no input at all; `--stdin-name` together with a `-` input path (stdin is consumed once); `--workers` / `--min-job-size` / `--job-timeout` without `--parallel`; `--chunk-size` without `--stream` or `--stdin-name`; `--parallel` under `--pure-codecs` unless `--deterministic` is also given (the worker bundle resolves `node:zlib` itself); `--parallel` with a `--codec` module that registers method 0 / 8, or exports `deflateImpl` without `--deterministic`; `--entry-comment` without `=`, or naming an entry that is not in the archive; `--comment` with `--comment-file` |
+| `modify` | no `--input`; no edit at all (at least one of `--add`, `--replace`, `--remove`, `--rename`, `--add-dir`, `--comment`, `--comment-file`, `--from-manifest`); `--from-manifest` together with any edit flag or comment flag; `--in-place` with `--output`; `--in-place` when the input is stdin; stdin named twice (`--input -` plus a `-` payload, or two `-` payloads) |
+| `extract` | no `--output-dir`; `--allow-symlinks` with `--skip-symlinks` |
+| `stream` | `--output-dir` with `--cat`; `--preserve-mode`, `--allow-symlinks` or `--skip-symlinks` at all (no central directory to read attributes from) |
+| `cat` | no `--input`; no entry name |
+| `inflate` | `--max-output 0`; a `--method` that is not `deflate`, `store` or a number |
+| `batch` | `--manifest` with `--input-dir` / `--output-dir`; neither `--manifest` nor `--input-dir`; `--task create` without `--output-dir`; `--concurrency` outside 1–64 |
+| `govern` | `verify-issue` without a draft path |
+| `completion` | a shell other than `bash`, `zsh`, `fish`, `powershell` (`pwsh` is accepted as an alias) |
+| global | any `--max-*` bound set to `0` (use `none` to disable); a `.zipnativerc.json` that sets `codec`; `--config` naming a file that does not exist; combined short flags (`-lq`) |
+
+`--config` together with `--no-config` is **not** refused: `--no-config`
+wins and the named file is never read.
+
+## Error classes, codes and remedies
+
+The engine's 39 frozen `ZIP_*` codes map to the CLI's `E_*` classes by
+a fixed table (`zipnative schema errors` prints it; a core release that
+added a code would fail the CLI's own type-check rather than leak as
+`E_RUNTIME`). Grouped by class:
+
+| Class (exit) | `ZIP_*` codes |
+|---|---|
+| `E_USAGE` (2) | `ZIP_INVALID_OPTION`, `ZIP_LIMIT_INVALID` |
+| `E_PARSE` (1) | `ZIP_EOCD_NOT_FOUND`, `ZIP_EOCD_INCONSISTENT`, `ZIP_ZIP64_LOCATOR_MISSING`, `ZIP_ZIP64_EOCD_MISPLACED`, `ZIP_CD_INCONSISTENT`, `ZIP_RECORD_TRUNCATED`, `ZIP_SIGNATURE_MISMATCH`, `ZIP_STREAM_TRUNCATED`, `ZIP_VALUE_UNREPRESENTABLE`, `ZIP_DEFLATE_TRUNCATED`, `ZIP_DEFLATE_CORRUPT` |
+| `E_INPUT` (1) | `ZIP_ENTRY_EXISTS`, `ZIP_INVALID_ENTRY_NAME`, `ZIP_DUPLICATE_ENTRY_NAME` |
+| `E_SECURITY` (1) | `ZIP_ENTRY_OVERLAP`, `ZIP_CD_LFH_MISMATCH`, `ZIP_ZIP64_CONTRADICTION`, `ZIP_PATH_TRAVERSAL`, `ZIP_SYMLINK_REJECTED`, `ZIP_EXTRACT_DUPLICATE_PATH` |
+| `E_DATA` (1) | `ZIP_CRC_MISMATCH`, `ZIP_SIZE_MISMATCH`, `ZIP_INFLATE_OUTPUT_OVERFLOW`, `ZIP_DESCRIPTOR_MISMATCH`, `ZIP_DECOMPRESSION_FAILED` |
+| `E_LIMIT` (1) | `ZIP_LIMIT_EXCEEDED`, `ZIP_INPUT_TOO_LARGE` |
+| `E_UNSUPPORTED` (1) | `ZIP_UNSUPPORTED_ENCRYPTION`, `ZIP_UNSUPPORTED_METHOD`, `ZIP_UNSUPPORTED_MULTI_DISK`, `ZIP_UNSUPPORTED_ZIP64_STREAMING`, `ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR`, `ZIP_UNSUPPORTED_CODEC_MODE` |
+| `E_NOT_FOUND` (1) | `ZIP_ENTRY_NOT_FOUND` |
+| `E_CHECK_FAILED` (1) | `ZIP_STRICT_DIAGNOSTIC` |
+| `E_RUNTIME` (1) | `ZIP_API_MISUSE`, `ZIP_INTERNAL` |
+
+`E_IO`, `E_VERIFY_FAILED` and `E_POLICY` carry no `ZIP_*` code: they are
+the CLI's own (a filesystem error, a `verify` verdict, a governance
+violation). A `node:zlib` failure on the sync path is mapped to the same
+codes the pure tier would raise (`Z_DATA_ERROR` → `ZIP_DEFLATE_CORRUPT`,
+`Z_BUF_ERROR` → `ZIP_DEFLATE_TRUNCATED`), so the class never depends on
+the codec tier.
+
+**Remedies.** The engine's messages name library options that do not
+exist on a command line, so the envelope adds `remedy` — the flag or
+command that lifts the refusal. The table is fixed; a code absent from
+it has no remedy (structural refusals, corrupt data, usage errors). One
+exception: a `ZIP_LIMIT_EXCEEDED` names its bound, and the remedy is
+then the exact flag, `--max-<bound> <value> (raise the bound for trusted
+input only; "none" disables it)`.
+
+| `zipCode` | `remedy` |
+|---|---|
+| `ZIP_PATH_TRAVERSAL` | `--skip-unsafe (extract, stream)` |
+| `ZIP_SYMLINK_REJECTED` | `--allow-symlinks (target text as data) \| --skip-symlinks (extract)` |
+| `ZIP_EXTRACT_DUPLICATE_PATH` | `--on-duplicate first\|last (extract, stream)` |
+| `ZIP_LIMIT_EXCEEDED` | `--max-<bound> <size> (the bound is named in detail.limit; trusted input only)` |
+| `ZIP_UNSUPPORTED_ENCRYPTION` | `--skip-unsupported (extract, stream); no password support in 1.x` |
+| `ZIP_UNSUPPORTED_METHOD` | `--codec <module> \| --skip-unsupported (extract, stream)` |
+| `ZIP_UNSUPPORTED_CODEC_MODE` | `cat / extract --codec <module> on the complete file` |
+| `ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR` | `cat / extract on the complete file (random access)` |
+| `ZIP_UNSUPPORTED_ZIP64_STREAMING` | `create without --stream (buffered entries are fully Zip64)` |
+| `ZIP_ENTRY_NOT_FOUND` | `zipnative list <archive> (names are case-sensitive)` |
+| `ZIP_ENTRY_EXISTS` | `modify --replace <name>=<path>` |
+| `ZIP_STRICT_DIAGNOSTIC` | `drop --strict, or fix the producer named by the diagnostic` |
+| `ZIP_INVALID_ENTRY_NAME` | `a plain relative name (no .., no drive, no device name)` |
+| `ZIP_DUPLICATE_ENTRY_NAME` | `unique entry names` |
+
+**Diagnostics.** The engine's eleven diagnostic codes are informational
+— they ride in the envelope's `diagnostics[]` and are never thrown
+unless `--strict` (when the first one becomes `E_CHECK_FAILED`, or
+`E_VERIFY_FAILED` under `verify`): `ZIP_PREPENDED_DATA`,
+`ZIP_MULTIPLE_EOCD`, `ZIP_NAME_MISMATCH`, `ZIP_UNICODE_PATH_CONFLICT`,
+`ZIP_INVALID_UTF8_NAME`, `ZIP_DUPLICATE_NAME`,
+`ZIP_EXTRA_FIELD_MALFORMED`, `ZIP_ZIP64_EXTRA_IGNORED`,
+`ZIP_TIMESTAMP_NOT_PINNED`, `ZIP_NONDETERMINISTIC_CODEC`,
+`ZIP_DEAD_BYTES_RATIO`. The [errors guide](errors.html) explains each
+code and each diagnostic.
 
 ## Command reference
 
@@ -171,13 +262,13 @@ cat file | zipnative create --stdin-name <name> -o <out.zip>
 | `--comment <text>` / `--comment-file <path>` | — | Archive comment (text, or raw bytes from a file, `-` = stdin; exclusive; ≤ 65 535 bytes) |
 | `--entry-comment <name>=<text>` | — | Per-entry comment (repeatable) |
 | `--preserve-mode` | off | Store POSIX mode bits (never setuid / setgid / sticky) |
-| `--store-ext png,jpg,zip` | — | Store (no deflate) entries with these extensions |
+| `--store-ext png,jpg,zip` | — | Store (no deflate) entries with these extensions — matched by file extension, so an extensionless EPUB `mimetype` is not caught; give it `"method": "store"` in a `--from-manifest` entry |
 | `--stream` | off | Constant-memory writer, data-descriptor layout; entries > 4 GiB refused (`ZIP_UNSUPPORTED_ZIP64_STREAMING`) |
 | `--chunk-size <size>` | `65536` | Output chunk size for the chunked writer (`--stream` or `--stdin-name`) |
-| `--parallel` | off | Deflate across a worker pool (`zipnative/worker`), byte-identical per tier; refused (exit 2) with a `--codec` module |
-| `--workers <n>` | cores − 1, max 8 | Worker count (`0` = main thread) |
-| `--min-job-size <size>` | `32k` | Minimum entry size sent to a worker |
-| `--job-timeout <ms>` | `60000` | Per-job cap before inline fallback |
+| `--parallel` | off | Deflate across a worker pool (`zipnative/worker`), byte-identical per tier. Refused (exit 2) under `--pure-codecs` unless `--deterministic` is also given, and with a `--codec` module that registers method 0 / 8 or exports `deflateImpl` without `--deterministic` — the workers never see the module |
+| `--workers <n>` | cores − 1, max 8 | Worker count, a non-negative integer (`0` = main thread); requires `--parallel` |
+| `--min-job-size <size>` | `32k` | Minimum entry size sent to a worker; requires `--parallel` |
+| `--job-timeout <ms>` | `60000` | Per-job cap (a positive integer) before inline fallback; requires `--parallel` |
 
 The status envelope reports `entries`, `files`, `directories`, `bytes`,
 `bytesIn`, `method`, `level`, `deterministic`, `tier`, `order`, `stream`,
@@ -260,8 +351,8 @@ zipnative inspect <a.zip> --check deterministic,no-encryption,safe-names --json
 |---|---|---|
 | `--input`, `-i` | stdin | Archive path (positional accepted) |
 | `--format`, `-f` `text\|json` | `text` (`json` under `--json`) | Output format |
-| `--entries` | off | Include every entry (long form) in the report |
-| `--entry <name>` | — | Include only the named entries (repeatable) |
+| `--entries` | off | Include every entry (long form) in the report; ignored when `--entry` is given |
+| `--entry <name>` | — | Include only the named entries (repeatable; wins over `--entries`; an unknown name is `E_NOT_FOUND`) |
 | `--extra` | off | Include extra-field payloads as hex |
 | `--check <assert>` | — | Assertion (repeatable, comma-separable); any failure prints the report then exits 1 with `E_CHECK_FAILED` |
 | `--summary` | — | `{ entries, bytes, uncompressedSize, zip64, encrypted, deterministic, canonicalLayout, diagnostics, checksPassed? }` |
@@ -327,7 +418,7 @@ zipnative extract release.zip -d ./out --dry-run --json
 | `--input`, `-i` | stdin | Archive path (positional accepted) |
 | `--output-dir`, `-d` | **required** | Destination (created if missing); every path re-checked with `sanitizeEntryPath()` and contained under this root |
 | `--include <glob>` / `--exclude <glob>` | — | Name filters (repeatable) |
-| `--entry <name>` | — | Extract only the named entries (repeatable) |
+| `--entry`, `-e` `<name>` | — | Extract only the named entries (repeatable) |
 | `--overwrite` | refuse (`E_IO`) | Replace existing files |
 | `--on-duplicate error\|first\|last` | `error` | Two entries mapping to one sanitized path |
 | `--skip-unsafe` | off | **Skip** entries whose names cannot be made safe (zip-slip, absolute, drive / UNC, NUL, ADS, device names) instead of failing — nothing unsafe is ever written |
@@ -396,8 +487,12 @@ zipnative verify <a.zip> --entry manifest.json --json
 
 The report is `{ ok, error, entryCount, entries[{ name, ok, crcMatch,
 sizeMatch, localHeaderMatch, skipped? }], diagnostics }` plus `failed`,
-`skipped`, `strict` and `selected`. Encrypted entries are honestly
-`skipped`, never faked as verified. Exit 1 / `E_VERIFY_FAILED` when `ok`
+`skipped` and `strict`; `selected` (the requested names) is present only
+under `--entry`. Without `--entry` the report is `verifyZip()` verbatim;
+with it, the CLI opens the archive eagerly (the same structural pass)
+and calls `verifyEntry()` on each name, so a structural refusal lands in
+`error` exactly as it would from `verifyZip()`. Encrypted entries are
+honestly `skipped`, never faked as verified. Exit 1 / `E_VERIFY_FAILED` when `ok`
 is false; `--strict` also fails on any diagnostic. `verify` proves
 integrity and structure, **not** path safety: a zip-slip archive with
 valid CRCs is `ok` — gate names with `inspect --check safe-names,no-symlinks`
@@ -476,6 +571,32 @@ and `stream --cat` is refused at validation. Path values inside a
 manifest are *data* and are refused on `..`. Exit 1 carries the first
 failing task's `E_*` code.
 
+**Manifest rules** (validated in full before any task runs):
+
+- The document is `{ "version": 1, "tasks": [ … ] }` — `version` must
+  be exactly `1`, `tasks` a non-empty array of at most 1000 objects.
+- Each task is `{ id, command, flags? }`. `id` is a non-empty string of
+  `A–Z a–z 0–9 _ -`, unique within the manifest; `command` is one of the
+  ten whitelisted commands (`batch`, `govern`, `schema`, `completion`
+  and `doctor` are named as never allowed); `flags` is an object keyed
+  by bare flag names (no leading dashes, no whitespace or `=`).
+- Flag values are `string`, `number` (finite; rendered as text), `boolean`
+  (`true` emits the bare flag, `false` omits it) or `string[]` (a
+  repeatable flag). Anything else is refused.
+- Relative values of the path flags (`input` / `i`, `output` / `o`,
+  `output-dir` / `d`, `from-manifest`, `base`, and the path half of
+  `add` / `replace`) resolve against the **manifest file's directory**
+  after the same traversal check argv paths get; `-` is left alone.
+- A value `@<id>` is substituted with the resolved `output` (else
+  `output-dir`) of an **earlier** task; a forward or unknown reference,
+  or a reference to a task that declares neither, is refused.
+- A `codec` flag in any task needs `--allow-codec-load` on the `batch`
+  invocation.
+- Structural violations (shape, types, `version`, the task cap) are
+  exit 2 / `E_USAGE`; value violations (a bad or duplicate `id`, a
+  command outside the whitelist, a bad `@` reference) are exit 1 /
+  `E_INPUT`; a manifest that is not JSON is `E_PARSE`.
+
 #### `zipnative doctor`
 
 Environment and capability preflight — always offline.
@@ -523,13 +644,15 @@ as `--help` and `schema manifest`.
 zipnative completion bash > /etc/bash_completion.d/zipnative
 zipnative completion zsh  > "${fpath[1]}/_zipnative"
 zipnative completion fish > ~/.config/fish/completions/zipnative.fish
-zipnative completion powershell >> $PROFILE
+zipnative completion powershell >> $PROFILE     # `pwsh` is accepted as an alias
 ```
 
 Path flags (`--input`, `--output`, `--output-dir`, `--input-dir`,
 `--base`, `--from-manifest`, `--manifest`, `--config`, `--codec`,
 `--comment-file`) complete files; other value flags require an argument;
-boolean flags take none. An unsupported shell is exit 2.
+boolean flags take none. The shells are `bash`, `zsh`, `fish` and
+`powershell` (`pwsh` emits the same PowerShell script); anything else is
+exit 2.
 
 #### `zipnative govern`
 
@@ -576,11 +699,45 @@ a human reviews and submits.
 | `--max-cd-bytes <size>` | 256 MiB | Central-directory size (CWE-400) |
 | `--max-input-size <size>` | 4 GiB | CLI-owned bound on every **buffered** read (`list`, `inspect`, `verify`, `extract`, `cat`, `modify`, `create --stdin-name`, `inflate --sync`, `govern verify-issue`); `E_LIMIT` beyond it. The streaming commands are not bounded by it |
 | `--pure-codecs` | — | Skip `node:zlib`, run the pure-TS codec tier |
-| `--codec <module>` | — | Load an ESM module exporting `{ codecs: ZipCodec[] }` (+ optional `inflateImpl` / `deflateImpl`). Executes user code: command line only, never from a config file; refused by `create --parallel` |
+| `--codec <module>` | — | Load an ESM module exporting `{ codecs: ZipCodec[] }` (+ optional `inflateImpl` / `deflateImpl`). Executes user code: command line only, never from a config file. `create --parallel` refuses a module that registers method 0 / 8, or one with a `deflateImpl` unless `--deterministic` pins the encoder — the workers never see the module; sequentially the override is honoured and announced with a warning |
 
-`<size>` accepts `65536`, `512k`, `1m`, `8g`, `1GiB`; `none` disables a
-bound with a visible warning. The eight `--max-*` flags are the engine's
+**Value grammars.** A `<size>` is a decimal integer with an optional
+binary suffix `k`, `m`, `g` or `t` (case-insensitive), optionally
+followed by `i`, `b` or `ib` — `65536`, `512k`, `1m`, `8g`, `1t`,
+`1GiB` and `4gb` are all binary multiples; `none`, `inf` and `infinity`
+disable the bound (a visible warning for every `--max-*` flag). A count
+(`--max-entries`, `--max-ratio`, `--check max-entries=N`,
+`min-entries=N`, `max-ratio=N`) is a plain non-negative integer or the
+same three words — a `k` / `m` / `g` suffix is refused there. Every
+`--max-*` bound, `--max-input-size` and `inflate --max-output` refuse
+`0` (use `none`). The eight `--max-*` flags are the engine's
 `ZipLimits`; `--max-input-size` is the CLI's own.
+
+### Configuration file
+
+`.zipnativerc.json` is looked up by walking **upward** from the working
+directory (the nearest file wins) unless `--config <file>` names one —
+in which case discovery is skipped and a file that does not exist is
+exit 2 — or `--no-config` disables the mechanism (then `--config` is
+ignored). The file must be a JSON object of at most 1 MB; invalid JSON,
+a non-object, or a larger file is exit 2. Top-level keys are bare flag
+names with global scope; a key that names a command and holds an object
+is that command's section, and **a command-scoped value wins over a
+global one**. Numbers are coerced to strings (`"level": 9` ⇒ `--level
+9`), arrays of strings or numbers become repeatable flags, booleans are
+flags; `null` or nested objects are ignored. Config only fills flags you
+did not pass — an explicit flag, even a boolean, is never overridden.
+`codec` is refused from any file, in any section, whether or not the
+section is for the running command.
+
+```json
+{
+  "no-color": true,
+  "max-total-size": "32g",
+  "create": { "deterministic": true, "level": 9 },
+  "extract": { "overwrite": true }
+}
+```
 
 ## Environment
 

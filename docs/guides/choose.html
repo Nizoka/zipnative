@@ -211,13 +211,13 @@ honest alternative named in the notes below.</p>
 <td>Security bounds (CWE-tagged)</td>
 <td><code>limits</code> option, <code>DEFAULT_ZIP_LIMITS</code></td>
 <td>the eight <code>--max-*</code> flags + <code>--max-input-size</code></td>
-<td><code>limits</code> per call, under operator ceilings</td>
+<td><code>limits</code> per call on the eight archive tools, under operator ceilings</td>
 </tr>
 <tr>
 <td>Diagnostics channel / strict mode</td>
 <td><code>onDiagnostic</code>, <code>strict</code></td>
 <td><code>--strict</code>, diagnostics in the envelope</td>
-<td><code>strict: true</code>, <code>diagnostics[]</code></td>
+<td><code>strict: true</code> on seven tools, <code>diagnostics[]</code></td>
 </tr>
 <tr>
 <td>Capability preflight</td>
@@ -256,6 +256,30 @@ honest alternative named in the notes below.</p>
 <td>—</td>
 </tr>
 <tr>
+<td>Configuration file</td>
+<td>— (options per call)</td>
+<td><code>.zipnativerc.json</code>, <code>--config</code> / <code>--no-config</code></td>
+<td>— (seven <code>ZIPNATIVE_MCP_*</code> variables instead)</td>
+</tr>
+<tr>
+<td>Response cache</td>
+<td>—</td>
+<td>—</td>
+<td><code>ZIPNATIVE_MCP_CACHE_DIR</code> (opt-in, SHA-256 keyed)</td>
+</tr>
+<tr>
+<td>Transports</td>
+<td>in-process <code>import</code></td>
+<td><code>--json</code> envelope over stdin / stdout pipes</td>
+<td>stdio, Streamable HTTP (loopback, bearer token)</td>
+</tr>
+<tr>
+<td>Prompts / guided workflows</td>
+<td>— (<code>recipes/</code> in the repository)</td>
+<td><code>govern rules</code> (the protocol text only)</td>
+<td>seven prompts (<code>prompts/list</code>)</td>
+</tr>
+<tr>
 <td>Encryption (read or write)</td>
 <td>—</td>
 <td>—</td>
@@ -272,8 +296,10 @@ PDF with pdfnative, the workbook with Office, then archive the
 encrypted files; the archive stays deterministic and verifiable.
 <a href="use-cases.html#case-5--encrypt-first-then-archive">Case 5</a> shows the
 pattern with a diagram.</li>
-<li><strong>Only the CLI writes files.</strong> The engine returns data plus sanitized
-paths; the MCP server writes only inside <code>ZIPNATIVE_MCP_OUTPUT_DIR</code>. If
+<li><strong>Only the CLI and the MCP sandbox write files.</strong> The engine returns
+data plus sanitized paths and never touches a filesystem; the CLI
+writes wherever you point it (re-checking every name); the MCP server
+writes only inside <code>ZIPNATIVE_MCP_OUTPUT_DIR</code>, never overwriting. If
 you extract with anything else, run the names through
 <code>sanitizeEntryPath</code> (or <code>sanitize_entry_paths</code>) first.</li>
 <li><strong>The forward readers are not authoritative</strong> on any surface —

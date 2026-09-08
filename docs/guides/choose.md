@@ -58,14 +58,18 @@ honest alternative named in the notes below.
 | CRC-32 | `crc32` | `crc32` | `compute_crc32` |
 | Raw DEFLATE decompression (bounded) | `createInflator` | `inflate --max-output` | `inflate_raw` (`maxOutput` required) |
 | Custom codecs / codec injection | `registerCodec`, `setDeflateImpl`, `setInflateImpl` | `--codec <module>` (command line only) | — (deliberately: a codec module is arbitrary code) |
-| Security bounds (CWE-tagged) | `limits` option, `DEFAULT_ZIP_LIMITS` | the eight `--max-*` flags + `--max-input-size` | `limits` per call, under operator ceilings |
-| Diagnostics channel / strict mode | `onDiagnostic`, `strict` | `--strict`, diagnostics in the envelope | `strict: true`, `diagnostics[]` |
+| Security bounds (CWE-tagged) | `limits` option, `DEFAULT_ZIP_LIMITS` | the eight `--max-*` flags + `--max-input-size` | `limits` per call on the eight archive tools, under operator ceilings |
+| Diagnostics channel / strict mode | `onDiagnostic`, `strict` | `--strict`, diagnostics in the envelope | `strict: true` on seven tools, `diagnostics[]` |
 | Capability preflight | `VERSION`, `activeDeflateTier` | `doctor` | `describe_engine` |
 | Machine contract (schemas, projection) | `api.json`, `errors.json` | `schema` (22 subjects), `--summary` / `--fields` | `tools/list` schemas, `verbosity` / `fields` |
 | AI-governance contract | — (repository policy, `verify:issue`) | `govern` | `draft_governance_issue` + the prompts |
 | Filesystem sink | — (by design) | `extract`, `create`, `modify` | `outputMode: 'file'` inside the sandbox, resources |
 | Batch pipelines | — (compose the calls) | `batch` (directory or manifest mode) | — (one call per tool; the host orchestrates) |
 | Shell completion | — | `completion` | — |
+| Configuration file | — (options per call) | `.zipnativerc.json`, `--config` / `--no-config` | — (seven `ZIPNATIVE_MCP_*` variables instead) |
+| Response cache | — | — | `ZIPNATIVE_MCP_CACHE_DIR` (opt-in, SHA-256 keyed) |
+| Transports | in-process `import` | `--json` envelope over stdin / stdout pipes | stdio, Streamable HTTP (loopback, bearer token) |
+| Prompts / guided workflows | — (`recipes/` in the repository) | `govern rules` (the protocol text only) | seven prompts (`prompts/list`) |
 | Encryption (read or write) | — | — | — |
 
 ## Honest notes
@@ -78,8 +82,10 @@ honest alternative named in the notes below.
   encrypted files; the archive stays deterministic and verifiable.
   [Case 5](use-cases.html#case-5--encrypt-first-then-archive) shows the
   pattern with a diagram.
-- **Only the CLI writes files.** The engine returns data plus sanitized
-  paths; the MCP server writes only inside `ZIPNATIVE_MCP_OUTPUT_DIR`. If
+- **Only the CLI and the MCP sandbox write files.** The engine returns
+  data plus sanitized paths and never touches a filesystem; the CLI
+  writes wherever you point it (re-checking every name); the MCP server
+  writes only inside `ZIPNATIVE_MCP_OUTPUT_DIR`, never overwriting. If
   you extract with anything else, run the names through
   `sanitizeEntryPath` (or `sanitize_entry_paths`) first.
 - **The forward readers are not authoritative** on any surface —

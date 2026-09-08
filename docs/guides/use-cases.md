@@ -200,8 +200,8 @@ and zipnative packages the result — the two never exchange a secret:
 import { mergePdfs } from 'pdfnative';
 import { createZip, verifyZip } from 'zipnative';
 
-// 1. Confidentiality — the document layer owns the password.
-const sealed = await mergePdfs([{ bytes: reportPdf }], {
+// 1. Confidentiality — the document layer owns the password (mergePdfs is synchronous).
+const sealed = mergePdfs([{ bytes: reportPdf }], {
   encrypt: { ownerPassword: process.env.OWNER_PASS!, userPassword: process.env.USER_PASS!,
              algorithm: 'aes256', permissions: { print: true, copy: false } },
 });
@@ -223,7 +223,8 @@ gated before it ships:
 
 ```bash
 export PDFNATIVE_ENCRYPT_OWNER_PASS="$(cat /run/secrets/owner)"
-pdfnative-cli encrypt --input report.pdf --output sealed/report.pdf --algorithm aes-256 --permissions print
+# the pdfnative-cli package installs the `pdfnative` binary (or: npx pdfnative-cli encrypt …)
+pdfnative encrypt --input report.pdf --output sealed/report.pdf --algorithm aes-256 --permissions print
 zipnative create sealed/ --output release.zip --deterministic --store-ext pdf,xlsx
 zipnative inspect release.zip --check deterministic,no-encryption,safe-names --json
 zipnative verify release.zip --json

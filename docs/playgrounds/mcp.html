@@ -157,7 +157,7 @@
         <input type="file" id="file" accept=".zip,.jar,.docx,.xlsx,.pptx,.epub,.vsix,.nupkg,.whl" hidden>
         <span id="sample-info" style="color:var(--c-text-dim)"></span>
       </div>
-      <p style="font-size: 13px; color: var(--c-text-dim);">Every card runs the <em>engine</em> call behind its tool on the archive above and shows the result in the tool's output vocabulary. What a browser cannot reproduce is stated on the card: the sandbox (<code>zipPath</code>, <code>sourcePath</code>, <code>outputMode: "file"</code>, <code>outputDir</code>, resources), the worker pool behind <code>create_zip.parallel</code>, the operator ceilings (<code>LIMIT_CEILING_EXCEEDED</code>), the response cache (<code>_meta.cached</code>) and the server half of <code>describe_engine</code> — all of which need the Node process. <code>draft_governance_issue</code> has no engine equivalent at all (it is the server's own policy engine) and offers <em>Copy args</em> only. The seven prompts are listed in section 3; they are text, not code.</p>
+      <p style="font-size: 13px; color: var(--c-text-dim);">Every card runs the <em>engine</em> call behind its tool on the archive above and shows the result in the tool's output vocabulary — the shared inputs (<code>strict</code>, <code>limits</code>, <code>verbosity</code>, <code>fields</code>) are applied as the server applies them. What a browser cannot reproduce is stated on the card and refused with <code>BROWSER_LIMITATION</code> rather than ignored: the sandbox (<code>zipPath</code>, <code>sourcePath</code>, <code>outputMode: "file"</code>, <code>outputDir</code>, resources), the worker pool behind <code>create_zip.parallel</code>, the operator ceilings (<code>LIMIT_CEILING_EXCEEDED</code>), the inline caps (<code>ENTRY_TOO_LARGE</code>), the response cache (<code>_meta.cached</code>) and the server half of <code>describe_engine</code> — all of which need the Node process. <code>draft_governance_issue</code> has no engine equivalent at all (it is the server's own policy engine) and offers <em>Copy args</em> only. The seven prompts are listed in section 3; they are text, not code.</p>
 
       <div class="mcp-cards" id="cards"></div>
 
@@ -341,15 +341,79 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
       for (let i = 1; i < entries.length; i++) { const a = entries[i - 1].rawName, b = entries[i].rawName; let c = 0; const n = Math.min(a.length, b.length); for (let k = 0; k < n && c === 0; k++) c = a[k] - b[k]; if (c === 0) c = a.length - b.length; if (c > 0) return false; }
       return true;
     }
-    function withDiagnostics(fn) { const diagnostics = []; const r = fn((d) => diagnostics.push({ code: d.code, severity: d.severity, entryName: d.entryName })); return { r, diagnostics }; }
+    // The server's diagnostic sink: de-duplicated by (code, entryName), 200 kept,
+    // plus per-code counts — and its `strict` / `limits` pass-through.
+    function withDiagnostics(fn, a) {
+      const rows = [], seen = new Set(), counts = {}; let truncated = false;
+      const onDiagnostic = (d) => {
+        counts[d.code] = (counts[d.code] || 0) + 1;
+        const key = d.code + ' ' + (d.entryName ?? '');
+        if (seen.has(key)) return; seen.add(key);
+        if (rows.length >= 200) { truncated = true; return; }
+        rows.push({ code: d.code, severity: d.severity, message: d.message, ...(d.entryName !== undefined ? { entryName: d.entryName } : {}) });
+      };
+      const r = fn(onDiagnostic, engineOpts(a || {}, onDiagnostic));
+      return { r, diagnostics: rows, diagnosticCounts: counts, ...(truncated ? { diagnosticsTruncated: true } : {}), report: { diagnostics: rows, diagnosticCounts: counts, ...(truncated ? { diagnosticsTruncated: true } : {}) } };
+    }
+    // ZipCommonOptions as the tool would pass them: `strict` and `limits` verbatim.
+    function engineOpts(a, onDiagnostic) { return { onDiagnostic, ...(a.strict ? { strict: true } : {}), ...(a.limits ? { limits: a.limits } : {}) }; }
+    // The server's projection (src/projection.ts): verbosity:'summary' swaps in the
+    // tool's scalar summary, then `fields` picks dot-paths (array segments map).
+    function pick(value, segments) {
+      if (segments.length === 0) return value;
+      if (Array.isArray(value)) return value.map((el) => pick(el, segments));
+      if (value !== null && typeof value === 'object') { const [head, ...rest] = segments; if (!(head in value)) return undefined; const p = pick(value[head], rest); return p === undefined ? undefined : { [head]: p }; }
+      return undefined;
+    }
+    function deepMerge(x, y) {
+      if (y === undefined) return x; if (x === undefined) return y;
+      if (Array.isArray(x) && Array.isArray(y)) { const out = []; for (let i = 0; i < Math.max(x.length, y.length); i++) out.push(deepMerge(x[i], y[i])); return out; }
+      if (x && y && typeof x === 'object' && typeof y === 'object' && !Array.isArray(x) && !Array.isArray(y)) { const out = { ...x }; for (const [k, v] of Object.entries(y)) out[k] = k in out ? deepMerge(out[k], v) : v; return out; }
+      return y;
+    }
+    function project(full, summary, a) {
+      const base = a.verbosity === 'summary' ? summary : full;
+      const fields = Array.isArray(a.fields) ? a.fields.map((f) => String(f).trim()).filter(Boolean) : [];
+      if (!fields.length) return base;
+      let result;
+      for (const f of fields) result = deepMerge(result, pick(base, f.split('.').map((s) => s.trim()).filter(Boolean)));
+      const unmatched = fields.filter((f) => !(f.split('.')[0].trim() in base));
+      return { ...(result === undefined ? {} : result), ...(unmatched.length ? { _meta: { unmatchedFields: unmatched, availableFields: Object.keys(base) } } : {}) };
+    }
+    // Per-entry options as create_zip / modify_zip map them (src/entry-spec.ts):
+    // date, comment, unixMode → externalAttributes ((S_IFREG|mode) << 16, + 0x10 for a directory), extraFields.
+    function entryOptions(e, isDirectory) {
+      const opts = {};
+      if (e.compression) opts.compression = e.compression;
+      if (e.date) opts.date = new Date(e.date);
+      if (e.comment !== undefined) opts.comment = e.comment;
+      if (e.externalAttributes !== undefined && e.unixMode !== undefined) throw Object.assign(new Error('externalAttributes and unixMode are exclusive'), { code: 'VALIDATION_ERROR' });
+      if (e.externalAttributes !== undefined) opts.externalAttributes = e.externalAttributes;
+      if (e.unixMode !== undefined) { const m = /^(?:0o)?([0-7]{3,4})$/.exec(String(e.unixMode)); if (!m) throw Object.assign(new Error(`unixMode must be 3–4 octal digits such as '0644' (got ${JSON.stringify(e.unixMode)})`), { code: 'VALIDATION_ERROR' }); const mode = parseInt(m[1], 8) & 0o7777; opts.externalAttributes = ((((isDirectory ? 0o040000 : 0o100000) | mode) << 16) | (isDirectory ? 0x10 : 0)) >>> 0; }
+      if (e.extraFields) opts.extraFields = e.extraFields.map((f, i) => { if (f.id === 1) throw Object.assign(new Error(`extraFields[${i}].id 0x0001 is the Zip64 record — the engine emits it itself.`), { code: 'VALIDATION_ERROR' }); return { id: f.id, data: f.dataBase64 ? b64(f.dataBase64) : new Uint8Array(0) }; });
+      if (e.sourcePath !== undefined) throw Object.assign(new Error('sourcePath reads a file from the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — a Node-side capability this browser page cannot reproduce; use text or dataBase64 here.'), { code: 'BROWSER_LIMITATION' });
+      if (e.stream) throw Object.assign(new Error('stream: true feeds a sandbox file through addStream — needs the server; the bytes would be identical apart from the data-descriptor layout.'), { code: 'BROWSER_LIMITATION' });
+      return opts;
+    }
+    function payloadOf(e) { return e.dataBase64 !== undefined ? b64(e.dataBase64) : (e.text ?? ''); }
     function download(bytes, name, mime) {
       const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/zip' }));
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
     }
+    // The server's pull-on-demand delivery (scan-zip-forward.ts): chunks of `size`,
+    // the tail sliced 16 bytes at a time, and a counter of bytes actually handed to
+    // the reader — so `stoppedAt` can be derived from byte accounting, as the server does.
     function chunkStream(bytes, size) {
+      const counter = { delivered: 0 };
       let off = 0;
-      return new ReadableStream({ pull(c) { if (off >= bytes.length) { c.close(); return; } c.enqueue(bytes.subarray(off, Math.min(off + size, bytes.length))); off += size; } });
+      const stream = new ReadableStream({ pull(c) {
+        if (off >= bytes.length) { c.close(); return; }
+        const isTail = off + size >= bytes.length;
+        const n = Math.min(isTail ? 16 : size, bytes.length - off);
+        c.enqueue(bytes.subarray(off, off + n)); off += n; counter.delivered += n;
+      } });
+      return { stream, counter };
     }
 
     // ── 3. The tool catalogue — registration order of tools/list ─────
@@ -361,9 +425,9 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         purpose: 'One-call forensic report with a determinism verdict and CI assertions — the zipnative inspect --json shape. Opens eagerly.',
         prompt: 'Is this build artefact reproducible, free of encrypted entries and safe to extract? Give me the verdict, not the listing.',
         args: { zipBase64: ZIP_PLACEHOLDER, check: ['deterministic', 'no-encryption', 'safe-names', 'no-symlinks'], assert: { maxEntries: 5000, has: ['README.md'] }, verbosity: 'summary', fields: ['checksPassed', 'checks'] },
-        note: 'Browser approximation: the counts, the determinism verdict and every check are computed here from the same engine facts; the server builds the complete <code>structuredContent</code> (per-method counts, date range, prepended-data offsets) and applies <code>verbosity</code> / <code>fields</code> projection.',
+        note: 'Browser approximation: the counts, the determinism verdict, every check and the <code>verbosity</code> / <code>fields</code> projection are computed here from the same engine facts; the server\'s <code>structuredContent</code> also carries the date range, the named method rows and the prepended-data offsets. <code>strict</code> and <code>limits</code> are passed to the engine exactly as the tool passes them.',
         run(a, bytes) {
-          const { r: reader, diagnostics } = withDiagnostics((onDiagnostic) => mod.openZip(bytes, { validate: a.validate || 'eager', onDiagnostic }));
+          const { r: reader, diagnostics, report } = withDiagnostics((onDiagnostic, opts) => mod.openZip(bytes, { validate: a.validate || 'eager', ...opts }), a);
           const entries = [...reader.entries()];
           const files = entries.filter((e) => !e.isDirectory);
           const names = new Set(); let duplicates = 0;
@@ -383,39 +447,45 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
             noDataDescriptors: facts.dataDescriptorCount === 0,
           };
           det.canonicalLayout = det.noDataDescriptors; det.deterministic = det.epochTimestamps && det.canonicalOrder && det.utf8Flags;
-          const worstRatio = Math.max(0, ...files.filter((e) => e.compressedSize >= 1024).map((e) => e.uncompressedSize / e.compressedSize));
+          // As inspect-zip.ts: the worst ratio over EVERY entry with a non-zero compressed size;
+          // store-only / deflate-only / method over every entry, directories included.
+          const worstRatio = entries.reduce((m, e) => (e.compressedSize > 0 ? Math.max(m, e.uncompressedSize / e.compressedSize) : m), 0);
           const CHECKS = {
             'deterministic': () => det.deterministic, 'epoch-timestamps': () => det.epochTimestamps, 'canonical-order': () => det.canonicalOrder, 'utf8-names': () => det.utf8Flags,
             'no-data-descriptor': () => det.noDataDescriptors, 'canonical-layout': () => det.canonicalLayout, 'no-zip64': () => !reader.isZip64 && facts.zip64Count === 0, 'zip64': () => reader.isZip64 || facts.zip64Count > 0,
             'no-encryption': () => facts.encryptedCount === 0, 'no-symlinks': () => facts.symlinkCount === 0, 'safe-names': () => facts.unsafeNameCount === 0, 'no-duplicates': () => duplicates === 0,
-            'no-diagnostics': () => diagnostics.length === 0, 'store-only': () => files.every((e) => e.compressionMethod === 0), 'deflate-only': () => files.every((e) => e.compressionMethod === 8),
+            'no-diagnostics': () => diagnostics.length === 0, 'store-only': () => entries.every((e) => e.compressionMethod === 0), 'deflate-only': () => entries.every((e) => e.compressionMethod === 8),
           };
           const checks = [];
           for (const c of a.check || []) checks.push({ check: c, ok: CHECKS[c] ? CHECKS[c]() : false, detail: CHECKS[c] ? undefined : 'unknown check' });
           const as = a.assert || {};
-          if (as.maxEntries !== undefined) checks.push({ check: `maxEntries ≤ ${as.maxEntries}`, ok: entries.length <= as.maxEntries });
-          if (as.minEntries !== undefined) checks.push({ check: `minEntries ≥ ${as.minEntries}`, ok: entries.length >= as.minEntries });
-          if (as.maxUncompressedBytes !== undefined) checks.push({ check: `maxUncompressedBytes ≤ ${as.maxUncompressedBytes}`, ok: facts.uncompressedBytes <= as.maxUncompressedBytes });
-          if (as.maxRatio !== undefined) checks.push({ check: `maxRatio ≤ ${as.maxRatio}`, ok: worstRatio <= as.maxRatio, detail: `worst per-entry ratio ${worstRatio.toFixed(1)}` });
-          for (const n of as.has || []) checks.push({ check: `has ${n}`, ok: reader.getEntry(n) !== null });
-          if (as.method) checks.push({ check: `method ${as.method}`, ok: files.every((e) => methodName(e.compressionMethod) === as.method) });
+          if (as.maxEntries !== undefined) checks.push({ check: `max-entries=${as.maxEntries}`, ok: entries.length <= as.maxEntries, detail: `${entries.length} entries (max ${as.maxEntries})` });
+          if (as.minEntries !== undefined) checks.push({ check: `min-entries=${as.minEntries}`, ok: entries.length >= as.minEntries, detail: `${entries.length} entries (min ${as.minEntries})` });
+          if (as.maxUncompressedBytes !== undefined) checks.push({ check: `max-uncompressed=${as.maxUncompressedBytes}`, ok: facts.uncompressedBytes <= as.maxUncompressedBytes, detail: `${facts.uncompressedBytes} bytes uncompressed (max ${as.maxUncompressedBytes})` });
+          if (as.maxRatio !== undefined) checks.push({ check: `max-ratio=${as.maxRatio}`, ok: worstRatio <= as.maxRatio, detail: `worst entry ratio ${worstRatio.toFixed(1)}:1 (max ${as.maxRatio}:1)` });
+          for (const n of as.has || []) { const present = entries.some((e) => e.name === n); checks.push({ check: `has=${n}`, ok: present, detail: present ? `entry "${n}" present` : `entry "${n}" missing` }); }
+          if (as.method) { const want = as.method === 'store' ? 0 : 8; const ok = entries.every((e) => e.compressionMethod === want); checks.push({ check: `method=${as.method}`, ok, detail: `all entries use ${as.method}: ${ok}` }); }
           const checksPassed = checks.every((c) => c.ok);
-          if (a.verbosity === 'summary') return { archiveBytes: facts.archiveBytes, entryCount: facts.entryCount, isZip64: facts.isZip64, compressedBytes: facts.compressedBytes, uncompressedBytes: facts.uncompressedBytes, encryptedCount: facts.encryptedCount, unsafeNameCount: facts.unsafeNameCount, duplicateNameCount: facts.duplicateNameCount, deterministic: det.deterministic, canonicalLayout: det.canonicalLayout, diagnosticCount: diagnostics.length, checksPassed, checks, _note: 'projected with verbosity: summary (the server would also apply fields)' };
-          return { ...facts, determinism: det, checks, checksPassed, diagnostics };
+          const full = { ...facts, determinism: det, ...(a.check || a.assert ? { checks, checksPassed } : {}), ...report };
+          const summary = { archiveBytes: facts.archiveBytes, entryCount: facts.entryCount, isZip64: facts.isZip64, compressedBytes: facts.compressedBytes, uncompressedBytes: facts.uncompressedBytes, encryptedCount: facts.encryptedCount, unsafeNameCount: facts.unsafeNameCount, duplicateNameCount: facts.duplicateNameCount, deterministic: det.deterministic, canonicalLayout: det.canonicalLayout, diagnosticCount: diagnostics.length, ...(a.check || a.assert ? { checksPassed, checks } : {}) };
+          return project(full, summary, a);
         },
       },
       {
         id: 'list_zip_entries', ro: true,
         purpose: 'Paged central-directory inventory, nothing decompressed: full rows with the sanitized path each entry would extract to (null = the gate would refuse it).',
-        prompt: 'List the JSON files under src/ — names and sizes only, first page.',
+        prompt: 'List the TypeScript files under src/ — names and sizes only, first page.',
         args: { zipBase64: ZIP_PLACEHOLDER, filter: { prefix: 'src/', glob: ['**/*.ts'] }, limit: 50, fields: ['entries.name', 'entries.uncompressedSize', 'hasMore'] },
+        note: 'The <code>fields</code> projection is applied here as the server applies it (array segments map over the rows). With no <code>filter</code> at all, directories are listed; any <code>filter</code> drops them unless it says <code>includeDirectories: true</code> — the server\'s asymmetry, reproduced.',
         run(a, bytes) {
-          const { r: reader, diagnostics } = withDiagnostics((onDiagnostic) => mod.openZip(bytes, { validate: a.validate || 'lazy', onDiagnostic }));
+          const { r: reader, report } = withDiagnostics((onDiagnostic, opts) => mod.openZip(bytes, { validate: a.validate || 'lazy', ...opts }), a);
           const all = [...reader.entries()];
           const matched = applyFilter(all, a.filter, true);
           const offset = a.offset || 0, limit = Math.min(a.limit || 200, 2000);
           const page = matched.slice(offset, offset + limit);
-          return { entryCount: all.length, matchedCount: matched.length, offset, limit, returnedCount: page.length, hasMore: offset + page.length < matched.length, isZip64: reader.isZip64, entries: page.map((e) => entryRow(e, !!a.includeExtraData)), diagnostics };
+          const full = { entryCount: all.length, matchedCount: matched.length, offset, limit, returnedCount: page.length, hasMore: offset + page.length < matched.length, isZip64: reader.isZip64, entries: page.map((e) => entryRow(e, !!a.includeExtraData)), ...report };
+          const summary = { entryCount: full.entryCount, matchedCount: full.matchedCount, returnedCount: full.returnedCount, hasMore: full.hasMore, isZip64: full.isZip64, names: page.map((e) => e.name), diagnosticCount: report.diagnostics.length };
+          return project(full, summary, a);
         },
       },
       {
@@ -424,19 +494,21 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         prompt: 'Show me the README of this archive as text.',
         args: { zipBase64: ZIP_PLACEHOLDER, name: 'README.md', mode: 'data', encoding: 'utf8' },
         variants: [{ label: 'Run raw', args: { zipBase64: ZIP_PLACEHOLDER, name: 'src/index.ts', mode: 'raw' } }, { label: 'Run verify', args: { zipBase64: ZIP_PLACEHOLDER, index: 0, mode: 'verify' } }],
-        note: 'A <code>range</code> is emulated here by slicing the decompressed entry; the server reads the window through the chunked stream without inflating the rest.',
+        note: 'A <code>range</code> is emulated here by slicing the decompressed entry; the server reads the window through the chunked stream without inflating the rest. Not emulated: the 16 MiB inline cap (<code>ENTRY_TOO_LARGE</code> — on the compressed size for <code>raw</code>, the decompressed size for <code>data</code>; the remedy is a <code>range</code> or <code>extract_zip</code> file mode). Payloads are truncated for display only.',
         run(a, bytes) {
-          const reader = mod.openZip(bytes);
+          const { r: reader, report } = withDiagnostics((onDiagnostic, opts) => mod.openZip(bytes, opts), a);
           const entry = a.index !== undefined ? [...reader.entries()][a.index] : reader.getEntry(a.name);
           if (!entry) throw Object.assign(new Error(`entry not found (${a.name ?? 'index ' + a.index})`), { code: 'ZIP_ENTRY_NOT_FOUND' });
           const row = entryRow(entry, false);
-          if (a.mode === 'verify') return { entry: row, mode: 'verify', verification: reader.verifyEntry(entry) };
-          if (a.mode === 'raw') { const raw = reader.readEntryRaw(entry); return { entry: row, mode: 'raw', sizeBytes: raw.length, dataBase64: toB64(raw.subarray(0, 512)) + (raw.length > 512 ? '… (truncated for display)' : '') }; }
+          const finish = (full) => project({ ...full, ...report }, { name: row.name, mode: full.mode, sizeBytes: full.sizeBytes, crcVerified: full.crcVerified, ...(full.textLength !== undefined ? { textLength: full.textLength } : {}), ...(full.range ? { range: full.range } : {}), ...(full.verification ? { verification: full.verification } : {}), diagnosticCount: report.diagnostics.length }, a);
+          if (a.mode === 'verify') { const v = reader.verifyEntry(entry); return finish({ entry: row, mode: 'verify', sizeBytes: entry.uncompressedSize, crcVerified: v.crcMatch, verification: v }); }
+          if (a.mode === 'raw') { const raw = reader.readEntryRaw(entry); return finish({ entry: row, mode: 'raw', sizeBytes: raw.length, crcVerified: false, encoding: 'base64', dataBase64: toB64(raw.subarray(0, 512)) + (raw.length > 512 ? '… (truncated for display)' : '') }); }
           let data = reader.readEntry(entry, { verifyCrc: a.verifyCrc !== false && !a.range });
           let range;
           if (a.range) { range = { offset: a.range.offset, length: a.range.length, returned: Math.max(0, Math.min(a.range.length, data.length - a.range.offset)) }; data = data.subarray(a.range.offset, a.range.offset + a.range.length); }
-          if (a.encoding === 'utf8') { const text = new TextDecoder('utf-8', { fatal: true }).decode(data); return { entry: row, mode: 'data', sizeBytes: data.length, crcVerified: !a.range && a.verifyCrc !== false, encoding: 'utf8', text: text.length > 2000 ? text.slice(0, 2000) + '…' : text, textLength: text.length, range }; }
-          return { entry: row, mode: 'data', sizeBytes: data.length, crcVerified: !a.range && a.verifyCrc !== false, encoding: 'base64', dataBase64: toB64(data.subarray(0, 512)) + (data.length > 512 ? '…' : ''), range };
+          const crcVerified = !a.range && a.verifyCrc !== false;
+          if (a.encoding === 'utf8') { const text = new TextDecoder('utf-8', { fatal: true }).decode(data); return finish({ entry: row, mode: 'data', sizeBytes: data.length, crcVerified, encoding: 'utf8', text: text.length > 2000 ? text.slice(0, 2000) + '…' : text, textLength: text.length, ...(range ? { range } : {}) }); }
+          return finish({ entry: row, mode: 'data', sizeBytes: data.length, crcVerified, encoding: 'base64', dataBase64: toB64(data.subarray(0, 512)) + (data.length > 512 ? '…' : ''), ...(range ? { range } : {}) });
         },
       },
       {
@@ -445,14 +517,16 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         prompt: 'Verify this archive before I extract it. Only show me what failed.',
         args: { zipBase64: ZIP_PLACEHOLDER, entries: 'failed', verbosity: 'summary' },
         variants: [{ label: 'Run (all rows)', args: { zipBase64: ZIP_PLACEHOLDER, entries: 'all' } }],
-        note: 'The one exact twin: this card calls <code>verifyZip()</code>, the same function the server calls, and only reshapes the counts.',
+        note: 'The one exact twin: this card calls <code>verifyZip()</code>, the same function the server calls (with the same <code>limits</code>), reshapes the counts and applies the same <code>verbosity</code> / <code>fields</code> projection. There is no <code>strict</code> here — <code>verify_zip</code> reports, it never throws for the archive.',
         run(a, bytes) {
           const report = mod.verifyZip(bytes, a.limits ? { limits: a.limits } : undefined);
           const rows = report.entries;
           const failed = rows.filter((e) => !e.ok && !e.skipped), skipped = rows.filter((e) => e.skipped);
           const sel = a.entries === 'failed' ? failed : a.entries === 'skipped' ? skipped : a.entries === 'none' ? [] : rows;
           const max = a.maxEntries || 1000;
-          return { ok: report.ok, error: report.error, entryCount: report.entryCount, verifiedCount: rows.length - failed.length - skipped.length, failedCount: failed.length, skippedCount: skipped.length, entries: sel.slice(0, max), entriesTruncated: sel.length > max, diagnostics: report.diagnostics.map((d) => ({ code: d.code, severity: d.severity, entryName: d.entryName })) };
+          const full = { ok: report.ok, error: report.error, entryCount: report.entryCount, verifiedCount: rows.length - failed.length - skipped.length, failedCount: failed.length, skippedCount: skipped.length, entries: sel.slice(0, max), entriesTruncated: sel.length > max, diagnostics: report.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message, ...(d.entryName !== undefined ? { entryName: d.entryName } : {}) })) };
+          const summary = { ok: full.ok, error: full.error, entryCount: full.entryCount, verifiedCount: full.verifiedCount, failedCount: full.failedCount, skippedCount: full.skippedCount, diagnosticCount: full.diagnostics.length };
+          return project(full, summary, a);
         },
       },
       {
@@ -463,17 +537,19 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         variants: [{ label: 'Run with data', args: { zipBase64: ZIP_PLACEHOLDER, includeData: true } }, { label: 'Run rejectTraversal: false', args: { zipBase64: ZIP_PLACEHOLDER, includeData: false, rejectTraversal: false } }],
         note: 'Browser: base64 mode only. <code>outputMode: "file"</code>, <code>outputDir</code>, <code>emptyDirectories</code> and the <code>resource_link</code> blocks need the sandbox (<code>ZIPNATIVE_MCP_OUTPUT_DIR</code>). Try the hostile sample above to watch <code>ZIP_PATH_TRAVERSAL</code> fire, then relax it and see the entry land in <code>skipped[]</code> instead.',
         run(a, bytes) {
-          const { r: files, diagnostics } = withDiagnostics((onDiagnostic) => {
-            const opts = { onDiagnostic, rejectTraversal: a.rejectTraversal !== false, rejectSymlinks: a.rejectSymlinks !== false, onDuplicate: a.onDuplicate || 'error' };
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — a Node-side capability this browser page cannot reproduce; run the base64 mode here.'), { code: 'BROWSER_LIMITATION' });
+          const { r: files, report } = withDiagnostics((onDiagnostic, engine) => {
+            const opts = { ...engine, rejectTraversal: a.rejectTraversal !== false, rejectSymlinks: a.rejectSymlinks !== false, onDuplicate: a.onDuplicate || 'error' };
             if (a.filter) { const keep = new Set(applyFilter([...mod.openZip(bytes).entries()], a.filter, false).map((e) => e.name)); opts.filter = (e) => keep.has(e.name); }
-            if (a.limits) opts.limits = a.limits;
             return mod.extractZip(bytes, opts);
-          });
+          }, a);
           const reader = mod.openZip(bytes);
           const emitted = new Set(files.map((f) => f.entry.name));
           const skipped = [...reader.entries()].filter((e) => !e.isDirectory && mod.sanitizeEntryPath(e.name) === null && !emitted.has(e.name)).map((e) => ({ entryName: e.name, reason: 'unsafe-path' }));
           const entries = files.map((f, i) => ({ path: f.path, entryName: f.entry.name, index: i, sizeBytes: f.data.length, crc32: hex8(f.entry.crc32), method: methodName(f.entry.compressionMethod), ...(a.includeData !== false ? { dataBase64: toB64(f.data.subarray(0, 96)) + (f.data.length > 96 ? '…' : '') } : {}) }));
-          return { mode: 'base64', dryRun: a.includeData === false, fileCount: entries.length, totalBytes: files.reduce((s, f) => s + f.data.length, 0), entries, skipped, diagnostics };
+          const full = { mode: 'base64', dryRun: a.includeData === false, fileCount: entries.length, totalBytes: files.reduce((s, f) => s + f.data.length, 0), entries, skipped, ...report };
+          const summary = { mode: full.mode, dryRun: full.dryRun, fileCount: full.fileCount, totalBytes: full.totalBytes, skippedCount: skipped.length, paths: entries.map((e) => e.path), diagnosticCount: report.diagnostics.length };
+          return project(full, summary, a);
         },
       },
       {
@@ -482,28 +558,39 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         prompt: 'This download was cut off. Scan what survived, without trusting it.',
         args: { zipBase64: '<base64 of a truncated download>', tolerateTruncation: true, data: 'verify', verbosity: 'summary' },
         variants: [{ label: 'Run on a copy truncated at 40 %', truncate: 0.4, args: { zipBase64: '<truncated>', tolerateTruncation: true, data: 'verify' } }],
-        note: 'The browser feeds the bytes as an unseekable <code>ReadableStream</code> in 512-byte chunks — the same code path a <code>fetch</code> body takes. <code>stoppedAt</code> is derived exactly as the server derives it: from byte accounting, never from reading a signature.',
+        note: 'The browser feeds the bytes as an unseekable <code>ReadableStream</code> — 512-byte chunks, the tail sliced 16 bytes at a time, as the server\'s own delivery does — and counts every byte the reader actually pulls. <code>stoppedAt</code> is then derived from that count as the server derives it (undelivered bytes remain ⇒ a central directory was reached), never from reading a signature; a header the reader happened to pull with the last slice can still tip the verdict, the same approximation the server accepts. <code>filter</code>, <code>strict</code> and <code>limits</code> are honoured; the operator ceiling on <code>maxEntries</code> (<code>LIMIT_CEILING_EXCEEDED</code>) needs the server.',
         async run(a, bytes, opt) {
           const src = opt && opt.truncate ? bytes.subarray(0, Math.floor(bytes.length * opt.truncate)) : bytes;
-          const entries = []; let delivered = 0, stoppedAt = 'central-directory', error = null;
+          const entries = []; let entryCount = 0, keptCount = 0, stoppedAt = 'eof', error;
           const max = a.maxEntries || 10000;
+          const keepDirs = !a.filter;
+          const { stream, counter } = chunkStream(src, 512);
+          const diag = withDiagnostics((onDiagnostic, opts) => opts, a);
+          let cleanStop = false;
           try {
-            for await (const entry of mod.iterateZipEntries(chunkStream(src, 512))) {
-              if (entries.length >= max) { stoppedAt = 'max-entries'; break; }
+            const gen = mod.iterateZipEntries(stream, diag.r);
+            for (;;) {
+              const next = await gen.next();
+              if (next.done) { cleanStop = true; break; }
+              const entry = next.value;
+              if (entryCount >= max) { stoppedAt = 'max-entries'; break; }
+              entryCount++;
               const h = entry.header;
-              const row = { name: h.name, isDirectory: h.isDirectory, methodName: methodName(h.compressionMethod), compressedSize: h.compressedSize, uncompressedSize: h.uncompressedSize, crc32: hex8(h.crc32), isEncrypted: h.isEncrypted, usesDataDescriptor: (h.flags & mod.FLAG_DATA_DESCRIPTOR) !== 0, sanitizedPath: mod.sanitizeEntryPath(h.name), isSymlink: null, usesZip64: null, unixMode: null, data: { verified: false, bytesProduced: 0 } };
-              if (a.data === 'none' || a.data === undefined) { await entry.skip(); }
+              const kept = keepDirs ? true : applyFilter([{ name: h.name, isDirectory: h.isDirectory }], a.filter, false).length > 0;
+              const row = { name: h.name, isDirectory: h.isDirectory, kept, methodName: methodName(h.compressionMethod), compressedSize: h.compressedSize, uncompressedSize: h.uncompressedSize, crc32: hex8(h.crc32), isEncrypted: h.isEncrypted, usesDataDescriptor: (h.flags & mod.FLAG_DATA_DESCRIPTOR) !== 0, sanitizedPath: mod.sanitizeEntryPath(h.name), isSymlink: null, usesZip64: null, unixMode: null, data: { verified: false, bytesProduced: 0 } };
+              if (!kept || a.data === 'none' || a.data === undefined) { await entry.skip(); }
               else { const parts = []; for await (const p of entry.data()) { row.data.bytesProduced += p.length; if (a.data === 'include') parts.push(p); } row.data.verified = true; if (a.data === 'include') { const all = new Uint8Array(row.data.bytesProduced); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } row.data.dataBase64 = toB64(all.subarray(0, 96)) + (all.length > 96 ? '…' : ''); } }
-              delivered += h.compressedSize;
-              entries.push(row);
+              if (kept) { keptCount++; entries.push(row); }
             }
           } catch (e) {
             if (!a.tolerateTruncation) throw e;
             stoppedAt = 'error'; error = { code: e.code || 'ERROR', message: e.message };
           }
-          if (stoppedAt === 'central-directory' && delivered >= src.length) stoppedAt = 'eof';
-          const out = { trust: 'local-headers-only', entryCount: entries.length, keptCount: entries.length, stoppedAt, truncated: opt && opt.truncate ? true : stoppedAt !== 'central-directory', inputBytes: src.length, bytesDelivered: delivered, maxEntries: max, error };
-          return a.verbosity === 'summary' ? out : { ...out, entries };
+          // classifyCleanStop(): the engine stopped on its own — if bytes remain undelivered it saw the central directory.
+          if (cleanStop) stoppedAt = counter.delivered >= src.length ? 'eof' : 'central-directory';
+          const full = { trust: 'local-headers-only', entryCount, keptCount, entries, stoppedAt, truncated: stoppedAt !== 'central-directory', inputBytes: src.length, bytesDelivered: counter.delivered, maxEntries: max, ...(error ? { error } : {}), ...diag.report };
+          const summary = { trust: full.trust, entryCount, keptCount, stoppedAt, truncated: full.truncated, names: entries.map((e) => e.name), ...(error ? { error } : {}), diagnosticCount: diag.diagnostics.length };
+          return project(full, summary, a);
         },
       },
       {
@@ -514,7 +601,8 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         note: 'The engine returns <code>null</code> for an unsafe name; the <code>reason</code> (<code>traversal</code>, <code>drive</code>, <code>device-name</code>, …) is classified by the server and is not reproduced here.',
         run(a) {
           const results = a.names.map((name) => { const s = mod.sanitizeEntryPath(name); return { name, sanitized: s, rejected: s === null }; });
-          return { count: results.length, rejectedCount: results.filter((r) => r.rejected).length, results };
+          const full = { count: results.length, rejectedCount: results.filter((r) => r.rejected).length, results };
+          return project(full, { count: full.count, rejectedCount: full.rejectedCount, rejectedNames: results.filter((r) => r.rejected).map((r) => r.name) }, a);
         },
       },
       {
@@ -522,21 +610,24 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         purpose: 'Write a reproducible archive from inline entries — canonical order, DOS-epoch timestamps, UTF-8 names; deterministic: true pins the encoder so the bytes are identical on every runtime.',
         prompt: 'Build a deterministic EPUB skeleton — mimetype first and stored — and give me its SHA-256.',
         args: { entries: [{ name: 'mimetype', text: 'application/epub+zip', compression: { method: 'store' } }, { name: 'META-INF/container.xml', text: '<container/>' }, { name: 'OEBPS/', directory: true }, { name: 'OEBPS/chapter1.xhtml', text: '<html><body><h1>Chapter 1</h1></body></html>' }], order: 'insertion', compression: { deterministic: true }, includeSha256: true },
-        note: 'Browser: inline entries only, single-threaded. <code>sourcePath</code> / <code>stream: true</code> / <code>outputMode: "file"</code> need the sandbox; <code>parallel</code> needs the worker pool (<code>zipnative/worker</code>) and a same-origin worker script. The download button gives you the very bytes the assistant would receive as an embedded <code>resource</code>.',
+        note: 'Browser: inline entries only, single-threaded — per-entry <code>compression</code>, <code>date</code>, <code>comment</code>, <code>unixMode</code> / <code>externalAttributes</code> and <code>extraFields</code> are mapped exactly as the server maps them, and <code>strict</code> / <code>limits</code> reach the writer. <code>sourcePath</code> / <code>stream: true</code> / <code>outputMode: "file"</code> need the sandbox; <code>parallel</code> needs the worker pool (<code>zipnative/worker</code>); <code>chunkSize</code> only shapes file-mode streaming and never changes the bytes — all four are refused here with <code>BROWSER_LIMITATION</code> rather than silently ignored. The download button gives you the very bytes the assistant would receive as an embedded <code>resource</code>.',
         async run(a) {
-          const { r: bytes, diagnostics } = withDiagnostics((onDiagnostic) => {
-            const zip = mod.createZip({ onDiagnostic, order: a.order, compression: a.compression, comment: a.comment, defaultDate: a.defaultDate === 'now' ? 'now' : a.defaultDate ? new Date(a.defaultDate) : undefined });
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — needs the Node process.'), { code: 'BROWSER_LIMITATION' });
+          if (a.parallel !== undefined) throw Object.assign(new Error('parallel compresses through zipnative/worker — a worker pool this page does not ship; the bytes are identical to the sequential writer per tier.'), { code: 'BROWSER_LIMITATION' });
+          if (a.chunkSize !== undefined) throw Object.assign(new Error('chunkSize only shapes file-mode streaming (never the bytes) — needs the sandbox.'), { code: 'BROWSER_LIMITATION' });
+          const { r: bytes, report } = withDiagnostics((onDiagnostic, opts) => {
+            const zip = mod.createZip({ ...opts, order: a.order, compression: a.compression, comment: a.comment, defaultDate: a.defaultDate === 'now' ? 'now' : a.defaultDate ? new Date(a.defaultDate) : undefined });
             for (const e of a.entries) {
-              const opts = { compression: e.compression, comment: e.comment, date: e.date ? new Date(e.date) : undefined };
-              if (e.directory || e.name.endsWith('/')) zip.addDirectory(e.name, opts);
-              else if (e.dataBase64 !== undefined) zip.add(e.name, b64(e.dataBase64), opts);
-              else zip.add(e.name, e.text ?? '', opts);
+              const isDir = !!e.directory;
+              const opts2 = entryOptions(e, isDir);
+              if (isDir) zip.addDirectory(e.name, opts2);
+              else zip.add(e.name, payloadOf(e), opts2);
             }
             return zip.toBytes();
-          });
+          }, a);
           const sha256 = a.includeSha256 ? await sha256Hex(bytes) : undefined;
           const det = !!(a.compression && a.compression.deterministic) && a.defaultDate !== 'now';
-          return { _download: { bytes, name: 'create_zip.zip' }, mode: 'base64', sizeBytes: bytes.length, summary: { entryCount: a.entries.length, fileCount: a.entries.filter((e) => !(e.directory || e.name.endsWith('/'))).length, directoryCount: a.entries.filter((e) => e.directory || e.name.endsWith('/')).length, streamedCount: 0, order: a.order || 'canonical', deterministic: det, deflateTier: mod.activeDeflateTier(det), parallel: { requested: false, workers: 0 }, sha256 }, diagnostics };
+          return { _download: { bytes, name: 'create_zip.zip' }, mode: 'base64', sizeBytes: bytes.length, summary: { entryCount: a.entries.length, fileCount: a.entries.filter((e) => !e.directory).length, directoryCount: a.entries.filter((e) => e.directory).length, streamedCount: 0, uncompressedBytes: a.entries.reduce((s, e) => s + (e.directory ? 0 : payloadOf(e).length), 0), order: a.order || 'canonical', deterministic: det, deflateTier: mod.activeDeflateTier(det), parallel: { requested: false, workers: 0 }, ...(sha256 ? { sha256 } : {}) }, ...report };
         },
       },
       {
@@ -545,23 +636,24 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         prompt: 'Remove the config file from this archive so that it is truly gone, and rename the README.',
         args: { zipBase64: ZIP_PLACEHOLDER, operations: [{ op: 'remove', name: 'data/config.json' }, { op: 'rename', from: 'README.md', to: 'docs/README.md' }, { op: 'add', name: 'CHANGELOG.md', text: '## 1.0.1\n- edited by modify_zip\n' }], mode: 'compact', includeSha256: true },
         variants: [{ label: 'Run mode: append', args: { zipBase64: ZIP_PLACEHOLDER, operations: [{ op: 'remove', name: 'data/config.json' }, { op: 'setComment', comment: 'edited in append mode' }], mode: 'append', includeSha256: true } }],
-        note: 'Compare the two modes on the same edit: append keeps the removed payload in the file (data remanence — <code>grewByBytes</code> is never negative), compact rewrites without it.',
+        note: 'Compare the two modes on the same edit: append keeps the removed payload in the file (data remanence — <code>grewByBytes</code> is never negative), compact rewrites without it. Per-op <code>date</code>, <code>comment</code>, <code>unixMode</code> / <code>externalAttributes</code>, <code>extraFields</code> and an <code>add</code> with <code>directory: true</code> (an empty entry with a trailing slash, as the server does it) are honoured; <code>sourcePath</code> and <code>outputMode: "file"</code> need the sandbox.',
         async run(a, bytes) {
-          const { r, diagnostics } = withDiagnostics((onDiagnostic) => {
-            const reader = mod.openZip(bytes);
-            const m = mod.createZipModifier(reader, { onDiagnostic, compression: a.compression, defaultDate: a.defaultDate === 'now' ? 'now' : a.defaultDate ? new Date(a.defaultDate) : undefined });
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — needs the Node process.'), { code: 'BROWSER_LIMITATION' });
+          const { r, report } = withDiagnostics((onDiagnostic, opts) => {
+            const reader = mod.openZip(bytes, opts);
+            const m = mod.createZipModifier(reader, { ...opts, compression: a.compression, defaultDate: a.defaultDate === 'now' ? 'now' : a.defaultDate ? new Date(a.defaultDate) : undefined });
             for (const op of a.operations) {
-              if (op.op === 'add') { if (op.directory) throw new Error('directory add is not demonstrated here'); m.addEntry(op.name, op.dataBase64 !== undefined ? b64(op.dataBase64) : (op.text ?? ''), { compression: op.compression }); }
-              else if (op.op === 'replace') m.replaceEntry(op.name, op.dataBase64 !== undefined ? b64(op.dataBase64) : (op.text ?? ''), { compression: op.compression });
+              if (op.op === 'add') { if (op.directory) m.addEntry(op.name.endsWith('/') ? op.name : `${op.name}/`, new Uint8Array(0), entryOptions(op, true)); else m.addEntry(op.name, payloadOf(op), entryOptions(op, false)); }
+              else if (op.op === 'replace') { if (op.directory) throw Object.assign(new Error('replace cannot target a directory entry'), { code: 'VALIDATION_ERROR' }); m.replaceEntry(op.name, payloadOf(op), entryOptions(op, false)); }
               else if (op.op === 'remove') m.removeEntry(op.name);
               else if (op.op === 'rename') m.renameEntry(op.from, op.to);
               else if (op.op === 'setComment') m.setComment(op.comment);
             }
             const out = a.mode === 'compact' ? m.saveCompact() : m.save();
             return { out, before: reader.entryCount, after: mod.openZip(out, { validate: 'eager' }).entryCount, noOp: out === reader.bytes };
-          });
+          }, a);
           const sha256 = a.includeSha256 ? await sha256Hex(r.out) : undefined;
-          return { _download: { bytes: r.out, name: `modify_zip-${a.mode || 'append'}.zip` }, mode: 'base64', sizeBytes: r.out.length, summary: { saveMode: a.mode || 'append', operationsApplied: a.operations.length, entryCountBefore: r.before, entryCountAfter: r.after, inputBytes: bytes.length, outputBytes: r.out.length, grewByBytes: r.out.length - bytes.length, noOp: r.noOp, sha256 }, diagnostics };
+          return { _download: { bytes: r.out, name: `modify_zip-${a.mode || 'append'}.zip` }, mode: 'base64', sizeBytes: r.out.length, summary: { saveMode: a.mode || 'append', operationsApplied: a.operations.length, entryCountBefore: r.before, entryCountAfter: r.after, inputBytes: bytes.length, outputBytes: r.out.length, grewByBytes: r.out.length - bytes.length, noOp: r.noOp, ...(sha256 ? { sha256 } : {}) }, ...report };
         },
       },
       {
@@ -569,12 +661,12 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         purpose: "The ZIP checksum (IEEE CRC-32, the engine's slice-by-8 implementation) of inline bytes or text; seed continues a running CRC, expect compares.",
         prompt: 'Does the CRC-32 of "hello world" match 0d4a1185?',
         args: { text: 'hello world', expect: '0d4a1185' },
-        variants: [{ label: 'Run seeded (two chunks)', args: { text: ' world', seed: 'crc32("hello")' } }],
-        note: '<code>sourcePath</code> (a sandbox file streamed in 1 MiB chunks) needs the server.',
+        variants: [{ label: 'Run seeded (two chunks)', args: { text: ' world', seed: 907060870, expect: '0d4a1185' } }],
+        note: '<code>seed</code> is an integer (0–4294967295), as the schema says: <code>907060870</code> is <code>crc32("hello")</code> = <code>0x3610a686</code>, so the seeded call over <code>" world"</code> must reproduce <code>crc32("hello world")</code> = <code>0d4a1185</code> — the chaining the tool exists for. <code>sourcePath</code> (a sandbox file streamed in 1 MiB chunks) needs the server.',
         run(a) {
-          let seed = 0;
-          if (typeof a.seed === 'number') seed = a.seed;
-          else if (typeof a.seed === 'string' && a.seed.startsWith('crc32(')) seed = mod.crc32(te.encode(JSON.parse(a.seed.slice(6, -1))));
+          if (a.sourcePath !== undefined) throw Object.assign(new Error('sourcePath streams a sandbox file — needs the Node process; pass text or dataBase64 here.'), { code: 'BROWSER_LIMITATION' });
+          const seed = a.seed === undefined ? 0 : a.seed;
+          if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw Object.assign(new Error('seed must be an integer between 0 and 4294967295'), { code: 'VALIDATION_ERROR' });
           const data = a.dataBase64 !== undefined ? b64(a.dataBase64) : te.encode(a.text ?? '');
           const value = mod.crc32(data, seed) >>> 0;
           const out = { crc32: value, hex: hex8(value), byteLength: data.length, seed };
@@ -588,17 +680,41 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         prompt: 'Inflate this raw deflate payload, but never let it expand past 1 MiB.',
         args: { dataBase64: '<raw deflate payload: read_zip_entry src/index.ts mode raw>', maxOutput: 1048576 },
         variants: [{ label: 'Run with maxOutput: 64 (overflow)', args: { dataBase64: '<raw deflate payload>', maxOutput: 64 } }],
-        note: 'The payload is lifted live from the archive under test with <code>readEntryRaw()</code> and fed to <code>createInflator(maxOutput)</code> in 64-byte pushes — the counters are the inflater\'s own. <code>ZIP_INFLATE_OUTPUT_OVERFLOW</code> is the engine refusing to exceed the bound.',
+        note: 'While <code>dataBase64</code> is the placeholder shown, the payload is lifted live from the archive under test with <code>readEntryRaw()</code>; paste real base64 into the args and that is what gets inflated. The stream is fed to <code>createInflator(maxOutput)</code> in 64-byte pushes — the counters are the inflater\'s own; <code>ZIP_INFLATE_OUTPUT_OVERFLOW</code> is the engine refusing to exceed the bound. <code>method: "store"</code> is the bounded pass-through, a numeric method is <code>ZIP_UNSUPPORTED_METHOD</code> (no codec beyond 0 / 8 here either), and trailing bytes produce the server\'s <code>trailingWarning</code> unless <code>allowTrailing</code>. <code>sourcePath</code> and file output need the sandbox.',
         run(a, bytes) {
-          const reader = mod.openZip(bytes);
-          const src = [...reader.entries()].find((e) => !e.isDirectory && e.compressionMethod === 8);
-          if (!src) throw new Error('the archive under test has no deflated entry to lift a raw payload from');
-          const payload = reader.readEntryRaw(src);
-          const inflator = mod.createInflator(a.maxOutput);
-          let produced = 0, pushes = 0;
-          for (let off = 0; off < payload.length; off += 64) { for (const piece of inflator.push(payload.subarray(off, off + 64))) produced += piece.length; pushes++; }
-          inflator.end();
-          return { source: { entry: src.name, compressedBytes: payload.length }, summary: { method: 8, methodName: 'deflate', bytesIn: payload.length, bytesOut: produced, bytesConsumed: inflator.bytesConsumed, leftover: inflator.leftover.length, finished: inflator.finished, maxOutput: a.maxOutput, pushes } };
+          if (a.sourcePath !== undefined) throw Object.assign(new Error('sourcePath streams a sandbox file — needs the Node process; pass dataBase64 here.'), { code: 'BROWSER_LIMITATION' });
+          if (a.outputMode === 'file') throw Object.assign(new Error('outputMode: "file" writes into the ZIPNATIVE_MCP_OUTPUT_DIR sandbox — needs the Node process.'), { code: 'BROWSER_LIMITATION' });
+          const bound = Math.min(a.maxOutput, 52428800);
+          let payload, source;
+          if (typeof a.dataBase64 === 'string' && !a.dataBase64.startsWith('<')) { payload = b64(a.dataBase64); source = { from: 'dataBase64' }; }
+          else {
+            const reader = mod.openZip(bytes);
+            const src = [...reader.entries()].find((e) => !e.isDirectory && e.compressionMethod === 8);
+            if (!src) throw new Error('the archive under test has no deflated entry to lift a raw payload from');
+            payload = reader.readEntryRaw(src); source = { from: 'readEntryRaw', entry: src.name, compressedBytes: payload.length };
+          }
+          const method = a.method === undefined || a.method === 'deflate' ? 8 : a.method === 'store' ? 0 : Number(a.method);
+          let bytesOut = 0, bytesConsumed, leftover = 0, finished, pushes = 0;
+          if (method === 8) {
+            const inflator = mod.createInflator(bound);
+            for (let off = 0; off < payload.length; off += 64) {
+              const chunk = payload.subarray(off, off + 64);
+              if (inflator.finished) { leftover += chunk.length; continue; }
+              for (const piece of inflator.push(chunk)) bytesOut += piece.length;
+              if (inflator.finished) leftover += inflator.leftover.length;
+              pushes++;
+            }
+            inflator.end();
+            bytesConsumed = inflator.bytesConsumed; finished = inflator.finished;
+          } else if (method === 0) {
+            if (payload.length > bound) throw Object.assign(new Error(`Input (${payload.length} bytes) exceeds maxOutput (${bound}).`), { code: 'ZIP_INFLATE_OUTPUT_OVERFLOW' });
+            bytesOut = payload.length; bytesConsumed = payload.length; finished = true;
+          } else {
+            if (mod.getCodec(method) === null) throw Object.assign(new Error(`No codec is registered for method ${method} (this server registers none beyond store and deflate).`), { code: 'ZIP_UNSUPPORTED_METHOD' });
+            throw Object.assign(new Error(`method ${method} is not demonstrated here`), { code: 'BROWSER_LIMITATION' });
+          }
+          const trailingWarning = leftover > 0 && !a.allowTrailing ? `${leftover} trailing byte(s) after the end of the deflate stream (pass allowTrailing:true to accept silently).` : undefined;
+          return { source, mode: 'base64', sizeBytes: bytesOut, summary: { method, methodName: method === 8 ? 'deflate' : 'store', bytesIn: payload.length, bytesOut, bytesConsumed, leftover, finished, maxOutput: bound, ...(trailingWarning ? { trailingWarning } : {}), pushes }, diagnostics: [] };
         },
       },
       {
@@ -606,15 +722,33 @@ ZIPNATIVE_MCP_PORT=3000 ZIPNATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" npx -
         purpose: 'Offline preflight, no archive needed: server / engine / tool-API versions, the deflate tiers, codecs, default limits, operator ceilings, caps, sandbox and cache state, the code registries.',
         prompt: 'What can this archive server do, and what are its limits, before I send anything?',
         args: { fields: ['engine', 'defaultLimits', 'ceilings', 'caps', 'sandbox', 'network'] },
-        note: 'The <strong>engine half</strong> is live from the CDN build running on this page. The <strong>server half</strong> (tool API version, caps, ceilings, sandbox / cache state) is reproduced as static text from the 1.0.0 source — the real values depend on the operator\'s environment.',
-        async run() {
-          const probes = { CompressionStream: typeof CompressionStream === 'function', DecompressionStream: typeof DecompressionStream === 'function', Worker: typeof Worker === 'function', 'node:zlib': false };
-          return {
-            engine: { version: mod.VERSION, deflateTier: mod.activeDeflateTier(false), deterministicTier: mod.activeDeflateTier(true), runtime: probes, codecs: [0, 8].map((m) => ({ method: m, name: methodName(m), registered: mod.getCodec(m) !== null }), 0) },
-            defaultLimits: mod.DEFAULT_ZIP_LIMITS,
-            server_static_from_1_0_0_source: { version: '1.0.0', toolApiVersion: '1.0.0', protocol: 'MCP 2026-07-28 (+ legacy 2024-10-07 … 2025-11-25)', transports: ['stdio', 'streamable-http (127.0.0.1, POST /mcp)'], ceilings: { ZIPNATIVE_MCP_MAX_UNCOMPRESSED_BYTES: 8589934592, ZIPNATIVE_MCP_MAX_ENTRIES: 100000, ZIPNATIVE_MCP_WORKERS: 8 }, caps: { stdioFrameBytes: 268435456, base64InputBytes: 134217728, pathInputBytes: 1073741824, base64OutputBytes: 52428800, fileOutputBytes: 4294967296, entryInlineBytes: 16777216, extractInlineTotalBytes: 33554432, listLimit: 2000, listDefault: 200, createEntries: 100000, modifyOperations: 1000, sanitizeNames: 10000, diagnosticsKept: 200, resourceLinks: 50 }, sandbox: 'enabled iff ZIPNATIVE_MCP_OUTPUT_DIR is set', cache: 'enabled iff ZIPNATIVE_MCP_CACHE_DIR is set (1 h TTL, 256 MiB LRU)', network: 'none' },
-            errorCodes: '39 frozen ZIP_* codes + 16 wrapper codes — see docs/data/errors.json and the MCP guide',
+        note: 'The result has the server\'s exact shape and key names. The <strong>engine half</strong> (<code>engine</code>, <code>codecs</code>, <code>defaultLimits</code>, the streaming probes in <code>capabilities</code>) is live from the CDN build running on this page. The <strong>server half</strong> (<code>server</code>, <code>ceilings</code> at their defaults, the 25 <code>caps</code>, <code>sandbox</code>, <code>unexposed</code>, the two code registries) is reproduced from the 1.0.0 source — ceilings, sandbox and cache state depend on the operator\'s environment; <code>_static</code> lists which keys those are. <code>capabilities.nodeZlib</code> and <code>workerThreads</code> are honest browser answers, not the server\'s.',
+        async run(a) {
+          const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 1;
+          const full = {
+            server: { name: 'zipnative-mcp', version: '1.0.0', toolApiVersion: '1.0.0', protocol: 'MCP 2026-07-28 + legacy 2024/2025 initialize', toolCount: 13 },
+            engine: { name: 'zipnative', version: mod.VERSION, deflateTier: { default: mod.activeDeflateTier(false), deterministic: mod.activeDeflateTier(true) } },
+            capabilities: { nodeZlib: false, compressionStream: typeof CompressionStream === 'function', decompressionStream: typeof DecompressionStream === 'function', workerThreads: false, cpuCount: cores, defaultWorkers: Math.max(1, Math.min(cores - 1, 8)) },
+            codecs: [0, 8].map((id) => { const c = mod.getCodec(id); return { id, name: methodName(id), sync: !!(c && c.decompressSync), stream: !!(c && c.decompressStream) }; }),
+            defaultLimits: { ...mod.DEFAULT_ZIP_LIMITS },
+            ceilings: { maxUncompressedBytes: 8589934592, maxEntries: 100000, maxWorkers: 8, env: ['ZIPNATIVE_MCP_MAX_UNCOMPRESSED_BYTES', 'ZIPNATIVE_MCP_MAX_ENTRIES', 'ZIPNATIVE_MCP_WORKERS'] },
+            caps: { stdioMaxFrameBytes: 268435456, maxBase64InputBytes: 134217728, maxPathInputBytes: 1073741824, maxBase64OutputBytes: 52428800, maxFileOutputBytes: 4294967296, maxEntryInlineBytes: 16777216, maxExtractInlineTotalBytes: 33554432, maxListLimit: 2000, defaultListLimit: 200, maxCreateEntries: 100000, maxModifyOperations: 1000, maxSanitizeNames: 10000, maxDiagnostics: 200, maxFilterNames: 1000, maxFilterGlobs: 32, maxExtraFields: 16, maxFieldsPaths: 16, defaultScanMaxEntries: 10000, maxResourceLinks: 50, maxRangeLength: 16777216, maxListedResources: 1000, maxResourceWalkDepth: 8, maxResourceReadBytes: 52428800, cacheTtlSeconds: 3600, cacheMaxBytes: 268435456 },
+            sandbox: { enabled: false, cacheEnabled: false },
+            network: 'none',
+            errorCodes: ['ZIP_INVALID_OPTION', 'ZIP_INPUT_TOO_LARGE', 'ZIP_ENTRY_NOT_FOUND', 'ZIP_ENTRY_EXISTS', 'ZIP_API_MISUSE', 'ZIP_STRICT_DIAGNOSTIC', 'ZIP_INTERNAL', 'ZIP_EOCD_NOT_FOUND', 'ZIP_EOCD_INCONSISTENT', 'ZIP_ZIP64_LOCATOR_MISSING', 'ZIP_ZIP64_EOCD_MISPLACED', 'ZIP_CD_INCONSISTENT', 'ZIP_RECORD_TRUNCATED', 'ZIP_SIGNATURE_MISMATCH', 'ZIP_STREAM_TRUNCATED', 'ZIP_VALUE_UNREPRESENTABLE', 'ZIP_INVALID_ENTRY_NAME', 'ZIP_DUPLICATE_ENTRY_NAME', 'ZIP_DEFLATE_TRUNCATED', 'ZIP_DEFLATE_CORRUPT', 'ZIP_ENTRY_OVERLAP', 'ZIP_CD_LFH_MISMATCH', 'ZIP_ZIP64_CONTRADICTION', 'ZIP_PATH_TRAVERSAL', 'ZIP_SYMLINK_REJECTED', 'ZIP_EXTRACT_DUPLICATE_PATH', 'ZIP_CRC_MISMATCH', 'ZIP_SIZE_MISMATCH', 'ZIP_INFLATE_OUTPUT_OVERFLOW', 'ZIP_DESCRIPTOR_MISMATCH', 'ZIP_DECOMPRESSION_FAILED', 'ZIP_LIMIT_EXCEEDED', 'ZIP_LIMIT_INVALID', 'ZIP_UNSUPPORTED_ENCRYPTION', 'ZIP_UNSUPPORTED_METHOD', 'ZIP_UNSUPPORTED_MULTI_DISK', 'ZIP_UNSUPPORTED_ZIP64_STREAMING', 'ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR', 'ZIP_UNSUPPORTED_CODEC_MODE'],
+            diagnosticCodes: ['ZIP_PREPENDED_DATA', 'ZIP_MULTIPLE_EOCD', 'ZIP_NAME_MISMATCH', 'ZIP_UNICODE_PATH_CONFLICT', 'ZIP_INVALID_UTF8_NAME', 'ZIP_DUPLICATE_NAME', 'ZIP_EXTRA_FIELD_MALFORMED', 'ZIP_ZIP64_EXTRA_IGNORED', 'ZIP_TIMESTAMP_NOT_PINNED', 'ZIP_NONDETERMINISTIC_CODEC', 'ZIP_DEAD_BYTES_RATIO'],
+            unexposed: [
+              { export: 'registerCodec / ZipCodec / CodecCompressOptions', rationale: 'A codec is executable code; JSON cannot carry one and zipnative ships no extra codec by policy.' },
+              { export: 'setInflateImpl / setDeflateImpl', rationale: 'Runtime code injection; the server owns tier selection and reports it here.' },
+              { export: 'initNodeZipCodecs', rationale: 'Startup concern — called once by the server before serving.' },
+              { export: 'ParallelZipOptions.workerUrl', rationale: 'Filesystem / bundler path injection from a tool argument; the packaged worker resolves itself.' },
+              { export: 'ZipCommonOptions.onDiagnostic', rationale: 'Always installed by the server (every result carries diagnostics[]); strict IS exposed.' },
+              { export: 'ZipReader.bytes / ZipModifier.reader', rationale: 'The input itself.' },
+              { export: 'ByteSource (external ReadableStream)', rationale: 'JSON-RPC has no stream channel; the server builds ByteSources internally from zipPath / sourcePath.' },
+            ],
+            _static: ['server', 'ceilings (defaults; the operator may raise or lower them)', 'caps', 'sandbox (false here; true on a server with ZIPNATIVE_MCP_OUTPUT_DIR / ZIPNATIVE_MCP_CACHE_DIR)', 'errorCodes', 'diagnosticCodes', 'unexposed'],
           };
+          return project(full, { server: full.server, engine: full.engine, capabilities: full.capabilities, sandbox: full.sandbox, network: full.network }, a);
         },
       },
       {

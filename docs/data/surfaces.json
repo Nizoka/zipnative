@@ -110,14 +110,14 @@
       "label": "Security bounds (CWE-tagged)",
       "library": { "supported": true, "call": "limits option on openZip() / extractZip() / verifyZip() (DEFAULT_ZIP_LIMITS)", "notes": "Eight named bounds: entries, entry size, total size, ratio, name, extra-field, comment and central-directory bytes." },
       "cli": { "supported": true, "command": "--max-entries … --max-cd-bytes", "notes": "The same eight as global flags plus --max-input-size; 'none' disables one with a visible warning." },
-      "mcp": { "supported": true, "tool": "limits { … } on every reading tool", "notes": "Per-call limits are capped by the operator ceilings ZIPNATIVE_MCP_MAX_UNCOMPRESSED_BYTES / ZIPNATIVE_MCP_MAX_ENTRIES (LIMIT_CEILING_EXCEEDED above them)." }
+      "mcp": { "supported": true, "tool": "limits { … } on the eight archive tools", "notes": "inspect_zip, list_zip_entries, read_zip_entry, verify_zip, extract_zip, scan_zip_forward, create_zip and modify_zip take limits; per-call values are capped by the operator ceilings ZIPNATIVE_MCP_MAX_UNCOMPRESSED_BYTES / ZIPNATIVE_MCP_MAX_ENTRIES (LIMIT_CEILING_EXCEEDED above them)." }
     },
     {
       "id": "diagnostics",
       "label": "Diagnostics channel / strict mode",
       "library": { "supported": true, "call": "onDiagnostic / strict on openZip() / extractZip() / verifyZip()", "notes": "Eleven diagnostic codes (prepended data, name mismatch, dead bytes, …) — recoverable findings, never thrown unless strict." },
       "cli": { "supported": true, "command": "--strict", "notes": "Diagnostics ride in the --json envelope; --strict turns the first one into a failure." },
-      "mcp": { "supported": true, "tool": "strict: true on every tool", "notes": "Escalates the first diagnostic to ZIP_STRICT_DIAGNOSTIC; otherwise diagnostics[] (de-duplicated, 200 kept) accompany the result." }
+      "mcp": { "supported": true, "tool": "strict: true on seven tools", "notes": "inspect_zip, list_zip_entries, read_zip_entry, extract_zip, scan_zip_forward, create_zip and modify_zip take strict (not verify_zip, which reports instead of throwing). It escalates the first diagnostic to ZIP_STRICT_DIAGNOSTIC; otherwise diagnostics[] and diagnosticCounts (de-duplicated, 200 kept) accompany the result." }
     },
     {
       "id": "preflight",
@@ -158,8 +158,36 @@
       "id": "completion",
       "label": "Shell completion",
       "library": { "supported": false },
-      "cli": { "supported": true, "command": "completion", "notes": "bash | zsh | fish | powershell, generated from the same command table as --help." },
+      "cli": { "supported": true, "command": "completion", "notes": "bash | zsh | fish | powershell (pwsh accepted as an alias), generated from the same command table as --help." },
       "mcp": { "supported": false }
+    },
+    {
+      "id": "config",
+      "label": "Configuration file",
+      "library": { "supported": false, "notes": "Options are passed per call; the engine reads no file and no environment variable." },
+      "cli": { "supported": true, "command": "--config <file> / --no-config", "notes": ".zipnativerc.json discovered upward from the working directory: global keys plus command-scoped sections (command wins), explicit flags always win, 1 MB cap, the codec key refused." },
+      "mcp": { "supported": false, "notes": "No file — the operator configures the server through the seven ZIPNATIVE_MCP_* environment variables (sandbox, cache, port, token, three ceilings), read once at start-up." }
+    },
+    {
+      "id": "cache",
+      "label": "Response cache",
+      "library": { "supported": false, "notes": "No caching layer; the caller owns memoisation." },
+      "cli": { "supported": false, "notes": "Every run recomputes; persist artefacts with --output or a batch manifest." },
+      "mcp": { "supported": true, "tool": "ZIPNATIVE_MCP_CACHE_DIR (opt-in response cache)", "notes": "SHA-256-keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool-API / package / engine version; never caches path inputs, file output, defaultDate 'now', parallel, describe_engine or draft_governance_issue; a hit carries _meta.cached: true." }
+    },
+    {
+      "id": "transports",
+      "label": "Transports / process boundary",
+      "library": { "supported": true, "call": "in-process import", "notes": "ESM and CommonJS builds; Node, Bun, Deno, browsers and Workers." },
+      "cli": { "supported": true, "command": "--json envelope over stdin / stdout pipes", "notes": "stdout carries the artefact, stderr the envelope; exit codes 0 / 1 / 2." },
+      "mcp": { "supported": true, "tool": "stdio + Streamable HTTP", "notes": "stdio by default (256 MiB frames); ZIPNATIVE_MCP_PORT serves POST /mcp on 127.0.0.1 only, with an optional constant-time bearer token (ZIPNATIVE_MCP_HTTP_TOKEN); MCP 2026-07-28 with automatic 2024–2025 fallback." }
+    },
+    {
+      "id": "prompts",
+      "label": "Prompts / guided workflows",
+      "library": { "supported": false, "notes": "recipes/ in the repository shows the patterns as code." },
+      "cli": { "supported": true, "command": "govern rules", "notes": "Prints the human / agent protocol as text; there are no other workflow prompts — --help and schema manifest are the machine-readable guidance." },
+      "mcp": { "supported": true, "tool": "prompts/list (seven prompts)", "notes": "secure_extraction, reproducible_archive, incremental_update, forensic_scan, verify_before_trust, governance_contract, draft_issue_workflow — read-only text, no arguments; the initialize response also carries an instructions block with the decision tree." }
     },
     {
       "id": "encryption",

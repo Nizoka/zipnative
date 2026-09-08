@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 141958,
-      "approxTokens": 35490
+      "bytes": 159113,
+      "approxTokens": 39778
     },
     {
       "url": "llms-recipes.txt",
@@ -48,8 +48,8 @@
     {
       "url": "data/surfaces.json",
       "description": "The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.",
-      "bytes": 15484,
-      "approxTokens": 3871
+      "bytes": 18647,
+      "approxTokens": 4662
     },
     {
       "url": "data/cli-surface.json",
@@ -71,8 +71,8 @@
         "you-can-switch-later",
         "further-reading"
       ],
-      "bytes": 7666,
-      "approxTokens": 1917
+      "bytes": 8351,
+      "approxTokens": 2088
     },
     {
       "title": "zipnative-cli — Command-line reference",
@@ -84,6 +84,7 @@
         "when-to-use-the-cli",
         "quick-start",
         "the-agent-contract",
+        "error-classes-codes-and-remedies",
         "command-reference",
         "global-options",
         "environment",
@@ -93,8 +94,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 34305,
-      "approxTokens": 8576
+      "bytes": 45710,
+      "approxTokens": 11428
     },
     {
       "title": "Conformance and validation",
@@ -160,8 +161,8 @@
         "security-model",
         "further-reading"
       ],
-      "bytes": 29814,
-      "approxTokens": 7454
+      "bytes": 34766,
+      "approxTokens": 8692
     },
     {
       "title": "Quickstart",
@@ -209,8 +210,8 @@
         "picking-parts-not-a-platform",
         "see-also"
       ],
-      "bytes": 16963,
-      "approxTokens": 4241
+      "bytes": 17076,
+      "approxTokens": 4269
     }
   ]
 }

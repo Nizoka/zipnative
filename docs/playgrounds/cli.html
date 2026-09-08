@@ -125,7 +125,9 @@
       <code>stream</code>), integrity and codecs (<code>verify</code>, <code>crc32</code>,
       <code>inflate</code>), and automation (<code>batch</code>, <code>doctor</code>,
       <code>schema</code>, <code>completion</code>, <code>govern</code>) — plus the global options.
-      Combinations the CLI refuses are flagged as you type; the
+      Combinations the CLI refuses with exit 2 are flagged as you type, in the CLI's own words
+      where it has them (a few refusals need the filesystem — a missing file, a name collision —
+      and only the real run can report those); the
       <a href="../guides/cli.html">CLI guide</a> is the prose reference. The builder runs entirely in
       your browser and reads its flag table from
       <a href="../data/cli-surface.json"><code>cli-surface.json</code></a>, the snapshot of the
@@ -209,10 +211,10 @@
       { "flag": "--config", "kind": "value", "path": true, "placeholder": ".zipnativerc.json", "hint": "Use a specific config file (default: nearest upward from cwd)." },
       { "flag": "--codec", "kind": "value", "path": true, "placeholder": "./my-codec.mjs", "hint": "ESM module exporting { codecs: ZipCodec[] }. Executes user code — command line only, never from a config file." },
       { "flag": "--max-input-size", "kind": "size", "placeholder": "4g", "hint": "Bound on every buffered read (default 4 GiB; 'none' disables with a warning)." },
-      { "flag": "--max-entries", "kind": "size", "placeholder": "100000", "hint": "ZipLimits: central-directory entry count (CWE-400)." },
+      { "flag": "--max-entries", "kind": "count", "placeholder": "100000", "hint": "ZipLimits: central-directory entry count (CWE-400). A plain integer or 'none' — no k/m/g suffix." },
       { "flag": "--max-entry-size", "kind": "size", "placeholder": "1g", "hint": "ZipLimits: decompressed size of one entry (CWE-400)." },
       { "flag": "--max-total-size", "kind": "size", "placeholder": "8g", "hint": "ZipLimits: total decompressed size (CWE-400)." },
-      { "flag": "--max-ratio", "kind": "size", "placeholder": "1024", "hint": "ZipLimits: uncompressed / compressed ratio (CWE-409)." },
+      { "flag": "--max-ratio", "kind": "count", "placeholder": "1024", "hint": "ZipLimits: uncompressed / compressed ratio (CWE-409). A plain integer or 'none' — no suffix, no decimals." },
       { "flag": "--max-name-bytes", "kind": "size", "placeholder": "4096", "hint": "ZipLimits: entry-name length in bytes." },
       { "flag": "--max-extra-bytes", "kind": "size", "placeholder": "65535", "hint": "ZipLimits: extra-field block length." },
       { "flag": "--max-comment-bytes", "kind": "size", "placeholder": "65535", "hint": "ZipLimits: comment length." },
@@ -244,13 +246,13 @@
           { "flag": "--comment-file", "kind": "value", "path": true, "placeholder": "comment.txt", "hint": "Comment as raw bytes from a file ('-' = stdin); exclusive with --comment; ≤ 65535 bytes." },
           { "flag": "--entry-comment", "kind": "repeatable", "placeholder": "README.md=read me first", "hint": "Per-entry comment, name=text." },
           { "flag": "--preserve-mode", "kind": "bool", "hint": "Store POSIX mode bits (never setuid / setgid / sticky)." },
-          { "flag": "--store-ext", "kind": "value", "placeholder": "png,jpg,zip,pdf", "hint": "Store (no deflate) entries with these extensions — already-compressed or encrypted payloads." },
+          { "flag": "--store-ext", "kind": "value", "placeholder": "png,jpg,zip,pdf", "hint": "Store (no deflate) entries with these extensions — already-compressed or encrypted payloads. Matching is by file extension, so an extensionless name such as an EPUB's `mimetype` is NOT matched; give it a per-entry \"method\": \"store\" in a --from-manifest instead." },
           { "flag": "--stream", "kind": "bool", "hint": "Constant-memory writer, data-descriptor layout; entries > 4 GiB refused (ZIP_UNSUPPORTED_ZIP64_STREAMING)." },
-          { "flag": "--chunk-size", "kind": "size", "placeholder": "65536", "hint": "Output chunk size for the chunked writer (--stream or --stdin-name)." },
-          { "flag": "--parallel", "kind": "bool", "hint": "Deflate across a worker pool (zipnative/worker); byte-identical per tier. Refused with --codec." },
-          { "flag": "--workers", "kind": "value", "placeholder": "4", "hint": "Worker count (default cores − 1, max 8; 0 = main thread)." },
-          { "flag": "--min-job-size", "kind": "size", "placeholder": "32k", "hint": "Minimum entry size sent to a worker." },
-          { "flag": "--job-timeout", "kind": "value", "placeholder": "60000", "hint": "Per-job cap in ms before inline fallback." }
+          { "flag": "--chunk-size", "kind": "size", "placeholder": "65536", "hint": "Output chunk size for the chunked writer — requires --stream or --stdin-name (exit 2 otherwise)." },
+          { "flag": "--parallel", "kind": "bool", "hint": "Deflate across a worker pool (zipnative/worker); byte-identical per tier. Refused (exit 2) under --pure-codecs without --deterministic, and with a --codec module that registers method 0/8 or exports deflateImpl without --deterministic — workers never see the module." },
+          { "flag": "--workers", "kind": "value", "placeholder": "4", "hint": "Worker count, a non-negative integer (default cores − 1, max 8; 0 = main thread). Requires --parallel." },
+          { "flag": "--min-job-size", "kind": "size", "placeholder": "32k", "hint": "Minimum entry size sent to a worker. Requires --parallel." },
+          { "flag": "--job-timeout", "kind": "value", "placeholder": "60000", "hint": "Per-job cap in ms (a positive integer) before inline fallback. Requires --parallel." }
         ]
       },
       {
@@ -293,10 +295,10 @@
         "flags": [
           { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "release.zip", "hint": "Archive path (default: stdin)." },
           { "flag": "--format", "kind": "enum", "alias": "-f", "values": ["text", "json"], "default": "text" },
-          { "flag": "--entries", "kind": "bool", "hint": "Include every entry (long form)." },
-          { "flag": "--entry", "kind": "repeatable", "placeholder": "manifest.json", "hint": "Include only the named entries." },
+          { "flag": "--entries", "kind": "bool", "hint": "Include every entry (long form). Ignored when --entry is also given." },
+          { "flag": "--entry", "kind": "repeatable", "placeholder": "manifest.json", "hint": "Include only the named entries (an unknown name is E_NOT_FOUND). Wins over --entries." },
           { "flag": "--extra", "kind": "bool", "hint": "Extra-field payloads as hex." },
-          { "flag": "--check", "kind": "multi", "join": ",", "values": ["deterministic", "epoch-timestamps", "canonical-order", "utf8-names", "canonical-layout", "no-data-descriptor", "no-zip64", "zip64", "no-encryption", "no-symlinks", "safe-names", "no-duplicates", "no-diagnostics", "store-only", "deflate-only"], "extraPlaceholder": "max-entries=1000, max-ratio=100, has=manifest.json, method=deflate", "hint": "Any failing assertion prints the report then exits 1 with E_CHECK_FAILED. Parametrised checks: max-entries=N, min-entries=N, max-uncompressed=<size>, max-ratio=N, has=<name>, method=store|deflate|<id>." },
+          { "flag": "--check", "kind": "multi", "join": ",", "values": ["deterministic", "epoch-timestamps", "canonical-order", "utf8-names", "canonical-layout", "no-data-descriptor", "no-zip64", "zip64", "no-encryption", "no-symlinks", "safe-names", "no-duplicates", "no-diagnostics", "store-only", "deflate-only"], "extraPlaceholder": "max-entries=1000, max-ratio=100, has=manifest.json, method=deflate", "hint": "Any failing assertion prints the report then exits 1 with E_CHECK_FAILED. Parametrised checks: max-entries=N, min-entries=N and max-ratio=N take a plain integer (or none); max-uncompressed=<size> takes the size grammar; has=<name>; method=store|deflate|<id>." },
           { "flag": "--summary", "kind": "bool", "hint": "{ entries, bytes, uncompressedSize, zip64, encrypted, deterministic, canonicalLayout, diagnostics, checksPassed? }." },
           { "flag": "--fields", "kind": "value", "placeholder": "checksPassed,checks", "hint": "Dot-path projection." }
         ]
@@ -319,7 +321,7 @@
           { "flag": "--output-dir", "kind": "value", "path": true, "alias": "-d", "placeholder": "./out", "hint": "REQUIRED. Created if missing; every path re-checked with sanitizeEntryPath() and contained under it." },
           { "flag": "--include", "kind": "repeatable", "placeholder": "docs/**" },
           { "flag": "--exclude", "kind": "repeatable", "placeholder": "**/*.exe" },
-          { "flag": "--entry", "kind": "repeatable", "placeholder": "manifest.json", "hint": "Extract only the named entries." },
+          { "flag": "--entry", "kind": "repeatable", "alias": "-e", "placeholder": "manifest.json", "hint": "Extract only the named entries." },
           { "flag": "--overwrite", "kind": "bool", "hint": "Replace existing files (default: refuse, E_IO)." },
           { "flag": "--on-duplicate", "kind": "enum", "values": ["error", "first", "last"], "default": "error", "hint": "Two entries mapping to one sanitized path." },
           { "flag": "--skip-unsafe", "kind": "bool", "hint": "SKIP names that cannot be made safe instead of failing — nothing unsafe is ever written." },
@@ -379,7 +381,7 @@
           { "flag": "--input", "kind": "value", "path": true, "alias": "-i", "placeholder": "payload.deflate", "hint": "Compressed input (default: stdin)." },
           { "flag": "--output", "kind": "value", "path": true, "alias": "-o", "placeholder": "payload.bin", "hint": "Decompressed output (default: stdout)." },
           { "flag": "--overwrite", "kind": "bool" },
-          { "flag": "--max-output", "kind": "size", "placeholder": "1g", "hint": "Hard output bound (default: the effective --max-entry-size, 1 GiB); 'none' only for trusted input." },
+          { "flag": "--max-output", "kind": "size", "placeholder": "1g", "hint": "Hard output bound (default: the effective --max-entry-size, 1 GiB); must be positive; 'none' only for trusted input." },
           { "flag": "--method", "kind": "value", "placeholder": "deflate | store | <id>", "hint": "Codec (numeric ids via --codec)." },
           { "flag": "--sync", "kind": "bool", "hint": "Buffer the input and use the codec's decompressSync." },
           { "flag": "--allow-trailing", "kind": "bool", "hint": "Silence the warning about bytes after the stream end." }
@@ -391,7 +393,7 @@
           { "flag": "--input-dir", "kind": "value", "path": true, "placeholder": "./packages", "hint": "Directory mode: --task create archives each immediate subdirectory; --task verify verifies every *.zip." },
           { "flag": "--output-dir", "kind": "value", "path": true, "placeholder": "./dist", "hint": "Destination for --task create." },
           { "flag": "--task", "kind": "enum", "values": ["create", "verify"], "default": "create" },
-          { "flag": "--concurrency", "kind": "value", "placeholder": "4", "hint": "Parallel workers (default 4, max 64)." },
+          { "flag": "--concurrency", "kind": "value", "placeholder": "4", "hint": "Parallel workers — a positive integer (default 4, max 64)." },
           { "flag": "--fail-fast", "kind": "bool", "hint": "Stop scheduling after the first failure." },
           { "flag": "--overwrite", "kind": "bool", "hint": "Replace existing <name>.zip files." },
           { "flag": "--manifest", "kind": "value", "path": true, "placeholder": "tasks.json", "hint": "Manifest mode: an ordered pipeline of whitelisted commands with @id output references — zipnative schema batch-manifest." },
@@ -421,7 +423,7 @@
       },
       {
         "name": "completion", "group": "Automation & meta", "summary": "Emit a shell completion script generated from the same command table as --help.",
-        "positional": { "id": "shell", "label": "Shell", "kind": "enum", "values": ["bash", "zsh", "fish", "powershell"], "default": "bash", "hint": "Pipe into your shell's completion directory." },
+        "positional": { "id": "shell", "label": "Shell", "kind": "enum", "values": ["bash", "zsh", "fish", "powershell", "pwsh"], "default": "bash", "hint": "Pipe into your shell's completion directory. pwsh is an alias of powershell (the same script)." },
         "flags": []
       },
       {
@@ -474,8 +476,9 @@
         return `<fieldset><legend>${label} — assertions</legend><div class="grid three">${boxes}</div>
           <div style="margin-top:10px"><label for="${id}-extra">parametrised checks (comma-separated)</label><input type="text" id="${id}-extra" ${data} data-extra="1" placeholder="${esc(f.extraPlaceholder || '')}"></div>${hint}</fieldset>`;
       }
-      // value / size
-      return `<div><label for="${id}">${label}${f.kind === 'size' ? ' <span style="font-weight:400;color:var(--c-text-dim)">&lt;size&gt;</span>' : ''}</label><input type="text" id="${id}" ${data} placeholder="${esc(f.placeholder || '')}" spellcheck="false">${hint}</div>`;
+      // value / size / count
+      const unit = f.kind === 'size' ? ' <span style="font-weight:400;color:var(--c-text-dim)">&lt;size&gt;</span>' : f.kind === 'count' ? ' <span style="font-weight:400;color:var(--c-text-dim)">&lt;n&gt;</span>' : '';
+      return `<div><label for="${id}">${label}${unit}</label><input type="text" id="${id}" ${data} placeholder="${esc(f.placeholder || '')}" spellcheck="false">${hint}</div>`;
     }
 
     function positionalHtml(cmd, p, key) {
@@ -584,42 +587,72 @@
     }
 
     // ── Validation (every rule traces to the CLI source) ─────────────
-    const SIZE_RE = /^(\d+([kmg]|[KMG]i?B)?|none)$/;
+    // "errors" are combinations the CLI refuses with exit 2 (E_USAGE), quoted
+    // from its own messages where it has one; "warns" are things it accepts
+    // but that deserve a second look. The grammars are utils/sizes.ts verbatim:
+    //   <size>  = digits [k|m|g|t][i][b] | none | inf | infinity   (binary units)
+    //   <n>     = digits | none | inf | infinity                    (no suffix)
+    const SIZE_RE = /^(\d+\s*[kmgt]?(?:i?b)?|none|inf|infinity)$/i;
+    const COUNT_RE = /^(\d+|none|inf|infinity)$/i;
+    const UNBOUNDED = /^(none|inf|infinity)$/i;
+    const SIZE_HINT = '65536, 512k, 1m, 8g, 1t, 1GiB (or none)';
     function validate() {
       const errors = [], warns = [], info = [];
       const cmd = state.cmd, b = state.bags[cmd], g = state.global, pos = state.pos[cmd];
       const has = (f) => b[f] !== undefined;
+      const isZero = (v) => /^0+$/.test(String(v).trim());
+      const posInt = (f, v) => { if (!/^\d+$/.test(v) || Number(v) < 1) errors.push(`\`${f}\` expects a positive integer, got \`${v}\`.`); };
       const sizeFlags = ['--chunk-size', '--min-job-size', '--max-output'];
-      for (const f of sizeFlags) if (typeof b[f] === 'string' && !SIZE_RE.test(b[f])) errors.push(`\`${f}\` takes a <size>: 65536, 512k, 1m, 8g, 1GiB (or none).`);
-      for (const f of Object.keys(g)) if (f.startsWith('--max-') && typeof g[f] === 'string' && !SIZE_RE.test(g[f])) errors.push(`\`${f}\` takes a <size> or a number: 65536, 512k, 1m, 8g, 1GiB (or none).`);
-      for (const f of Object.keys(g)) if (f.startsWith('--max-') && g[f] === 'none') warns.push(`\`${f} none\` disables a security bound — the CLI prints a warning; not recommended for untrusted input.`);
+      for (const f of sizeFlags) if (typeof b[f] === 'string' && !SIZE_RE.test(b[f])) errors.push(`\`${f}\` expects a byte size such as ${SIZE_HINT}, got \`${b[f]}\`.`);
+      for (const f of Object.keys(g)) {
+        if (!f.startsWith('--max-') || typeof g[f] !== 'string') continue;
+        const spec = SURFACE.global.find((x) => x.flag === f);
+        if (spec && spec.kind === 'count') { if (!COUNT_RE.test(g[f])) errors.push(`\`${f}\` expects a non-negative integer (or none), got \`${g[f]}\` — count flags take no k/m/g suffix.`); }
+        else if (!SIZE_RE.test(g[f])) errors.push(`\`${f}\` expects a byte size such as ${SIZE_HINT}, got \`${g[f]}\`.`);
+        if (isZero(g[f])) errors.push(`\`${f}\` must be positive (use \`none\` to disable the bound), got \`${g[f]}\`.`);
+        if (UNBOUNDED.test(g[f])) warns.push(`\`${f} ${g[f]}\` disables a security bound — the CLI prints a warning; not recommended for untrusted input.`);
+      }
       if (g['--pretty'] && !g['--json']) warns.push('`--pretty` only affects JSON output — add `--json`.');
       if (g['--dry-run'] && !SURFACE.dryRunCommands.includes(cmd)) warns.push(`\`--dry-run\` has no effect on \`${cmd}\` (honoured by ${SURFACE.dryRunCommands.join(', ')}).`);
-      if (g['--config'] && g['--no-config']) errors.push('`--config` and `--no-config` contradict each other.');
+      if (g['--config'] && g['--no-config']) warns.push('`--no-config` wins silently: the CLI never reads the file `--config` names.');
       if (g['--codec']) info.push('`--codec` executes user code — the CLI accepts it on the command line only, never from `.zipnativerc.json`.');
       if (has('--comment') && has('--comment-file')) errors.push('`--comment` and `--comment-file` are exclusive — the CLI exits 2.');
       if (has('--summary') && has('--fields')) info.push('`--summary` and `--fields` both project the report; `--fields` wins for the listed paths.');
 
       if (cmd === 'create') {
-        const inputs = (b['--input'] || []).length + (pos.positional ? pos.positional.split('\n').filter(Boolean).length : 0);
-        if (!inputs && !has('--stdin-name') && !has('--from-manifest')) warns.push('No input: add paths, `--stdin-name` (stdin) or `--from-manifest`.');
-        if (has('--from-manifest') && inputs) warns.push('`--from-manifest` already lists the entries — positional paths are extra inputs on top of it.');
-        if (has('--parallel') && g['--codec']) errors.push('`--parallel` is refused (exit 2) with a `--codec` module — workers never see the module.');
-        if (has('--parallel') && g['--pure-codecs']) warns.push('`--parallel` under `--pure-codecs` runs the pure-TS encoder in every worker — correct, slower.');
-        if (!has('--parallel') && (has('--workers') || has('--min-job-size') || has('--job-timeout'))) warns.push('`--workers`, `--min-job-size` and `--job-timeout` only apply with `--parallel`.');
-        if (has('--chunk-size') && !has('--stream') && !has('--stdin-name')) warns.push('`--chunk-size` only applies to the chunked writer (`--stream` or `--stdin-name`).');
+        const paths = pos.positional ? pos.positional.split('\n').map((s) => s.trim()).filter(Boolean) : [];
+        const inputs = (b['--input'] || []).length + paths.length;
+        const stdinInput = [...(b['--input'] || []), ...paths].includes('-');
+        if (!inputs && !has('--stdin-name') && !has('--from-manifest')) errors.push('`create` requires at least one input path, `--stdin-name <name>`, or `--from-manifest <file>`.');
+        if (has('--from-manifest') && (inputs || has('--stdin-name'))) errors.push('`--from-manifest` is mutually exclusive with input paths and `--stdin-name`.');
+        if (has('--stdin-name') && stdinInput) errors.push('stdin can only be consumed once — `--stdin-name` and a `-` input path both read it.');
+        if (has('--parallel') && g['--pure-codecs'] && !has('--deterministic')) errors.push('`--parallel` resolves node:zlib inside its worker bundle, so `--pure-codecs` cannot govern it; add `--deterministic` for unconditional byte identity.');
+        if (has('--parallel') && g['--pure-codecs'] && has('--deterministic')) info.push('`--parallel` + `--pure-codecs` + `--deterministic`: the pinned pure-TS encoder runs in every worker — accepted.');
+        if (has('--parallel') && g['--codec']) warns.push('`--parallel` is refused (exit 2) when the `--codec` module registers method 0/8, or exports `deflateImpl` without `--deterministic` — the worker pool never sees the module. A module that only adds other methods is accepted.');
+        if (!has('--parallel') && (has('--workers') || has('--min-job-size') || has('--job-timeout'))) errors.push('`--workers`, `--min-job-size` and `--job-timeout` require `--parallel`.');
+        if (b['--workers'] && !/^\d+$/.test(b['--workers'])) errors.push(`\`--workers\` expects a non-negative integer, got \`${b['--workers']}\`.`);
+        if (b['--job-timeout']) posInt('--job-timeout', b['--job-timeout']);
+        if (has('--chunk-size') && !has('--stream') && !has('--stdin-name')) errors.push('`--chunk-size` requires `--stream` or `--stdin-name` (the chunked writer).');
+        if (b['--chunk-size'] && (isZero(b['--chunk-size']) || UNBOUNDED.test(b['--chunk-size']))) errors.push('`--chunk-size` must be a positive byte size.');
+        for (const v of b['--entry-comment'] || []) if (v.indexOf('=') <= 0) errors.push(`\`--entry-comment\` expects \`<name>=<text>\`, got \`${v}\`.`);
         if (has('--mtime') && has('--date')) warns.push('`--mtime` and `--date` both set timestamps — pick one; `--mtime` is non-reproducible.');
         if (has('--mtime') && has('--deterministic')) warns.push('`--mtime` (local file times) defeats the cross-machine reproducibility `--deterministic` buys.');
         if (b['--date'] && !/^(epoch|now|\d{4}-\d{2}-\d{2})/.test(b['--date'])) errors.push('`--date` is `epoch`, `now` or an ISO date (1980–2107).');
         if (has('--stream')) info.push('`--stream` uses the data-descriptor layout: reproducible, but `inspect --check canonical-layout` will report it as non-canonical.');
+        if (has('--store-ext') && paths.some((p) => p === 'mimetype' || p.endsWith('/mimetype'))) info.push('`--store-ext` matches by extension — the extensionless `mimetype` will be deflated. An EPUB needs it stored: use `--from-manifest` with a per-entry `"method": "store"`.');
         if (!has('--output')) info.push('No `--output` — the archive goes to stdout.');
       }
       if (cmd === 'modify') {
-        if (!has('--input')) warns.push('`modify` needs `--input <a.zip>`.');
-        if (has('--in-place') && has('--output')) errors.push('`--in-place` and `--output` are exclusive.');
+        const payloads = [...(b['--add'] || []), ...(b['--replace'] || [])].map((v) => v.slice(v.indexOf('=') + 1));
+        const stdinPayloads = payloads.filter((p) => p === '-').length + (b['--input'] === '-' ? 1 : 0);
+        if (!has('--input')) errors.push('`modify` requires an archive: `--input <file>`.');
+        if (has('--in-place') && has('--output')) errors.push('`--in-place` and `--output` are mutually exclusive.');
+        if (has('--in-place') && b['--input'] === '-') errors.push('`--in-place` requires a file input, not stdin.');
         if (has('--in-place') && has('--overwrite')) warns.push('`--overwrite` is meaningless with `--in-place` (the input is replaced atomically).');
-        const edits = ['--remove', '--rename', '--replace', '--add', '--add-dir', '--comment', '--comment-file', '--from-manifest'].filter(has);
-        if (!edits.length) warns.push('No edit selected — `modify` returns the same bytes (a no-op).');
+        const edits = ['--remove', '--rename', '--replace', '--add', '--add-dir', '--comment', '--comment-file'].filter(has);
+        if (has('--from-manifest') && edits.length) errors.push('`--from-manifest` is mutually exclusive with `--add`/`--replace`/`--remove`/`--rename`/`--add-dir`/`--comment`/`--comment-file`.');
+        if (!edits.length && !has('--from-manifest')) errors.push('`modify` requires at least one edit: `--add`, `--replace`, `--remove`, `--rename`, `--add-dir`, `--comment`, `--comment-file` or `--from-manifest`.');
+        if (stdinPayloads > 1) errors.push('stdin can only be consumed once — at most one of `--input -`, `--add name=-` and `--replace name=-`.');
         for (const f of ['--rename', '--replace']) for (const v of b[f] || []) if (!/^[^=]+=.+$/.test(v)) errors.push(`\`${f}\` takes \`${f === '--rename' ? 'from=to' : 'name=path'}\` — got \`${v}\`.`);
         if ((has('--remove') || has('--replace') || has('--rename')) && !has('--compact')) warns.push('Append-only save: removed/replaced content REMAINS RECOVERABLE (data remanence) and 7-Zip\'s CLI mis-reads this layout — add `--compact` when either matters.');
         if (b['--date'] && !/^(epoch|now|\d{4}-\d{2}-\d{2})/.test(b['--date'])) errors.push('`--date` is `epoch`, `now` or an ISO date.');
@@ -629,26 +662,31 @@
         if (checks.includes('store-only') && checks.includes('deflate-only')) errors.push('`store-only` and `deflate-only` cannot both hold.');
         if (checks.includes('zip64') && checks.includes('no-zip64')) errors.push('`zip64` and `no-zip64` cannot both hold.');
         for (const c of checks) {
-          if (/=/.test(c) && !/^(max-entries|min-entries)=\d+$|^max-uncompressed=(\d+([kmg]|[KMG]i?B)?)$|^max-ratio=\d+(\.\d+)?$|^has=.+$|^method=(store|deflate|\d+)$/.test(c)) errors.push(`Unknown or malformed check \`${c}\` — see the assertion vocabulary in the hint.`);
+          if (!/=/.test(c)) continue;
+          const eq = c.indexOf('='), key = c.slice(0, eq), value = c.slice(eq + 1);
+          if (key === 'max-entries' || key === 'min-entries' || key === 'max-ratio') { if (!COUNT_RE.test(value)) errors.push(`\`--check ${key}\` expects a non-negative integer (or none), got \`${value}\`.`); }
+          else if (key === 'max-uncompressed') { if (!SIZE_RE.test(value)) errors.push(`\`--check max-uncompressed\` expects a byte size such as ${SIZE_HINT}, got \`${value}\`.`); }
+          else if (key === 'method') { if (!/^(store|deflate|\d+)$/.test(value)) errors.push(`\`--check method\` expects store, deflate or a method id, got \`${value}\`.`); }
+          else if (key !== 'has' || !value) errors.push(`Unknown or malformed check \`${c}\` — see the assertion vocabulary in the hint.`);
         }
-        if (has('--entries') && has('--entry')) warns.push('`--entries` already includes every entry; `--entry` is redundant.');
+        if (has('--entries') && has('--entry')) warns.push('`--entry` wins: only the named entries are included and `--entries` is ignored.');
       }
       if (cmd === 'cat') {
-        if (!has('--input')) warns.push('`cat` needs `--input <a.zip>`.');
-        if (!has('--entry')) errors.push('`cat` needs at least one `--entry <name>`.');
+        if (!has('--input')) errors.push('`cat` requires an archive: `--input <file>` (or a positional path).');
+        if (!has('--entry')) errors.push('`cat` requires at least one entry name: `--entry <name>` (or positionals after the archive).');
         if (has('--raw') && has('--no-verify-crc')) warns.push('`--no-verify-crc` has no effect with `--raw` — the compressed payload is never decoded.');
         if (has('--overwrite') && !has('--output')) warns.push('`--overwrite` only applies with `--output`.');
       }
       if (cmd === 'extract') {
-        if (!has('--output-dir')) errors.push('`extract` REQUIRES `--output-dir <dir>` — the CLI exits 2 without it.');
-        if (has('--allow-symlinks') && has('--skip-symlinks')) errors.push('`--allow-symlinks` and `--skip-symlinks` are exclusive.');
+        if (!has('--output-dir')) errors.push('`extract` requires `--output-dir <dir>` (use `-d .` to extract into the current directory).');
+        if (has('--allow-symlinks') && has('--skip-symlinks')) errors.push('`--allow-symlinks` and `--skip-symlinks` are mutually exclusive.');
         if (has('--flat')) warns.push('`--flat` writes basenames only — two entries with the same basename collide (`--on-duplicate`).');
       }
       if (cmd === 'stream') {
-        const modes = ['--list', '--output-dir', '--cat'].filter(has);
-        if (modes.length > 1) warns.push('Pick one mode: `--list` (default), `--output-dir` or `--cat`.');
+        if (has('--output-dir') && has('--cat')) errors.push('`--output-dir` and `--cat` are mutually exclusive.');
+        if (has('--list') && (has('--output-dir') || has('--cat'))) warns.push('`--list` is the default mode; with `--output-dir` or `--cat` the CLI accepts it and extracts / cats.');
         if (!$('pipe').value.trim() && !has('--input')) info.push('`stream` reads stdin by default — set "pipe stdin from" above, e.g. `curl -s … |`.');
-        info.push('Trust caveat: local headers alone — `--preserve-mode`, `--allow-symlinks` and `--skip-symlinks` do not exist here; every JSON output carries `trust: "local-headers-only"`.');
+        info.push('Trust caveat: local headers alone — `--preserve-mode`, `--allow-symlinks` and `--skip-symlinks` are refused here (exit 2); every JSON output carries `trust: "local-headers-only"`.');
       }
       if (cmd === 'verify' && !has('--input') && !$('pipe').value.trim()) info.push('No `--input` — `verify` reads the archive from stdin.');
       if (cmd === 'crc32') {
@@ -658,20 +696,22 @@
       }
       if (cmd === 'inflate') {
         if (!has('--max-output')) warns.push('No `--max-output` — the default bound is the effective `--max-entry-size` (1 GiB). Set it explicitly for untrusted streams; `none` only for trusted input.');
-        if (b['--method'] && !/^(deflate|store|\d+)$/.test(b['--method'])) errors.push('`--method` is `deflate`, `store` or a numeric codec id.');
+        if (b['--max-output'] && isZero(b['--max-output'])) errors.push('`--max-output` must be positive.');
+        if (b['--max-output'] && UNBOUNDED.test(b['--max-output'])) warns.push('`--max-output none` removes the output bound — trusted input only.');
+        if (b['--method'] && !/^(deflate|store|\d+)$/.test(b['--method'])) errors.push('`--method` expects `deflate`, `store` or a numeric method id.');
         if (/^\d+$/.test(b['--method'] || '') && !g['--codec']) warns.push('A numeric `--method` needs the codec registered via `--codec`.');
       }
       if (cmd === 'batch') {
-        if (has('--manifest') && (has('--input-dir') || has('--output-dir'))) errors.push('`--manifest` is exclusive with `--input-dir` / `--output-dir` — the CLI exits 2.');
-        if (!has('--manifest') && !has('--input-dir')) warns.push('`batch` needs `--input-dir` (directory mode) or `--manifest tasks.json` (manifest mode).');
-        if (has('--input-dir') && (b['--task'] || 'create') === 'create' && !has('--output-dir')) errors.push('`--task create` needs `--output-dir`.');
+        if (has('--manifest') && (has('--input-dir') || has('--output-dir'))) errors.push('`--manifest` is mutually exclusive with `--input-dir`/`--output-dir`.');
+        if (!has('--manifest') && !has('--input-dir')) errors.push('`batch` requires `--input-dir <dir>` (or `--manifest <file>`).');
+        if (has('--input-dir') && (b['--task'] || 'create') === 'create' && !has('--output-dir')) errors.push('`batch --task create` requires `--output-dir <dir>`.');
         if (has('--input-dir') && b['--task'] === 'verify' && has('--output-dir')) warns.push('`--task verify` writes nothing — `--output-dir` is ignored.');
         if (!has('--manifest') && (has('--continue-on-error') || has('--allow-codec-load'))) warns.push('`--continue-on-error` and `--allow-codec-load` apply to manifest mode only.');
-        if (b['--concurrency'] && !(/^\d+$/.test(b['--concurrency']) && Number(b['--concurrency']) >= 1 && Number(b['--concurrency']) <= 64)) errors.push('`--concurrency` is 1–64.');
+        if (b['--concurrency']) { posInt('--concurrency', b['--concurrency']); if (/^\d+$/.test(b['--concurrency']) && Number(b['--concurrency']) > 64) errors.push(`\`--concurrency ${b['--concurrency']}\` exceeds the maximum of 64.`); }
       }
       if (cmd === 'govern') {
         const sub = pos.positional || 'rules';
-        if (sub === 'verify-issue' && !pos.positional2 && !has('--input')) warns.push('`govern verify-issue` needs a draft path (positional or `--input`; `-` = stdin).');
+        if (sub === 'verify-issue' && !pos.positional2 && !has('--input')) errors.push('`govern verify-issue` needs a draft path — `Usage: zipnative govern verify-issue <draft.md>` (or `--input`; `-` = stdin).');
         if (sub !== 'verify-issue' && (pos.positional2 || has('--input') || has('--format'))) warns.push(`\`--input\`, \`--format\` and the draft path only apply to \`verify-issue\`, not \`${sub}\`.`);
         if (sub === 'policy' && g['--pretty'] && !g['--json']) info.push('`govern policy --pretty` indents the policy JSON (no `--json` needed here).');
       }
@@ -753,7 +793,7 @@
     // ── Presets: state-level, so every preset is exact by construction ──
     const PRESETS = [
       ['create-deterministic', 'create · reproducible release archive', { cmd: 'create', pos: { positional: 'src/\ndocs/\nREADME.md' }, bag: { '--output': 'release.zip', '--deterministic': true, '--exclude': ['**/*.map'] } }],
-      ['create-epub', 'create · EPUB (mimetype first, stored)', { cmd: 'create', pos: { positional: 'mimetype\nMETA-INF/\nOEBPS/' }, bag: { '--output': 'book.epub', '--order': 'insertion', '--store-ext': 'mimetype,png,jpg', '--deterministic': true } }],
+      ['create-epub', 'create · EPUB layout (mimetype first; store it via a manifest)', { cmd: 'create', pos: { positional: 'mimetype\nMETA-INF/\nOEBPS/' }, bag: { '--output': 'book.epub', '--order': 'insertion', '--store-ext': 'png,jpg', '--deterministic': true } }],
       ['create-stdin', 'create · archive a pipe with --stream', { cmd: 'create', pipe: 'pg_dump mydb', bag: { '--stdin-name': 'dump.sql', '--output': 'dump.zip', '--stream': true, '--chunk-size': '1m' } }],
       ['create-parallel', 'create · worker-parallel deflate', { cmd: 'create', pos: { positional: 'assets/' }, bag: { '--output': 'assets.zip', '--parallel': true, '--workers': '4', '--min-job-size': '64k', '--deterministic': true } }],
       ['create-manifest', 'create · from a JSON manifest, dry run', { cmd: 'create', bag: { '--from-manifest': 'entries.json', '--output': 'out.zip' }, global: { '--dry-run': true, '--json': true } }],
