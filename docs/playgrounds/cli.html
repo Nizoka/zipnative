@@ -456,8 +456,10 @@
     function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
     function fieldHtml(scope, cmd, f) {
-      const id = `f-${scope}-${cmd || 'g'}-${f.flag.replace(/^--/, '')}`;
-      const data = `data-scope="${scope}" data-cmd="${cmd || ''}" data-flag="${f.flag}"`;
+      // Every value that reaches innerHTML goes through esc() — ids and
+      // data attributes included, even though the surface table is ours.
+      const id = esc(`f-${scope}-${cmd || 'g'}-${f.flag.replace(/^--/, '')}`);
+      const data = `data-scope="${esc(scope)}" data-cmd="${esc(cmd || '')}" data-flag="${esc(f.flag)}"`;
       const label = `<code>${esc(f.flag)}</code>${f.alias ? `, <code>${esc(f.alias)}</code>` : ''}`;
       const hint = f.hint ? `<span class="hint">${esc(f.hint)}</span>` : '';
       if (f.kind === 'bool') {
@@ -482,8 +484,8 @@
     }
 
     function positionalHtml(cmd, p, key) {
-      const id = `p-${cmd}-${p.id}`;
-      const data = `data-scope="pos" data-cmd="${cmd}" data-pos="${key}"`;
+      const id = esc(`p-${cmd}-${p.id}`);
+      const data = `data-scope="pos" data-cmd="${esc(cmd)}" data-pos="${esc(key)}"`;
       const hint = p.hint ? `<span class="hint">${esc(p.hint)}</span>` : '';
       if (p.kind === 'enum') {
         const opts = p.values.map((v) => `<option value="${esc(v)}"${v === p.default ? ' selected' : ''}>${esc(v)}</option>`).join('');
