@@ -68,6 +68,7 @@ import {
 import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import { createDiagnosticEmitter, invalidUtf8NameDiagnostic } from '../core/zip-diagnostics.js';
 import { encryptionScheme } from '../core/zip-encryption.js';
+import { createProgressTracker, throwIfAborted } from '../core/zip-control.js';
 import { decodeCp437, decodeUtf8Strict } from '../core/zip-encoding.js';
 import { dosDateTimeToDate } from '../core/zip-dos-time.js';
 import { parseExtraFields, resolveUtMtime, resolveZip64 } from '../core/zip-extra-fields.js';
@@ -134,6 +135,10 @@ export async function* iterateZipEntries(
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
     const dosTimeMode = options?.dosTimeMode ?? 'local';
+    const signal = options?.signal;
+    throwIfAborted(signal);
+    // The forward reader cannot know the entry count: entriesTotal is null.
+    const progress = createProgressTracker(options?.onProgress, null);
     const cursor = createChunkCursor(toByteIterable(source));
 
     let entryCount = 0;
@@ -150,6 +155,7 @@ export async function* iterateZipEntries(
             if (previous !== null && !previous.done) {
                 throw new ZipError('ZIP_API_MISUSE', `zipnative: ${DRAIN_REMEDY}`);
             }
+            throwIfAborted(signal);
 
             const sig = await cursor.peek4();
             if (sig === null) return; // clean EOF at a record boundary
@@ -394,8 +400,10 @@ export async function* iterateZipEntries(
                 const outputCap = Math.min(uncompressedSize, limits.maxEntryUncompressedSize);
 
                 const account = (chunk: Uint8Array): void => {
+                    throwIfAborted(signal);
                     produced += chunk.length;
                     totalProduced += chunk.length;
+                    progress.bytesOut(chunk.length);
                     if (produced > outputCap) {
                         throw new ZipDataError('ZIP_SIZE_MISMATCH',
                             `zipnative: entry '${name}' produced more than its declared ${uncompressedSize} bytes `
@@ -450,6 +458,8 @@ export async function* iterateZipEntries(
                         `zipnative: entry '${name}' CRC-32 mismatch — the data is corrupt`,
                         name, lfh.crc32, crc);
                 }
+                progress.bytesIn(compressedSize);
+                progress.entryDone();
                 state.done = true;
             }
 
@@ -548,6 +558,14 @@ async function* pumpInflate(
                 yield value;
             }
         } catch (err) {
+            if (err instanceof ZipError || (err instanceof Error && err.name === 'AbortError')) {
+                // The CONSUMER side threw — a limit, the size/CRC guard, the
+                // caller's abort: stop the decoder so the writer side unblocks
+                // (it may be waiting on back-pressure), then rethrow as is.
+                try { await reader.cancel(err); } catch { /* already errored */ }
+                await writeAll;
+                throw err;
+            }
             await writeAll;
             if (sourceError !== null) throw sourceError;
             throw wrapInflateError(decodeError ?? err);

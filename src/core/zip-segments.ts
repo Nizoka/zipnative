@@ -104,6 +104,12 @@ export interface PlannedEntry {
     compressedSize: number;
     uncompressedSize: number;
     /**
+     * @internal The payload segment as emitted (the stream writer counts an
+     * entry as done when it has pushed exactly this reference); an empty
+     * payload emits its local header as the marker instead.
+     */
+    payloadEmitted?: Uint8Array;
+    /**
      * Zip64 streaming layout (stream entries that opted in): speculative
      * Zip64 extra in the local header, 24-byte descriptor, both sizes in
      * the central record's extra whatever the final size. Never set by the
@@ -413,7 +419,7 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
             ? serializeExtraFields(plan.extraFields)
             : concat([sizeExtra, serializeExtraFields(plan.extraFields)]);
         const lfhVersion = Math.max(plan.zip64 || lfh64?.usesZip64 ? 45 : 20, plan.versionNeededMin ?? 0);
-        yield seg(writeLocalFileHeader({
+        const lfhBytes = writeLocalFileHeader({
             versionNeeded: lfhVersion,
             flags: plan.flags,
             compressionMethod: plan.method,
@@ -424,7 +430,10 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
             uncompressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : lfh64?.classicUncompressed ?? plan.uncompressedSize,
             name: plan.nameBytes,
             extra: lfhExtra,
-        }));
+        });
+        const hasPayload = !isStream && plan.payload !== null && plan.payload.length > 0;
+        if (!isStream && !hasPayload) plan.payloadEmitted = lfhBytes;
+        yield seg(lfhBytes);
 
         if (isStream) {
             // The stream writer compresses the source, emits the data
@@ -432,7 +441,8 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
             // it wrote so the offset stays exact.
             const consumed = yield { kind: 'stream-entry', plan };
             offset += consumed ?? 0;
-        } else if (plan.payload !== null && plan.payload.length > 0) {
+        } else if (hasPayload && plan.payload !== null) {
+            plan.payloadEmitted = plan.payload;
             yield seg(plan.payload);
             plan.payload = null; // free as we go
         }

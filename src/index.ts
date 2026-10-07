@@ -91,6 +91,8 @@ export type {
     EntrySkipReason,
     EntryVerification,
     ZipCommonOptions,
+    ZipProgress,
+    ZipProgressHandler,
     ZipDiagnostic,
     ZipDiagnosticCode,
     ZipDiagnosticHandler,

@@ -38,6 +38,7 @@ import { getCodec, METHOD_STORE, type ZipCodec } from '../codecs/codec-registry.
 import { FLAG_DATA_DESCRIPTOR } from '../core/zip-constants.js';
 import { createDiagnosticEmitter, duplicateNameDiagnostic, nameMismatchDiagnostic } from '../core/zip-diagnostics.js';
 import { encryptionScheme } from '../core/zip-encryption.js';
+import { createProgressTracker, throwIfAborted } from '../core/zip-control.js';
 import { bytesEqual } from '../core/zip-encoding.js';
 import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import { parseLocalFileHeader } from '../core/zip-structs.js';
@@ -91,6 +92,8 @@ export interface ZipReader {
  */
 function wrapDecompressError(err: unknown, entryName: string): Error {
     if (err instanceof ZipError) return err;
+    // The caller's own abort (signal.reason) passes through untouched.
+    if (err instanceof Error && err.name === 'AbortError') return err;
     const detail = err instanceof Error ? err.message : String(err);
     return new ZipDataError('ZIP_DECOMPRESSION_FAILED',
         `zipnative: entry '${entryName}' failed to decompress (${detail}) — the data is corrupt or hostile`,
@@ -347,17 +350,24 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
                     `method:${entry.compressionMethod}`);
             }
             const verifyCrc = readOptions?.verifyCrc !== false;
+            const signal = options?.signal;
+            throwIfAborted(signal);
+            const progress = createProgressTracker(options?.onProgress, 1);
+            progress.bytesIn(compressed.length);
             let produced = 0;
             let crc = 0;
             try {
                 for await (const chunk of codec.decompressStream(compressed, entry.uncompressedSize)) {
+                    throwIfAborted(signal);
                     produced += chunk.length;
                     if (verifyCrc) crc = crc32(chunk, crc);
+                    progress.bytesOut(chunk.length);
                     yield chunk;
                 }
             } catch (err) {
                 throw wrapDecompressError(err, entry.name);
             }
+            progress.entryDone();
             if (produced !== entry.uncompressedSize) {
                 throw new ZipDataError('ZIP_SIZE_MISMATCH',
                     `zipnative: entry '${entry.name}' streamed ${produced} bytes but the central directory `

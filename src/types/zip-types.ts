@@ -88,6 +88,25 @@ export interface ZipLimits {
  */
 export type DosTimeMode = 'local' | 'utc';
 
+/**
+ * A progress snapshot: monotonic counters, reported after every chunk and
+ * every completed entry. Reading: `bytesIn` counts archive bytes consumed,
+ * `bytesOut` decompressed bytes produced. Writing: `bytesIn` counts
+ * source bytes consumed, `bytesOut` archive bytes emitted. `entriesTotal`
+ * is null when the operation cannot know it up front (the forward reader).
+ *
+ * @since 1.1.0
+ */
+export interface ZipProgress {
+    readonly entriesDone: number;
+    readonly entriesTotal: number | null;
+    readonly bytesIn: number;
+    readonly bytesOut: number;
+}
+
+/** Receives every {@link ZipProgress} snapshot. @since 1.1.0 */
+export type ZipProgressHandler = (progress: ZipProgress) => void;
+
 /** Shared option fragment embedded in every top-level options type. */
 export interface ZipCommonOptions {
     /** Escalate the first diagnostic to a thrown `Error` (before any output). */
@@ -102,6 +121,20 @@ export interface ZipCommonOptions {
      * @since 1.1.0
      */
     readonly dosTimeMode?: DosTimeMode;
+    /**
+     * Cancel the operation: checked before the first byte and between
+     * chunks on every asynchronous path (`readEntryStream`,
+     * `extractZipStream`, `iterateZipEntries`, `stream()`, the parallel
+     * writer), once on entry for synchronous ones. An abort rejects with
+     * the signal's own `reason` after releasing what the operation held.
+     * @since 1.1.0
+     */
+    readonly signal?: AbortSignal;
+    /**
+     * Receive a {@link ZipProgress} snapshot after every chunk and every
+     * completed entry of an asynchronous operation. @since 1.1.0
+     */
+    readonly onProgress?: ZipProgressHandler;
 }
 
 // ── Entries ──────────────────────────────────────────────────────────

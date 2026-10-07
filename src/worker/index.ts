@@ -57,6 +57,7 @@ import { streamArchive, type StreamOptions } from '../core/zip-stream-writer.js'
 export { type StreamOptions } from '../core/zip-stream-writer.js';
 export { type ByteSource } from '../core/zip-source.js';
 import { type ByteSource } from '../core/zip-source.js';
+import { throwIfAborted } from '../core/zip-control.js';
 import { detectConcurrency } from './worker-adapter.js';
 import { createDeflatePool, type WorkerSpawnSeam } from './worker-pool.js';
 
@@ -134,15 +135,26 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
             })
             : null;
 
+        const signal = collector.control.signal;
+        throwIfAborted(signal);
+        // An abort while jobs are in flight: close the pool (its jobs settle
+        // on the main thread, nothing hangs) and let the planner's next
+        // check surface the caller's reason.
+        const onAbort = (): void => { pool?.close(); };
+        signal?.addEventListener('abort', onAbort, { once: true });
         try {
             const deflate: AsyncDeflate = (data, level, deterministic) => {
+                throwIfAborted(signal);
                 if (pool === null || pool.size === 0 || data.length < minJobSize) {
                     return Promise.resolve({ compressed: deflateRawSync(data, level, deterministic), crc: crc32(data) });
                 }
                 return pool.deflate(data, level, deterministic);
             };
-            return await planArchiveAsync(specs, collector.comment(), collector.limits, collector.emit, deflate);
+            const ctx = await planArchiveAsync(specs, collector.comment(), collector.limits, collector.emit, deflate);
+            throwIfAborted(signal);
+            return ctx;
         } finally {
+            signal?.removeEventListener('abort', onAbort);
             pool?.close();
         }
     };
@@ -168,7 +180,7 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
             return (async function* (): AsyncGenerator<Uint8Array, void, undefined> {
                 // Plan (and validate) fully before the first chunk.
                 const ctx = await planParallel();
-                yield* streamArchive(() => ctx, streamOptions);
+                yield* streamArchive(() => ctx, streamOptions, collector.control);
             })();
         },
     };

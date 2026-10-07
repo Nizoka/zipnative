@@ -20,6 +20,7 @@ import {
 import { ZipSecurityError } from '../types/zip-errors.js';
 import { isSymlinkEntry } from '../core/zip-attributes.js';
 import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
+import { createProgressTracker, throwIfAborted } from '../core/zip-control.js';
 import { openZip } from './zip-reader.js';
 
 /** Options for {@link extractZip} / {@link extractZipStream}. */
@@ -173,6 +174,7 @@ function planExtraction(
  * Directory entries are skipped (directories are implied by paths).
  */
 export function extractZip(bytes: Uint8Array, options?: ExtractOptions): ExtractedEntry[] {
+    throwIfAborted(options?.signal);
     const reader = openZip(bytes, options);
     const planned = planExtraction(reader.entries(), options);
     return planned.map(({ path, entry }) => ({
@@ -191,13 +193,27 @@ export async function* extractZipStream(
     bytes: Uint8Array,
     options?: ExtractOptions,
 ): AsyncGenerator<ExtractedStreamEntry, void, undefined> {
-    const reader = openZip(bytes, options);
+    const signal = options?.signal;
+    throwIfAborted(signal);
+    // The reader reports nothing itself: this operation owns the progress
+    // (entries planned, bytes across every entry); the signal still reaches
+    // readEntryStream through the reader's options.
+    const reader = openZip(bytes, { ...options, onProgress: undefined });
     const planned = planExtraction(reader.entries(), options);
+    const progress = createProgressTracker(options?.onProgress, planned.length);
     for (const { path, entry } of planned) {
+        throwIfAborted(signal);
         yield {
             path,
             entry,
-            stream: () => reader.readEntryStream(entry),
+            stream: async function* (): AsyncGenerator<Uint8Array, void, undefined> {
+                progress.bytesIn(entry.compressedSize);
+                for await (const chunk of reader.readEntryStream(entry)) {
+                    progress.bytesOut(chunk.length);
+                    yield chunk;
+                }
+                progress.entryDone();
+            },
         };
     }
 }

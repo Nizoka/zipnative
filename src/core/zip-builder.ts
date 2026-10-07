@@ -39,7 +39,8 @@ interface RawDefaults {
     readonly extraFields: readonly ZipExtraField[];
 }
 import { toByteIterable, type ByteSource } from './zip-source.js';
-import { streamArchive, type StreamOptions } from './zip-stream-writer.js';
+import { streamArchive, type StreamControl, type StreamOptions } from './zip-stream-writer.js';
+import { throwIfAborted } from './zip-control.js';
 
 /** Per-entry / archive-default compression settings. */
 export interface ZipCompressionOptions {
@@ -209,6 +210,8 @@ const te = new TextEncoder();
 export interface SpecCollector {
     readonly limits: ReturnType<typeof resolveLimits>;
     readonly emit: ReturnType<typeof createDiagnosticEmitter>;
+    /** The cancellation and progress controls of the writer's options. */
+    readonly control: StreamControl;
     add(name: string, data: Uint8Array | string, options?: AddEntryOptions): void;
     addDirectory(name: string, options?: AddEntryOptions): void;
     addStream(name: string, source: AsyncIterable<Uint8Array>, options?: AddEntryOptions): void;
@@ -354,6 +357,7 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
     return {
         limits,
         emit,
+        control: { signal: options?.signal, onProgress: options?.onProgress },
         add(name: string, data: Uint8Array | string, entryOptions?: AddEntryOptions): void {
             const bytes = typeof data === 'string' ? te.encode(data) : data;
             makeSpec(name, false, bytes, null, entryOptions);
@@ -464,6 +468,7 @@ export function createZip(options?: CreateZipOptions): ZipWriter {
         setComment: collector.setComment,
 
         toBytes(): Uint8Array {
+            throwIfAborted(collector.control.signal);
             if (collector.hasStreamEntries()) {
                 throw new ZipError('ZIP_API_MISUSE',
                     'zipnative: toBytes() is incompatible with addStream() entries (their sizes are only '
@@ -473,7 +478,7 @@ export function createZip(options?: CreateZipOptions): ZipWriter {
         },
 
         stream(streamOptions?: StreamOptions): AsyncGenerator<Uint8Array, void, undefined> {
-            return streamArchive(plan, streamOptions);
+            return streamArchive(plan, streamOptions, collector.control);
         },
     };
 }
