@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { deflateRawSync as zlibDeflate, inflateRawSync as zlibInflate } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { expectSameBytes } from '../helpers/bytes.js';
 import { ZipError } from 'zipnative';
 import { deflateRawJS } from '../../src/codecs/deflate-pure.ts';
 import { inflateRawJS } from '../../src/codecs/inflate-pure.ts';
@@ -76,7 +77,7 @@ describe('deflateRawJS: differential round-trip through zlib inflate', () => {
             for (const level of [0, 1, 6, 9]) {
                 const compressed = deflateRawJS(data, level);
                 const restored = new Uint8Array(zlibInflate(compressed));
-                expect(restored, `${name} level ${level}`).toEqual(data);
+                expectSameBytes(restored, data, `${name} level ${level}`);
             }
         }, 180_000);
     }
@@ -84,7 +85,7 @@ describe('deflateRawJS: differential round-trip through zlib inflate', () => {
     it('every level 0-9 round-trips on the text corpus', () => {
         const data = te.encode('the quick brown fox jumps over the lazy dog. '.repeat(300));
         for (let level = 0; level <= 9; level++) {
-            expect(new Uint8Array(zlibInflate(deflateRawJS(data, level)))).toEqual(data);
+            expectSameBytes(new Uint8Array(zlibInflate(deflateRawJS(data, level))), data, `level ${level}`);
         }
     });
 });
@@ -96,16 +97,17 @@ describe('deflateRawJS: self round-trip through our own inflate', () => {
         // file in parallel) and far more under coverage.
         it(`${name} round-trips through inflateRawJS at level 6`, () => {
             const compressed = deflateRawJS(data, 6);
-            expect(inflateRawJS(compressed, Math.max(1, data.length))).toEqual(data);
+            expectSameBytes(inflateRawJS(compressed, Math.max(1, data.length)), data, name);
         }, 180_000);
     }
 });
 
 describe('deflateRawJS: determinism (the frozen contract)', () => {
-    it('two independent calls produce identical bytes', () => {
+    // The whole corpus twice at three levels: the 1 MiB entry alone is ~6 encoder runs under coverage.
+    it('two independent calls produce identical bytes', { timeout: 180_000 }, () => {
         for (const { data } of CORPORA) {
             for (const level of [1, 6, 9]) {
-                expect(deflateRawJS(data, level)).toEqual(deflateRawJS(data, level));
+                expectSameBytes(deflateRawJS(data, level), deflateRawJS(data, level), `level ${level}`);
             }
         }
     });

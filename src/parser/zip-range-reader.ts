@@ -7,6 +7,12 @@
  * whatever the archive's size. Nothing is fetched that the format does not
  * need: the end-of-central-directory tail, the central directory, then per
  * entry its local header and its payload (chunk by chunk when streaming).
+ * Round trips are what a remote source pays for, so the bounded tail
+ * window (at most ~195 KiB) stays cached for the reader's lifetime and
+ * serves every range that falls inside it — the central directory of
+ * most archives, and whole small archives — without a read; the local
+ * header is prefetched with 1 KiB of slack so a typical entry costs one
+ * read for its header and one for its payload.
  *
  * The engine performs no I/O: the source is injected, like a codec. It
  * runs the same defences as the in-memory reader (parser/zip-entry-checks.ts
@@ -117,6 +123,8 @@ export interface ZipRangeReader {
 
 /** Range reads of this size feed the incremental decoder when streaming. */
 const STREAM_CHUNK = 256 * 1024;
+/** Slack read with a local header so its name and extra fields need no second round trip. */
+const LFH_PREFETCH = 1024;
 
 /**
  * Open an archive served by ranges. Fetches the end-of-central-directory
@@ -162,8 +170,21 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
     const tail = await readExact(tailStart, tailLength, 'the end-of-central-directory tail');
     const layout = locateEocd(tail, limits, emit, tailStart);
 
+    /**
+     * A range served from the cached tail window when it lies entirely
+     * inside it (zero reads), from the source otherwise. The window is
+     * bounded, so holding it costs a constant; every hit saves a round trip.
+     */
+    const readRange = async (offset: number, length: number, what: string): Promise<Uint8Array> => {
+        if (offset >= tailStart && length >= 0 && offset + length <= size) {
+            throwIfAborted(signal);
+            return tail.subarray(offset - tailStart, offset - tailStart + length);
+        }
+        return readExact(offset, length, what);
+    };
+
     // ── The central directory (its size was bounded by locateEocd) ────
-    const cd = await readExact(layout.cdOffset, layout.cdSize, 'the central directory');
+    const cd = await readRange(layout.cdOffset, layout.cdSize, 'the central directory');
     const entryList = parseCentralDirectory(cd, { ...layout, cdOffset: 0 }, limits, emit, {
         dosTimeMode: options?.dosTimeMode,
         nameDecoder: options?.nameDecoder,
@@ -200,19 +221,26 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
     };
 
     /**
-     * Fetch the local header (fixed part first, then exactly the variable
-     * tail the lengths declare, both capped), cross-check it, and return
+     * Fetch the local header — the fixed part plus 1 KiB of slack in one
+     * read, so the name and extra fields of a typical entry come with it;
+     * a second read fetches exactly the variable tail only when the
+     * lengths exceed the slack (both capped) — cross-check it, and return
      * the absolute offset of the payload.
      */
     const locateData = async (entry: ZipEntry): Promise<{ lfh: LocalFileHeader; dataStart: number }> => {
         enforceDeclaredSizes(limits, entry);
-        const fixed = await readExact(entry.localHeaderOffset, LOCAL_FILE_HEADER_SIZE, `entry '${entry.name}' local header`);
-        const nameLength = fixed[26] | (fixed[27] << 8);
-        const extraLength = fixed[28] | (fixed[29] << 8);
+        const available = size - entry.localHeaderOffset;
+        const first = await readRange(entry.localHeaderOffset,
+            Math.min(LOCAL_FILE_HEADER_SIZE + LFH_PREFETCH, Math.max(available, LOCAL_FILE_HEADER_SIZE)),
+            `entry '${entry.name}' local header`);
+        const nameLength = first[26] | (first[27] << 8);
+        const extraLength = first[28] | (first[29] << 8);
         enforceLimit(limits, 'maxNameBytes', nameLength, `entry '${entry.name}' local name length`);
         enforceLimit(limits, 'maxExtraFieldBytes', extraLength, `entry '${entry.name}' local extra-field length`);
-        const window = await readExact(entry.localHeaderOffset, LOCAL_FILE_HEADER_SIZE + nameLength + extraLength,
-            `entry '${entry.name}' local header`);
+        const headerLength = LOCAL_FILE_HEADER_SIZE + nameLength + extraLength;
+        const window = headerLength <= first.length
+            ? first.subarray(0, headerLength)
+            : await readRange(entry.localHeaderOffset, headerLength, `entry '${entry.name}' local header`);
         const lfh = parseLocalFileHeader(window, 0);
         const dataStart = entry.localHeaderOffset + lfh.dataStart;
         checkExtent(entry, dataStart + entry.compressedSize + descriptorSlack(lfh));
@@ -234,7 +262,7 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
     /** The whole compressed payload — the one allocation a range read cannot avoid, bounded first. */
     const fetchPayload = async (entry: ZipEntry, dataStart: number): Promise<Uint8Array> => {
         enforceLimit(limits, 'maxEntryCompressedSize', entry.compressedSize, `entry '${entry.name}' compressed size`);
-        return readExact(dataStart, entry.compressedSize, `entry '${entry.name}' payload`);
+        return readRange(dataStart, entry.compressedSize, `entry '${entry.name}' payload`);
     };
 
     const reader: ZipRangeReader = {
@@ -299,7 +327,7 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
                 try {
                     for (let pos = 0; pos < entry.compressedSize; pos += STREAM_CHUNK) {
                         const length = Math.min(STREAM_CHUNK, entry.compressedSize - pos);
-                        const piece = await readExact(dataStart + pos, length, `entry '${entry.name}' payload`);
+                        const piece = await readRange(dataStart + pos, length, `entry '${entry.name}' payload`);
                         progress.bytesIn(length);
                         for (const chunk of decoder.push(piece)) {
                             account(chunk);

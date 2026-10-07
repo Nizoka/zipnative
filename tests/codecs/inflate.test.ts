@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
+import { expectSameBytes } from '../helpers/bytes.js';
 import { deflateRawSync } from 'node:zlib';
 import { setInflateImpl, ZipDataError, ZipFormatError } from 'zipnative';
 import { inflateRawJS } from '../../src/codecs/inflate-pure.ts';
@@ -19,14 +20,14 @@ describe('inflateRawJS (pure-TS tier)', () => {
         const data = te.encode('hello hello hello zipnative '.repeat(200));
         for (const level of [0, 1, 6, 9]) {
             const compressed = new Uint8Array(deflateRawSync(data, { level }));
-            expect(inflateRawJS(compressed, data.length)).toEqual(data);
+            expectSameBytes(inflateRawJS(compressed, data.length), data);
         }
     });
 
     it('round-trips incompressible random data (stored blocks)', () => {
         const data = randomBytes(70_000, 7);
         const compressed = new Uint8Array(deflateRawSync(data));
-        expect(inflateRawJS(compressed, data.length)).toEqual(data);
+        expectSameBytes(inflateRawJS(compressed, data.length), data);
     });
 
     it('enforces the output bound during inflation (zip-bomb cap)', () => {
@@ -55,7 +56,7 @@ describe('inflateRawSync facade', () => {
     it('decompresses through the platform tier', () => {
         const data = te.encode('facade test '.repeat(100));
         const compressed = new Uint8Array(deflateRawSync(data));
-        expect(inflateRawSync(compressed, data.length)).toEqual(data);
+        expectSameBytes(inflateRawSync(compressed, data.length), data);
     });
 
     it('honors an injected implementation (tier 1)', () => {
@@ -87,7 +88,7 @@ describe('inflateRawStream facade', () => {
             joined.set(chunk, pos);
             pos += chunk.length;
         }
-        expect(joined).toEqual(data);
+        expectSameBytes(joined, data);
     });
 
     it('enforces the output bound while streaming', async () => {

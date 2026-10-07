@@ -99,7 +99,8 @@ describe('openZipRange — parity with openZip', () => {
         expect(await codeOf(() => range.readEntry('missing'))).toBe('ZIP_ENTRY_NOT_FOUND');
     });
 
-    it('agrees on every committed foreign fixture, including the SFX-prefixed and Zip64 shapes', async () => {
+    // Every fixture entry is decoded twice through the pure-TS tier (no node codecs in the suite): ~30 s on a loaded machine.
+    it('agrees on every committed foreign fixture, including the SFX-prefixed and Zip64 shapes', { timeout: 120_000 }, async () => {
         const archives: Array<[string, Uint8Array]> = readdirSync(FIXTURES).filter((f) => f.endsWith('.zip'))
             .map((f) => [f, new Uint8Array(readFileSync(resolve(FIXTURES, f)))]);
         archives.push(['sfx', buildRawZip([{ name: 'a.txt', data: te.encode('stub') }], { prepend: te.encode('#!/bin/sh stub\n'.repeat(3)) })]);
@@ -140,22 +141,41 @@ describe('openZipRange — what it reads', () => {
         ]);
         const source = counting(bytes);
         const reader = await openZipRange(source);
-        expect(source.reads).toHaveLength(2);
-        const [tail, cd] = source.reads;
+        // One read: the tail window, which holds the central directory of
+        // an archive this size (the CD sits right before the EOCD) — no
+        // second round trip for it.
+        expect(source.reads).toHaveLength(1);
+        const [tail] = source.reads;
         expect(tail[0] + tail[1]).toBe(bytes.length);
-        const mem = openZip(bytes);
-        const cdOffset = [...mem.entries()].reduce((max, e) => Math.max(max, e.localHeaderOffset), 0);
-        expect(cd[0]).toBeGreaterThan(cdOffset);
-        expect(cd[1]).toBeLessThan(bytes.length - cd[0]);
-        const total = source.reads.reduce((n, [, l]) => n + l, 0);
-        expect(total).toBeLessThan(bytes.length);
+        expect(tail[1]).toBeLessThan(bytes.length);
 
         source.reads.length = 0;
-        const entry = reader.getEntry('raw.bin')!;
+        const entry = reader.getEntry('docs/readme.md')!;
         await reader.readEntry(entry);
-        // Fixed header, full header, payload — nothing else.
-        expect(source.reads.map(([, l]) => l)).toEqual([30, 30 + entry.rawName.length + 0, entry.compressedSize]);
+        // The header with its 1 KiB prefetch, then the payload — nothing else.
+        expect(source.reads.map(([, l]) => l)).toEqual([30 + 1024, entry.compressedSize]);
         expect(source.reads[0][0]).toBe(entry.localHeaderOffset);
+
+        // An entry inside the tail window costs no read at all.
+        source.reads.length = 0;
+        const last = reader.getEntry('raw.bin')!;
+        expect(last.localHeaderOffset).toBeGreaterThanOrEqual(tail[0]);
+        await reader.readEntry(last);
+        expect(source.reads).toHaveLength(0);
+    });
+
+    it('fetches the variable part of a local header separately only when it exceeds the prefetch', async () => {
+        const longName = 'n/'.repeat(600) + 'x.bin'; // 1205 bytes > the 1 KiB slack
+        const bytes = buildRawZip([
+            { name: longName, data: te.encode('long-named'), method: 0 },
+            { name: 'pad.bin', data: semiRandom(300_000, 5), method: 0 },
+        ]);
+        const source = counting(bytes);
+        const reader = await openZipRange(source);
+        source.reads.length = 0;
+        const entry = reader.getEntry(longName)!;
+        expect(td.decode(await reader.readEntry(entry))).toBe('long-named');
+        expect(source.reads.map(([, l]) => l)).toEqual([30 + 1024, 30 + entry.rawName.length, entry.compressedSize]);
     });
 
     it('streams a deflated entry through ranged reads and the incremental decoder — never the whole payload at once', async () => {
@@ -170,7 +190,7 @@ describe('openZipRange — what it reads', () => {
         expect(Buffer.compare(out, big)).toBe(0);
         // The compressed-size limit was never consulted: streaming fetched ranges, never the payload whole.
         const entry = reader.getEntry('big.txt')!;
-        const payloadReads = source.reads.slice(2);
+        const payloadReads = source.reads.slice(1);
         expect(payloadReads.reduce((n, [, l]) => n + l, 0)).toBe(entry.compressedSize);
         expect(payloadReads.every(([, l]) => l <= 256 * 1024)).toBe(true);
     });

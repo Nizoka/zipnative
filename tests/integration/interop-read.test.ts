@@ -27,7 +27,8 @@ afterAll(() => {
 
 describe('interop: zipnative reads foreign producers', () => {
     for (const producer of PRODUCERS) {
-        it(`reads an archive produced by ${producer.id}`, (ctx) => {
+        // A producer cold start (pwsh Compress-Archive) can exceed 30 s on a loaded machine.
+        it(`reads an archive produced by ${producer.id}`, { timeout: 120_000 }, (ctx) => {
             if (producer.describe() === null) {
                 ctx.skip(`${producer.id} is not available on this machine`);
                 return;
