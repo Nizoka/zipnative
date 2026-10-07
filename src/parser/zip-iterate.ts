@@ -44,6 +44,7 @@
 import {
     type ZipCommonOptions,
     type ZipExtraField,
+    type ZipNameEncoding,
 } from '../types/zip-types.js';
 import {
     ZipDataError,
@@ -59,7 +60,6 @@ import {
     FLAG_DATA_DESCRIPTOR,
     FLAG_ENCRYPTED,
     FLAG_STRONG_ENCRYPTION,
-    FLAG_UTF8,
     SIG_CENTRAL_FILE_HEADER,
     SIG_EOCD,
     SIG_LOCAL_FILE_HEADER,
@@ -69,7 +69,7 @@ import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import { createDiagnosticEmitter, invalidUtf8NameDiagnostic } from '../core/zip-diagnostics.js';
 import { encryptionScheme } from '../core/zip-encryption.js';
 import { createProgressTracker, throwIfAborted } from '../core/zip-control.js';
-import { decodeCp437, decodeUtf8Strict } from '../core/zip-encoding.js';
+import { decodeEntryName } from '../core/zip-encoding.js';
 import { dosDateTimeToDate } from '../core/zip-dos-time.js';
 import { parseExtraFields, resolveUtMtime, resolveZip64 } from '../core/zip-extra-fields.js';
 import { matchDataDescriptor, parseLocalFileHeader } from '../core/zip-structs.js';
@@ -91,7 +91,7 @@ export type IterateZipOptions = ZipCommonOptions;
 export interface StreamedZipHeader {
     readonly name: string;
     readonly rawName: Uint8Array;
-    readonly nameEncoding: 'utf-8' | 'cp437';
+    readonly nameEncoding: ZipNameEncoding;
     readonly isDirectory: boolean;
     readonly compressionMethod: number;
     readonly compressedSize: number;
@@ -198,23 +198,8 @@ export async function* iterateZipEntries(
                 diskNumberStart: 0,
             });
 
-            const utf8Flagged = (lfh.flags & FLAG_UTF8) !== 0;
-            let name: string;
-            let nameEncoding: 'utf-8' | 'cp437';
-            if (utf8Flagged) {
-                const decoded = decodeUtf8Strict(lfh.name);
-                if (decoded === null) {
-                    name = decodeCp437(lfh.name);
-                    nameEncoding = 'cp437';
-                    emit(invalidUtf8NameDiagnostic(name));
-                } else {
-                    name = decoded;
-                    nameEncoding = 'utf-8';
-                }
-            } else {
-                name = decodeCp437(lfh.name);
-                nameEncoding = 'cp437';
-            }
+            const { name, nameEncoding, invalidUtf8 } = decodeEntryName(lfh.name, lfh.flags, options?.nameDecoder);
+            if (invalidUtf8) emit(invalidUtf8NameDiagnostic(name));
 
             const usesDescriptor = (lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0;
             const isEncrypted = (lfh.flags & (FLAG_ENCRYPTED | FLAG_STRONG_ENCRYPTION)) !== 0;

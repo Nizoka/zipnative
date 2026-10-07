@@ -77,8 +77,12 @@ export {
 // ── 4b. Entry attributes (0.9; the write-side helper since 1.1.0) ────
 export {
     externalAttributesFromUnixMode,
+    getExtendedTimestamps,
+    getUnixIds,
     getUnixMode,
     isSymlinkEntry,
+    type ExtendedTimestamps,
+    type UnixIds,
     type UnixModeOptions,
 } from './core/zip-attributes.js';
 
@@ -91,6 +95,8 @@ export type {
     EntrySkipReason,
     EntryVerification,
     ZipCommonOptions,
+    ZipNameDecoder,
+    ZipNameEncoding,
     ZipProgress,
     ZipProgressHandler,
     ZipDiagnostic,

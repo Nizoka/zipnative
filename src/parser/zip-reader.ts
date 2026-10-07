@@ -121,7 +121,10 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     let boundaries: number[] | undefined;
 
     const ensureEntries = (): ZipEntry[] => {
-        entryList ??= parseCentralDirectory(bytes, layout, limits, emit, options?.dosTimeMode ?? 'local');
+        entryList ??= parseCentralDirectory(bytes, layout, limits, emit, {
+            dosTimeMode: options?.dosTimeMode,
+            nameDecoder: options?.nameDecoder,
+        });
         return entryList;
     };
 

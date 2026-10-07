@@ -13,6 +13,53 @@
 import type { ZipEntry } from '../types/zip-types.js';
 import { ZipError } from '../types/zip-errors.js';
 import { DOS_ATTR_DIRECTORY, UNIX_TYPE_MASK, UNIX_TYPE_SYMLINK } from './zip-constants.js';
+import { resolveNtfsTimestamps, resolveUnixIds, resolveUtTimestamps } from './zip-extra-fields.js';
+
+/**
+ * An entry's timestamps at the best precision its metadata offers.
+ * `source` names where they came from: `'ut'` (the Info-ZIP 0x5455 extra,
+ * 1-second Unix times; the central copy usually carries mtime only),
+ * `'ntfs'` (the 0x000a extra, 100 ns FILETIMEs), or `'dos'` (the 2-second
+ * DOS fields — `entry.lastModified`; no atime/ctime).
+ *
+ * @since 1.1.0
+ */
+export interface ExtendedTimestamps {
+    readonly mtime: Date | null;
+    readonly atime: Date | null;
+    readonly ctime: Date | null;
+    readonly source: 'ut' | 'ntfs' | 'dos';
+}
+
+/** Unix owner ids of an entry (the Info-ZIP "ux" 0x7875 extra). @since 1.1.0 */
+export interface UnixIds {
+    readonly uid: number;
+    readonly gid: number;
+}
+
+/**
+ * The entry's modification, access and creation times — UT first, then
+ * NTFS, then the DOS fields (Info-ZIP's precedence). Pure: reads the
+ * extra fields the entry already carries.
+ *
+ * @since 1.1.0
+ */
+export function getExtendedTimestamps(entry: ZipEntry): ExtendedTimestamps {
+    const ut = resolveUtTimestamps(entry.extraFields);
+    if (ut !== null && ut.mtime !== null) return { ...ut, source: 'ut' };
+    const ntfs = resolveNtfsTimestamps(entry.extraFields);
+    if (ntfs !== null && ntfs.mtime !== null) return { ...ntfs, source: 'ntfs' };
+    return { mtime: entry.lastModified, atime: null, ctime: null, source: 'dos' };
+}
+
+/**
+ * The entry's Unix uid/gid from the Info-ZIP 0x7875 extra, or null when the
+ * archive carries none (DOS/Windows producers, or a Unix one that omitted
+ * it). @since 1.1.0
+ */
+export function getUnixIds(entry: ZipEntry): UnixIds | null {
+    return resolveUnixIds(entry.extraFields);
+}
 
 /** Host system id in the `versionMadeBy` high byte for Unix (APPNOTE 4.4.2). */
 const HOST_UNIX = 3;

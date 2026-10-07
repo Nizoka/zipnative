@@ -46,6 +46,7 @@ export const SENTINEL_U32 = 0xFFFFFFFF;
 // ── Extra-field header ids ───────────────────────────────────────────
 
 export const EXTRA_ZIP64 = 0x0001;
+export const EXTRA_NTFS = 0x000a;              // NTFS extra: 64-bit FILETIME mtime/atime/ctime
 export const EXTRA_UT_TIMESTAMP = 0x5455;      // "UT" extended timestamp
 export const EXTRA_UNICODE_PATH = 0x7075;      // "up" Info-ZIP Unicode Path
 export const EXTRA_UNIX_UIDGID = 0x7875;       // "ux" Info-ZIP Unix uid/gid

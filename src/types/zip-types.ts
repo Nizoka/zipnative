@@ -107,6 +107,27 @@ export interface ZipProgress {
 /** Receives every {@link ZipProgress} snapshot. @since 1.1.0 */
 export type ZipProgressHandler = (progress: ZipProgress) => void;
 
+/**
+ * How an entry's name bytes were decoded: `'utf-8'` (flag bit 11 set and
+ * valid), `'cp437'` (the DOS default), or `'custom'` (the caller's
+ * `nameDecoder`, for a legacy encoding such as Shift-JIS or CP866).
+ *
+ * @since 1.1.0 (`'custom'`)
+ */
+export type ZipNameEncoding = 'utf-8' | 'cp437' | 'custom';
+
+/**
+ * Decodes the raw name bytes of an entry whose UTF-8 flag (bit 11) is
+ * clear — a `TextDecoder` for the producer's code page, typically
+ * (`(b) => new TextDecoder('shift_jis').decode(b)`). Never consulted for
+ * UTF-8-flagged names; a decoder that throws aborts the parse with its own
+ * error. The sanitisation of extraction paths runs on the DECODED string,
+ * so a decoder cannot smuggle a traversal past the guards.
+ *
+ * @since 1.1.0
+ */
+export type ZipNameDecoder = (bytes: Uint8Array) => string;
+
 /** Shared option fragment embedded in every top-level options type. */
 export interface ZipCommonOptions {
     /** Escalate the first diagnostic to a thrown `Error` (before any output). */
@@ -135,6 +156,13 @@ export interface ZipCommonOptions {
      * completed entry of an asynchronous operation. @since 1.1.0
      */
     readonly onProgress?: ZipProgressHandler;
+    /**
+     * Decoder for names without the UTF-8 flag (bit 11) — a legacy code
+     * page such as Shift-JIS, GBK or CP866. Default: CP437. Read side only
+     * (`openZip`, `iterateZipEntries`, `extractZip*`); zipnative itself
+     * always writes UTF-8. @since 1.1.0
+     */
+    readonly nameDecoder?: ZipNameDecoder;
 }
 
 // ── Entries ──────────────────────────────────────────────────────────
@@ -152,11 +180,11 @@ export interface ZipExtraField {
  * no hidden reference to the reader.
  */
 export interface ZipEntry {
-    /** Decoded name (UTF-8 when flag bit 11 is set, CP437 otherwise). */
+    /** Decoded name (UTF-8 when flag bit 11 is set; CP437 or the caller's `nameDecoder` otherwise). */
     readonly name: string;
     /** Exact central-directory name bytes (zero-copy subarray). */
     readonly rawName: Uint8Array;
-    readonly nameEncoding: 'utf-8' | 'cp437';
+    readonly nameEncoding: ZipNameEncoding;
     /** Trailing `/` or the DOS directory attribute. */
     readonly isDirectory: boolean;
     /** Compression method id: 0 = store, 8 = deflate, others via the codec registry. */

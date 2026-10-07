@@ -10,7 +10,9 @@
  * @module core/zip-encoding
  */
 
+import type { ZipNameDecoder, ZipNameEncoding } from '../types/zip-types.js';
 import { ZipFormatError } from '../types/zip-errors.js';
+import { FLAG_UTF8 } from './zip-constants.js';
 
 /**
  * CP437 high half (0x80–0xFF). The low half maps to ASCII — the universal
@@ -41,6 +43,31 @@ export function decodeCp437(bytes: Uint8Array): string {
         out += b < 0x80 ? String.fromCharCode(b) : CP437_HIGH[b - 0x80];
     }
     return out;
+}
+
+/** What `decodeEntryName` resolved. */
+export interface DecodedName {
+    readonly name: string;
+    readonly nameEncoding: ZipNameEncoding;
+    /** Bit 11 was set but the bytes were not valid UTF-8 (the caller diagnoses it). */
+    readonly invalidUtf8: boolean;
+}
+
+/**
+ * The name-decoding policy shared by the central-directory and the
+ * forward readers: bit 11 set → strict UTF-8, falling back to the legacy
+ * decoder (the caller's `nameDecoder`, else CP437) with `invalidUtf8`
+ * raised; bit 11 clear → the legacy decoder. The caller's decoder is
+ * reported as `'custom'`.
+ */
+export function decodeEntryName(bytes: Uint8Array, flags: number, decoder: ZipNameDecoder | undefined): DecodedName {
+    const legacy = (): DecodedName => decoder === undefined
+        ? { name: decodeCp437(bytes), nameEncoding: 'cp437', invalidUtf8: false }
+        : { name: decoder(bytes), nameEncoding: 'custom', invalidUtf8: false };
+    if ((flags & FLAG_UTF8) === 0) return legacy();
+    const decoded = decodeUtf8Strict(bytes);
+    if (decoded !== null) return { name: decoded, nameEncoding: 'utf-8', invalidUtf8: false };
+    return { ...legacy(), invalidUtf8: true };
 }
 
 /** Byte-wise lexicographic comparison of raw names (canonical entry order). */

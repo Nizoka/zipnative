@@ -65,6 +65,8 @@ const FORBIDDEN_GP_BITS = 0xf7f1;
 
 /** Archives that MUST fail, with the check id that must be among the failures. */
 const EXPECTED_NONCONFORMANT: Readonly<Record<string, string>> = {
+    // A legacy code-page name without bit 11: readable (nameDecoder), not conformant.
+    'names-encoding/shift-jis-legacy.zip': 'ISO21320-1/APPNOTE-4.4.4',
     'refusals/overlap.zip': 'WF/ENTRY-OVERLAP',
     'refusals/cd-mismatch.zip': 'WF/CD-COUNT',
     'refusals/declared-bomb.zip': 'WF/LFH-SIZE-MISMATCH',
