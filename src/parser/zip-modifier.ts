@@ -61,6 +61,7 @@ import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import {
     createDiagnosticEmitter,
     deadBytesRatioDiagnostic,
+    timestampClampedDiagnostic,
     timestampNotPinnedDiagnostic,
 } from '../core/zip-diagnostics.js';
 import { bytesEqual, compareNames, validateEntryName } from '../core/zip-encoding.js';
@@ -216,14 +217,20 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         return sourceIndex.has(name);
     };
 
-    // Written-entry defaults (mirrors createZip's resolution).
+    // Written-entry defaults (mirrors createZip's resolution, dosTimeMode included).
     const defaultCompression = options?.compression;
+    const dosMode = options?.dosTimeMode ?? 'local';
+    const toDos = (date: Date, entryName?: string): { dosDate: number; dosTime: number } => {
+        const dos = dateToDosDateTime(date, dosMode);
+        if (dos.clamped !== null) emit(timestampClampedDiagnostic(dos.clamped, entryName));
+        return dos;
+    };
     let defaultDos: { dosDate: number; dosTime: number };
     if (options?.defaultDate === 'now') {
         emit(timestampNotPinnedDiagnostic());
-        defaultDos = dateToDosDateTime(new Date());
+        defaultDos = toDos(new Date());
     } else if (options?.defaultDate instanceof Date) {
-        defaultDos = dateToDosDateTime(options.defaultDate);
+        defaultDos = toDos(options.defaultDate);
     } else {
         defaultDos = { dosDate: DETERMINISTIC_DOS_DATE, dosTime: DETERMINISTIC_DOS_TIME };
     }
@@ -242,7 +249,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         if (!Number.isInteger(level) || level < 0 || level > 9) {
             throw new ZipError('ZIP_INVALID_OPTION', `zipnative: compression.level must be an integer 0-9 (got ${String(level)})`);
         }
-        const dos = edit.options?.date !== undefined ? dateToDosDateTime(edit.options.date) : defaultDos;
+        const dos = edit.options?.date !== undefined ? toDos(edit.options.date, name) : defaultDos;
         return {
             nameBytes: te.encode(name),
             isDirectory,

@@ -23,7 +23,7 @@ import {
 import { ZipError, ZipFormatError } from '../types/zip-errors.js';
 import { activeDeflateTier } from '../codecs/deflate.js';
 import { DOS_ATTR_DIRECTORY } from './zip-constants.js';
-import { createDiagnosticEmitter, nondeterministicCodecDiagnostic, timestampNotPinnedDiagnostic } from './zip-diagnostics.js';
+import { createDiagnosticEmitter, nondeterministicCodecDiagnostic, timestampClampedDiagnostic, timestampNotPinnedDiagnostic } from './zip-diagnostics.js';
 import { compareNames, validateEntryName } from './zip-encoding.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from './zip-dos-time.js';
 import { resolveLimits } from './zip-limits.js';
@@ -147,15 +147,22 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
     validateLevel(defaultLevel);
 
     // Resolve the default timestamp ONCE so every entry of one archive
-    // shares it (and so 'now' costs a single diagnostic).
+    // shares it (and so 'now' costs a single diagnostic). The wall-clock
+    // the fields are read with is the archive's dosTimeMode (issue #9).
+    const dosMode = options?.dosTimeMode ?? 'local';
+    const toDos = (date: Date, entryName?: string): { dosDate: number; dosTime: number } => {
+        const dos = dateToDosDateTime(date, dosMode);
+        if (dos.clamped !== null) emit(timestampClampedDiagnostic(dos.clamped, entryName));
+        return dos;
+    };
     let defaultDos: { dosDate: number; dosTime: number };
     let datePinned: boolean;
     if (options?.defaultDate === 'now') {
         emit(timestampNotPinnedDiagnostic());
-        defaultDos = dateToDosDateTime(new Date());
+        defaultDos = toDos(new Date());
         datePinned = false;
     } else if (options?.defaultDate instanceof Date) {
-        defaultDos = dateToDosDateTime(options.defaultDate);
+        defaultDos = toDos(options.defaultDate);
         datePinned = true;
     } else {
         defaultDos = { dosDate: DETERMINISTIC_DOS_DATE, dosTime: DETERMINISTIC_DOS_TIME };
@@ -185,7 +192,7 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
 
         const compression = entryOptions?.compression;
         if (compression?.level !== undefined) validateLevel(compression.level);
-        const dos = entryOptions?.date !== undefined ? dateToDosDateTime(entryOptions.date) : defaultDos;
+        const dos = entryOptions?.date !== undefined ? toDos(entryOptions.date, finalName) : defaultDos;
         specs.push({
             nameBytes: te.encode(finalName),
             isDirectory,

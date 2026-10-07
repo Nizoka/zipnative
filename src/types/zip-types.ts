@@ -24,7 +24,8 @@ export type ZipDiagnosticCode =
     | 'ZIP_ZIP64_EXTRA_IGNORED'     // zip64 extra supplied a non-sentinel field
     | 'ZIP_TIMESTAMP_NOT_PINNED'    // writer used wall-clock time (M2+)
     | 'ZIP_NONDETERMINISTIC_CODEC'  // non-pinned codec tier in use (M2+)
-    | 'ZIP_DEAD_BYTES_RATIO';       // incremental save: >50% dead bytes (M3+)
+    | 'ZIP_DEAD_BYTES_RATIO'        // incremental save: >50% dead bytes (M3+)
+    | 'ZIP_TIMESTAMP_CLAMPED';      // a Date outside 1980–2107 (or invalid) was clamped (1.1.0)
 
 /** A single non-fatal conformance diagnostic. */
 export interface ZipDiagnostic {
@@ -76,6 +77,17 @@ export interface ZipLimits {
 
 // ── Common option fragment ───────────────────────────────────────────
 
+/**
+ * Which wall-clock a `Date` is converted to and from the DOS timestamp
+ * fields with. `'local'` (default, the 1.0.0 behaviour and the convention
+ * of Info-ZIP, 7-Zip and Explorer): the host's time zone, so the same
+ * instant encodes differently on different hosts. `'utc'`: the same fields
+ * on every host — the reproducible choice for an explicit `Date`.
+ *
+ * @since 1.1.0
+ */
+export type DosTimeMode = 'local' | 'utc';
+
 /** Shared option fragment embedded in every top-level options type. */
 export interface ZipCommonOptions {
     /** Escalate the first diagnostic to a thrown `Error` (before any output). */
@@ -84,6 +96,12 @@ export interface ZipCommonOptions {
     readonly onDiagnostic?: ZipDiagnosticHandler;
     /** Override individual security bounds. */
     readonly limits?: Partial<ZipLimits>;
+    /**
+     * Wall-clock used for DOS timestamps — writing an explicit `Date`
+     * (`defaultDate`, `date`) and reading `lastModified`. Default `'local'`.
+     * @since 1.1.0
+     */
+    readonly dosTimeMode?: DosTimeMode;
 }
 
 // ── Entries ──────────────────────────────────────────────────────────

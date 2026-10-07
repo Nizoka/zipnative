@@ -10,6 +10,7 @@
  */
 
 import {
+    type DosTimeMode,
     type ZipDiagnosticEmitter,
     type ZipEntry,
     type ZipLimits,
@@ -46,6 +47,7 @@ export function parseCentralDirectory(
     layout: ArchiveLayout,
     limits: ZipLimits,
     emit: ZipDiagnosticEmitter,
+    dosTimeMode: DosTimeMode = 'local',
 ): ZipEntry[] {
     const entries: ZipEntry[] = [];
     const cdEnd = layout.cdOffset + layout.cdSize;
@@ -68,7 +70,7 @@ export function parseCentralDirectory(
         enforceLimit(limits, 'maxExtraFieldBytes', cfh.extra.length, 'entry extra-field length');
         enforceLimit(limits, 'maxCommentBytes', cfh.comment.length, 'entry comment length');
 
-        entries.push(makeEntry(cfh, layout.base, emit));
+        entries.push(makeEntry(cfh, layout.base, emit, dosTimeMode));
         pos += cfh.recordLength;
     }
 
@@ -84,6 +86,7 @@ function makeEntry(
     cfh: ReturnType<typeof parseCentralFileHeader>,
     base: number,
     emit: ZipDiagnosticEmitter,
+    dosTimeMode: DosTimeMode,
 ): ZipEntry {
     // ── Extra fields ─────────────────────────────────────────────────
     const { fields, malformed } = parseExtraFields(cfh.extra);
@@ -135,7 +138,7 @@ function makeEntry(
 
     // ── Timestamp: UT extra refines the DOS pair ─────────────────────
     const utMtime = resolveUtMtime(fields);
-    const lastModified = utMtime ?? dosDateTimeToDate(cfh.dosDate, cfh.dosTime);
+    const lastModified = utMtime ?? dosDateTimeToDate(cfh.dosDate, cfh.dosTime, dosTimeMode);
 
     const isDirectory = name.endsWith('/')
         || ((cfh.externalAttributes & DOS_ATTR_DIRECTORY) !== 0 && z64.uncompressedSize === 0);

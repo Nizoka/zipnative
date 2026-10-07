@@ -69,6 +69,8 @@ export { type ByteSource } from './core/zip-source.js';
 
 // ── 5. Entries and shared types ──────────────────────────────────────
 export type {
+    DosTimeMode,
+    EntrySkipReason,
     EntryVerification,
     ZipCommonOptions,
     ZipDiagnostic,

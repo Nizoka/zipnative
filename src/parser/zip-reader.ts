@@ -118,7 +118,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     let boundaries: number[] | undefined;
 
     const ensureEntries = (): ZipEntry[] => {
-        entryList ??= parseCentralDirectory(bytes, layout, limits, emit);
+        entryList ??= parseCentralDirectory(bytes, layout, limits, emit, options?.dosTimeMode ?? 'local');
         return entryList;
     };
 

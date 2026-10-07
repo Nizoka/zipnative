@@ -133,6 +133,7 @@ export async function* iterateZipEntries(
     // Validate early, before any read.
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
+    const dosTimeMode = options?.dosTimeMode ?? 'local';
     const cursor = createChunkCursor(toByteIterable(source));
 
     let entryCount = 0;
@@ -251,7 +252,7 @@ export async function* iterateZipEntries(
                 versionNeeded: lfh.versionNeeded,
                 dosDate: lfh.dosDate,
                 dosTime: lfh.dosTime,
-                lastModified: resolveUtMtime(fields) ?? dosDateTimeToDate(lfh.dosDate, lfh.dosTime),
+                lastModified: resolveUtMtime(fields) ?? dosDateTimeToDate(lfh.dosDate, lfh.dosTime, dosTimeMode),
                 isEncrypted,
                 extraFields: fields,
             };
