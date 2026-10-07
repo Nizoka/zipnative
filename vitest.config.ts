@@ -19,6 +19,15 @@ export default defineConfig({
         include: ['tests/**/*.test.ts'],
         environment: 'node',
         globals: false,
+        // The DOS timestamp conversion reads a Date with the host's local
+        // calendar by default (dosTimeMode: 'local'); pinning the zone makes
+        // the suite a pure function of the sources on every machine. Tests
+        // that exercise other zones set process.env.TZ themselves.
+        env: { TZ: 'UTC' },
+        // Forks (not threads): a per-file process is what lets a test flip
+        // process.env.TZ or inject a codec without leaking into its
+        // neighbours, and it matches the gate's expectations (scripts/gate.ts).
+        pool: 'forks',
         // Interop tests spawn real external producers (pwsh Compress-Archive
         // takes seconds to cold-start) and coverage instrumentation slows the
         // streaming codec paths; the default 5 s flakes on both.

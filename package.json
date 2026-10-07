@@ -56,6 +56,7 @@
     "test:interop": "npx tsx scripts/run-interop.ts",
     "validate:zip": "npx tsx scripts/validate-zip.ts",
     "test:generate": "npx tsx scripts/generate-samples.ts",
+    "verify:samples": "npx tsx scripts/verify-samples.ts",
     "fixtures:generate": "npx tsx scripts/generate-fixtures.ts",
     "verify:docs": "npx tsx scripts/verify-docs.ts",
     "docs:api": "npx tsx scripts/build-api-json.ts",
