@@ -32,6 +32,7 @@
  * @module worker
  */
 
+import type { ZipEntry } from '../types/zip-types.js';
 import { ZipError } from '../types/zip-errors.js';
 import { crc32 } from '../codecs/crc32.js';
 import { deflateRawSync, initNodeDeflate } from '../codecs/deflate.js';
@@ -39,6 +40,9 @@ import {
     createSpecCollector,
     type AddEntryOptions,
     type CreateZipOptions,
+    type AddFromReaderOptions,
+    type RawEntryMeta,
+    type RawEntryReader,
 } from '../core/zip-builder.js';
 import {
     assembleArchive,
@@ -84,6 +88,10 @@ export interface ParallelZipWriter {
     add(name: string, data: Uint8Array | string, options?: AddEntryOptions): void;
     addDirectory(name: string, options?: AddEntryOptions): void;
     addStream(name: string, source: ByteSource, options?: AddEntryOptions): void;
+    /** Pre-compressed payload, copied verbatim (1.1.0) — see `ZipWriter.addRaw`. */
+    addRaw(name: string, payload: Uint8Array, meta: RawEntryMeta, options?: AddEntryOptions): void;
+    /** Transplant from an open archive without recompression (1.1.0) — see `ZipWriter.addFromReader`. */
+    addFromReader(reader: RawEntryReader, entry: ZipEntry | string, options?: AddFromReaderOptions): void;
     setComment(comment: string | Uint8Array): void;
 
     /** Assemble the archive (async — workers). Throws if addStream() was used. */
@@ -143,6 +151,8 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
         add: collector.add,
         addDirectory: collector.addDirectory,
         addStream: collector.addStream,
+        addRaw: collector.addRaw,
+        addFromReader: collector.addFromReader,
         setComment: collector.setComment,
 
         async toBytes(): Promise<Uint8Array> {

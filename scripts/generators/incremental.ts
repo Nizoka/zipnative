@@ -39,6 +39,19 @@ export async function generate(ctx: GenerateContext): Promise<void> {
 
     write('incremental-compacted.zip', 'incremental-compacted.zip (true deletion)', applyEdits(base).saveCompact());
 
+    // Transplant without recompression (1.1.0): two archives merged into one
+    // through addFromReader() — every payload is the source's compressed
+    // bytes, verified before the copy, the metadata travels with it.
+    const other = createZip({ compression: { deterministic: true } });
+    other.add('assets/logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>\n');
+    other.add('assets/README', 'merged from a second archive\n'.repeat(30));
+    const a = openZip(base);
+    const b = openZip(other.toBytes());
+    const merged = createZip({ compression: { deterministic: true } });
+    for (const entry of a.entries()) merged.addFromReader(a, entry);
+    for (const entry of b.entries()) merged.addFromReader(b, entry);
+    write('merged-from-two.zip', 'merged-from-two.zip (addFromReader, no recompression)', merged.toBytes());
+
     // Dead-bytes demo: replacing the dominant entry strands >50% of the
     // original bytes, so save() fires ZIP_DEAD_BYTES_RATIO (the signal
     // that saveCompact() is overdue). The diagnostic is asserted here —

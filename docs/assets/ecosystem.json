@@ -85,12 +85,12 @@
     "error_codes_frozen_since": "0.8.0"
   },
   "derived": {
-    "sampleZips": 34
+    "sampleZips": 35
   },
   "declared": {
     "$comment": "Hand-maintained expectations the ISO/IEC 21320-1 validator (scripts/validate-zip.ts) canaries against — the pdfnative pdfaSamples pattern. 29 samples must PASS the profile (three of them are hostile-but-spec-valid: zip-slip, device-name, duplicate-paths); 4 crafted archives must FAIL with their declared check.",
     "iso21320": {
-      "conformantSamples": 30,
+      "conformantSamples": 31,
       "nonConformantSamples": 4
     }
   },

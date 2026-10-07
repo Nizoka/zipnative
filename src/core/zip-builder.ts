@@ -19,15 +19,25 @@
 import {
     type ZipCommonOptions,
     type ZipExtraField,
+    type EntryVerification,
+    type ZipEntry,
 } from '../types/zip-types.js';
-import { ZipError, ZipFormatError } from '../types/zip-errors.js';
+import { ZipDataError, ZipError, ZipFormatError } from '../types/zip-errors.js';
 import { activeDeflateTier } from '../codecs/deflate.js';
-import { DOS_ATTR_DIRECTORY } from './zip-constants.js';
+import { DOS_ATTR_DIRECTORY, EXTRA_ZIP64 } from './zip-constants.js';
 import { createDiagnosticEmitter, nondeterministicCodecDiagnostic, timestampClampedDiagnostic, timestampNotPinnedDiagnostic } from './zip-diagnostics.js';
 import { compareNames, validateEntryName } from './zip-encoding.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from './zip-dos-time.js';
 import { resolveLimits } from './zip-limits.js';
-import { assembleArchive, planArchive, type EntrySpec, type ZipCtx } from './zip-segments.js';
+import { assembleArchive, planArchive, type EntrySpec, type RawPayload, type ZipCtx } from './zip-segments.js';
+
+/** Source-entry defaults `addFromReader` carries into the spec when no option overrides them. */
+interface RawDefaults {
+    readonly dos: { readonly dosDate: number; readonly dosTime: number };
+    readonly externalAttributes: number;
+    readonly comment: Uint8Array;
+    readonly extraFields: readonly ZipExtraField[];
+}
 import { toByteIterable, type ByteSource } from './zip-source.js';
 import { streamArchive, type StreamOptions } from './zip-stream-writer.js';
 
@@ -96,6 +106,54 @@ export interface AddEntryOptions {
     readonly zip64?: boolean;
 }
 
+/**
+ * What `addRaw()` must know about a pre-compressed payload: the method
+ * that produced it, the CRC-32 and size of the ORIGINAL content, and
+ * optionally the general-purpose bits to preserve (only the encryption
+ * bits are kept) and the version-needed floor of an exotic method.
+ *
+ * @since 1.1.0
+ */
+export interface RawEntryMeta {
+    /** Compression method id the payload is encoded with (0 = store, 8 = deflate, …). */
+    readonly method: number;
+    /** CRC-32 of the uncompressed content, unsigned. */
+    readonly crc32: number;
+    /** Size of the uncompressed content, bytes. */
+    readonly uncompressedSize: number;
+    /** General-purpose bits of the source entry; only the encryption bits travel. Default 0. */
+    readonly flags?: number;
+    /** Version-needed floor (a source entry's own, for a method above 2.0). Default 20. */
+    readonly versionNeeded?: number;
+}
+
+/**
+ * The read side `addFromReader()` transplants from — `ZipReader` satisfies
+ * it; declared structurally here so the writer never imports the parser.
+ *
+ * @since 1.1.0
+ */
+export interface RawEntryReader {
+    getEntry(name: string): ZipEntry | null;
+    /** Zero-copy view of the entry's COMPRESSED payload (refuses encrypted entries). */
+    readEntryRaw(entry: ZipEntry | string): Uint8Array;
+    /** Non-throwing integrity check, consulted before the copy unless `verify: false`. */
+    verifyEntry(entry: ZipEntry | string): EntryVerification;
+}
+
+/** Options for {@link ZipWriter.addFromReader}. @since 1.1.0 */
+export interface AddFromReaderOptions extends AddEntryOptions {
+    /**
+     * Decompress the source entry once to check its CRC and size before
+     * copying (secure by default: a corrupt entry is refused with
+     * `ZIP_CRC_MISMATCH` / `ZIP_SIZE_MISMATCH` instead of being
+     * propagated). `false` trusts the source — its bytes travel as they
+     * are. Entries whose codec is not registered cannot be checked and are
+     * copied either way. Default true.
+     */
+    readonly verify?: boolean;
+}
+
 /** Archive writer — obtain via {@link createZip}. */
 export interface ZipWriter {
     /** Add one file from bytes (or a UTF-8 string). Duplicate names throw. */
@@ -110,6 +168,24 @@ export interface ZipWriter {
      * single-shot. Entries beyond 4 GiB are rejected (Known Limitations).
      */
     addStream(name: string, source: ByteSource, options?: AddEntryOptions): void;
+    /**
+     * Add one file from an ALREADY-COMPRESSED payload, copied verbatim —
+     * no decoding, no recompression (1.1.0). The caller vouches for the
+     * metadata; `addFromReader()` is the checked form. Payloads of 4 GiB
+     * and more take the Zip64 local-header form automatically.
+     * `compression` and `zip64` are meaningless here and refused.
+     */
+    addRaw(name: string, payload: Uint8Array, meta: RawEntryMeta, options?: AddEntryOptions): void;
+    /**
+     * Transplant an entry from an open archive without recompression
+     * (1.1.0): method, CRC, sizes, timestamp, attributes, comment and extra
+     * fields (Zip64 excluded — recomputed) travel with the compressed bytes;
+     * `options` override the metadata entry by entry. The entry is
+     * verified first unless `verify: false`. Encrypted entries are refused
+     * like `readEntryRaw` refuses them. The merge/split/repack primitive:
+     * ten archives into one in O(bytes copied).
+     */
+    addFromReader(reader: RawEntryReader, entry: ZipEntry | string, options?: AddFromReaderOptions): void;
     setComment(comment: string | Uint8Array): void;
 
     /** Assemble the archive synchronously. Throws if addStream() was used. */
@@ -136,6 +212,8 @@ export interface SpecCollector {
     add(name: string, data: Uint8Array | string, options?: AddEntryOptions): void;
     addDirectory(name: string, options?: AddEntryOptions): void;
     addStream(name: string, source: AsyncIterable<Uint8Array>, options?: AddEntryOptions): void;
+    addRaw(name: string, payload: Uint8Array, meta: RawEntryMeta, options?: AddEntryOptions): void;
+    addFromReader(reader: RawEntryReader, entry: ZipEntry | string, options?: AddFromReaderOptions): void;
     setComment(comment: string | Uint8Array): void;
     hasStreamEntries(): boolean;
     /** Specs in emission order (canonical sort or insertion order). */
@@ -202,8 +280,25 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
         data: Uint8Array | null,
         source: AsyncIterable<Uint8Array> | null,
         entryOptions: AddEntryOptions | undefined,
+        raw: RawPayload | null = null,
+        rawDefaults: RawDefaults | null = null,
     ): void => {
         const finalName = validateEntryName(name, isDirectory);
+        if (raw !== null) {
+            if (entryOptions?.compression !== undefined) {
+                throw new ZipError('ZIP_INVALID_OPTION',
+                    `zipnative: entry '${finalName}': compression does not apply to a raw payload — it is copied as it is`);
+            }
+            if (!Number.isInteger(raw.method) || raw.method < 0 || raw.method > 0xFFFF) {
+                throw new ZipError('ZIP_INVALID_OPTION', `zipnative: entry '${finalName}': method must be an integer 0-65535 (got ${String(raw.method)})`);
+            }
+            if (!Number.isInteger(raw.uncompressedSize) || raw.uncompressedSize < 0 || raw.uncompressedSize > Number.MAX_SAFE_INTEGER) {
+                throw new ZipError('ZIP_INVALID_OPTION', `zipnative: entry '${finalName}': uncompressedSize must be a non-negative safe integer`);
+            }
+            if (!Number.isInteger(raw.crc32) || raw.crc32 < 0 || raw.crc32 > 0xFFFFFFFF) {
+                throw new ZipError('ZIP_INVALID_OPTION', `zipnative: entry '${finalName}': crc32 must be an unsigned 32-bit integer`);
+            }
+        }
         // Validate early: the Zip64 streaming opt-in has no meaning for a
         // buffered entry (those promote automatically), so a caller setting
         // it there is corrected at the call site, not silently ignored.
@@ -219,23 +314,41 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
 
         const compression = entryOptions?.compression;
         if (compression?.level !== undefined) validateLevel(compression.level);
-        const dos = entryOptions?.date !== undefined ? toDos(entryOptions.date, finalName) : defaultDos;
+        // A transplanted entry keeps its source's DOS stamp verbatim unless a
+        // date overrides it — no Date round trip, no zone in between.
+        const dos = entryOptions?.date !== undefined
+            ? toDos(entryOptions.date, finalName)
+            : rawDefaults?.dos ?? defaultDos;
         specs.push({
             nameBytes: te.encode(finalName),
             isDirectory,
             data: isDirectory ? new Uint8Array(0) : data,
             source,
+            raw,
             method: isDirectory ? 'store' : (compression?.method ?? defaultMethod),
             level: compression?.level ?? defaultLevel,
             deterministic: compression?.deterministic ?? defaultDeterministic,
             dosDate: dos.dosDate,
             dosTime: dos.dosTime,
             externalAttributes: entryOptions?.externalAttributes
+                ?? rawDefaults?.externalAttributes
                 ?? (isDirectory ? ((0o040755 << 16) | DOS_ATTR_DIRECTORY) >>> 0 : (0o100644 << 16) >>> 0),
-            comment: entryOptions?.comment === undefined ? new Uint8Array(0) : te.encode(entryOptions.comment),
-            extraFields: entryOptions?.extraFields ?? [],
+            comment: entryOptions?.comment === undefined
+                ? rawDefaults?.comment ?? new Uint8Array(0)
+                : te.encode(entryOptions.comment),
+            extraFields: entryOptions?.extraFields ?? rawDefaults?.extraFields ?? [],
             zip64: entryOptions?.zip64 === true,
         });
+    };
+
+    /** Resolve a reader's entry argument the way the reader itself does. */
+    const resolveSource = (reader: RawEntryReader, entryOrName: ZipEntry | string): ZipEntry => {
+        if (typeof entryOrName !== 'string') return entryOrName;
+        const entry = reader.getEntry(entryOrName);
+        if (entry === null) {
+            throw new ZipError('ZIP_ENTRY_NOT_FOUND', `zipnative: no entry named '${entryOrName}' in the source archive`);
+        }
+        return entry;
     };
 
     return {
@@ -253,6 +366,59 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
             // Normalise once at the boundary — everything downstream (the
             // stream writer, the parallel writer) sees an AsyncIterable.
             makeSpec(name, false, null, toByteIterable(source), entryOptions);
+        },
+        addRaw(name: string, payload: Uint8Array, meta: RawEntryMeta, entryOptions?: AddEntryOptions): void {
+            makeSpec(name, false, null, null, entryOptions, {
+                payload,
+                method: meta.method,
+                crc32: meta.crc32,
+                uncompressedSize: meta.uncompressedSize,
+                flags: meta.flags ?? 0,
+                versionNeededMin: meta.versionNeeded ?? 0,
+            });
+        },
+        addFromReader(reader: RawEntryReader, entryOrName: ZipEntry | string, entryOptions?: AddFromReaderOptions): void {
+            const entry = resolveSource(reader, entryOrName);
+            // readEntryRaw runs the reader's full defence (local-header
+            // cross-check, limits, encryption refusal) before any byte moves.
+            const payload = reader.readEntryRaw(entry);
+            if (entryOptions?.verify !== false) {
+                const v = reader.verifyEntry(entry);
+                if (!v.ok && v.skipped === undefined) {
+                    if (!v.crcMatch) {
+                        throw new ZipDataError('ZIP_CRC_MISMATCH',
+                            `zipnative: entry '${entry.name}' of the source archive fails its CRC-32 — refusing to `
+                            + 'transplant corrupt content (pass { verify: false } only if you accept it)',
+                            entry.name, entry.crc32);
+                    }
+                    throw new ZipDataError('ZIP_SIZE_MISMATCH',
+                        `zipnative: entry '${entry.name}' of the source archive does not decompress to its declared size — `
+                        + 'refusing to transplant corrupt content (pass { verify: false } only if you accept it)',
+                        entry.name);
+                }
+            }
+            const rest: AddEntryOptions | undefined = entryOptions === undefined ? undefined : {
+                compression: entryOptions.compression,
+                date: entryOptions.date,
+                comment: entryOptions.comment,
+                externalAttributes: entryOptions.externalAttributes,
+                extraFields: entryOptions.extraFields,
+                zip64: entryOptions.zip64,
+            };
+            makeSpec(entry.name, entry.isDirectory, null, null, rest, {
+                payload,
+                method: entry.compressionMethod,
+                crc32: entry.crc32,
+                uncompressedSize: entry.uncompressedSize,
+                flags: entry.flags,
+                versionNeededMin: entry.versionNeeded,
+            }, {
+                dos: { dosDate: entry.dosDate, dosTime: entry.dosTime },
+                externalAttributes: entry.externalAttributes,
+                comment: entry.comment,
+                // Zip64 extras are recomputed from the new sizes and offsets.
+                extraFields: entry.extraFields.filter((f) => f.id !== EXTRA_ZIP64),
+            });
         },
         setComment(comment: string | Uint8Array): void {
             archiveComment = typeof comment === 'string' ? te.encode(comment) : comment;
@@ -293,6 +459,8 @@ export function createZip(options?: CreateZipOptions): ZipWriter {
         add: collector.add,
         addDirectory: collector.addDirectory,
         addStream: collector.addStream,
+        addRaw: collector.addRaw,
+        addFromReader: collector.addFromReader,
         setComment: collector.setComment,
 
         toBytes(): Uint8Array {

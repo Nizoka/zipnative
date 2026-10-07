@@ -34,9 +34,9 @@ import {
 import { ZipError, ZipUnsupportedError } from '../types/zip-errors.js';
 import { crc32 } from '../codecs/crc32.js';
 import { getCodec, METHOD_DEFLATE, METHOD_STORE } from '../codecs/codec-registry.js';
-import { FLAG_DATA_DESCRIPTOR, FLAG_UTF8, SENTINEL_U16, SENTINEL_U32 } from './zip-constants.js';
+import { FLAG_DATA_DESCRIPTOR, FLAG_ENCRYPTED, FLAG_STRONG_ENCRYPTION, FLAG_UTF8, SENTINEL_U16, SENTINEL_U32 } from './zip-constants.js';
 import { enforceLimit } from './zip-limits.js';
-import { buildZip64Extra, serializeExtraFields } from './zip-extra-fields.js';
+import { buildZip64Extra, lfhZip64Fields, serializeExtraFields } from './zip-extra-fields.js';
 import {
     writeCentralFileHeader,
     writeEocd,
@@ -44,6 +44,22 @@ import {
     writeZip64Eocd,
     writeZip64Locator,
 } from './zip-structs.js';
+
+/**
+ * An already-compressed payload to transplant verbatim (`addRaw` /
+ * `addFromReader`, 1.1.0): the bytes are copied, never decoded or
+ * recompressed; the metadata describing them travels with them.
+ */
+export interface RawPayload {
+    readonly payload: Uint8Array;
+    readonly method: number;
+    readonly crc32: number;
+    readonly uncompressedSize: number;
+    /** General-purpose bits to preserve — only the encryption bits are kept. */
+    readonly flags: number;
+    /** Floor for version-needed (the source entry's, for an exotic method). */
+    readonly versionNeededMin: number;
+}
 
 /** One entry as specified by the builder, before planning. */
 export interface EntrySpec {
@@ -53,6 +69,8 @@ export interface EntrySpec {
     readonly data: Uint8Array | null;
     /** Chunked content (stream entries — data-descriptor layout). */
     readonly source: AsyncIterable<Uint8Array> | null;
+    /** Pre-compressed content (raw entries); `data` and `source` are null then. */
+    readonly raw: RawPayload | null;
     readonly method: 'store' | 'deflate';
     readonly level: number;
     readonly deterministic: boolean;
@@ -154,6 +172,34 @@ function buildStreamPlan(spec: EntrySpec): PlannedEntry {
 }
 
 /**
+ * The plan for a raw spec: the payload is the compressed bytes as given,
+ * the method and sizes are the caller's, the flags keep only the encryption
+ * bits of the source (bit 11 is always set — the name was re-encoded as
+ * UTF-8 by the builder, bit 3 never applies to a buffered layout).
+ */
+function buildRawPlan(spec: EntrySpec, raw: RawPayload): PlannedEntry {
+    return {
+        nameBytes: spec.nameBytes,
+        method: raw.method,
+        flags: FLAG_UTF8 | (raw.flags & (FLAG_ENCRYPTED | FLAG_STRONG_ENCRYPTION)),
+        dosDate: spec.dosDate,
+        dosTime: spec.dosTime,
+        externalAttributes: spec.externalAttributes,
+        comment: spec.comment,
+        extraFields: spec.extraFields,
+        payload: raw.payload,
+        source: null,
+        level: spec.level,
+        deterministic: spec.deterministic,
+        crc32: raw.crc32,
+        compressedSize: raw.payload.length,
+        uncompressedSize: raw.uncompressedSize,
+        zip64: false,
+        versionNeededMin: raw.versionNeededMin,
+    };
+}
+
+/**
  * Finish one buffered spec into a PlannedEntry, applying THE deterministic
  * method rules in one place (sync and parallel planning both land here, so
  * the rules physically cannot drift): empty content is always stored, and
@@ -229,6 +275,10 @@ export function planArchive(
             plans.push(buildStreamPlan(spec));
             continue;
         }
+        if (spec.raw !== null) {
+            plans.push(buildRawPlan(spec, spec.raw));
+            continue;
+        }
         const data = spec.data ?? new Uint8Array(0);
         let compressed: Uint8Array | null = null;
         if (needsDeflate(spec, data)) {
@@ -274,7 +324,7 @@ export async function planArchiveAsync(
     }
 
     const jobs = specs.map((spec): Promise<{ compressed: Uint8Array; crc: number } | null> => {
-        if (spec.source !== null) return Promise.resolve(null);
+        if (spec.source !== null || spec.raw !== null) return Promise.resolve(null);
         const data = spec.data ?? new Uint8Array(0);
         if (!needsDeflate(spec, data)) return Promise.resolve(null);
         return deflate(data, spec.level, spec.deterministic);
@@ -288,6 +338,10 @@ export async function planArchiveAsync(
         if (spec.source !== null) {
             hasStreamEntries = true;
             plans.push(buildStreamPlan(spec));
+            continue;
+        }
+        if (spec.raw !== null) {
+            plans.push(buildRawPlan(spec, spec.raw));
             continue;
         }
         const data = spec.data ?? new Uint8Array(0);
@@ -346,24 +400,28 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
         offsets[i] = offset;
         const isStream = plan.source !== null;
 
-        // Buffered in-memory payloads never exceed 4 GiB (2 GiB input
-        // cap), so LFH sizes need no Zip64 form; user extras only. A stream
-        // entry that opted into Zip64 (1.1.0) carries the speculative form
-        // APPNOTE §4.5.3 prescribes: both classic sizes sentinelled and a
-        // Zip64 extra holding both sizes as zero placeholders — the trailing
-        // 24-byte descriptor is where the real values land.
-        const lfhExtra = plan.zip64
-            ? concat([buildZip64Extra(0, 0, undefined), serializeExtraFields(plan.extraFields)])
-            : serializeExtraFields(plan.extraFields);
+        // Buffered payloads compressed here never exceed 4 GiB (2 GiB input
+        // cap), so their LFH needs no Zip64 form; a RAW payload can (a slice
+        // of an existing archive), and then takes the APPNOTE §4.5.3 form —
+        // both classic sizes sentinelled, both u64s in the extra. A stream
+        // entry that opted into Zip64 (1.1.0) carries the speculative variant
+        // of the same form: zero placeholders, the trailing 24-byte
+        // descriptor is where the real values land.
+        const lfh64 = isStream || plan.zip64 ? null : lfhZip64Fields(plan.uncompressedSize, plan.compressedSize);
+        const sizeExtra = plan.zip64 ? buildZip64Extra(0, 0, undefined) : lfh64?.extra ?? null;
+        const lfhExtra = sizeExtra === null
+            ? serializeExtraFields(plan.extraFields)
+            : concat([sizeExtra, serializeExtraFields(plan.extraFields)]);
+        const lfhVersion = Math.max(plan.zip64 || lfh64?.usesZip64 ? 45 : 20, plan.versionNeededMin ?? 0);
         yield seg(writeLocalFileHeader({
-            versionNeeded: plan.zip64 ? 45 : 20,
+            versionNeeded: lfhVersion,
             flags: plan.flags,
             compressionMethod: plan.method,
             dosTime: plan.dosTime,
             dosDate: plan.dosDate,
             crc32: isStream ? 0 : plan.crc32,
-            compressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : plan.compressedSize,
-            uncompressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : plan.uncompressedSize,
+            compressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : lfh64?.classicCompressed ?? plan.compressedSize,
+            uncompressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : lfh64?.classicUncompressed ?? plan.uncompressedSize,
             name: plan.nameBytes,
             extra: lfhExtra,
         }));

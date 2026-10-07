@@ -188,6 +188,27 @@ function writeCases(): WriteCase[] {
             },
         },
         {
+            // Transplanted entries (1.1.0): the compressed bytes of two other
+            // zipnative archives copied through addFromReader(), never
+            // recompressed — the merge primitive, read by the six extractors.
+            name: 'transplanted',
+            mode: 'extract',
+            expected,
+            build: async () => {
+                const left = createZip();
+                left.add('readme.txt', 'written by zipnative' + String.fromCharCode(10));
+                const right = createZip();
+                right.add('data/binary.bin', binary);
+                right.add('data/compressible.txt', text);
+                const a = openZip(left.toBytes());
+                const b = openZip(right.toBytes());
+                const merged = createZip();
+                for (const entry of a.entries()) merged.addFromReader(a, entry);
+                for (const entry of b.entries()) merged.addFromReader(b, entry);
+                return merged.toBytes();
+            },
+        },
+        {
             // Incremental save() output: dead bytes (the old CD + old EOCD +
             // replaced payloads) sit inside the file — foreign extractors
             // must still accept and extract it correctly.

@@ -37,7 +37,10 @@ export {
 export {
     createZip,
     type AddEntryOptions,
+    type AddFromReaderOptions,
     type CreateZipOptions,
+    type RawEntryMeta,
+    type RawEntryReader,
     type ZipCompressionOptions,
     type ZipWriter,
 } from './core/zip-builder.js';

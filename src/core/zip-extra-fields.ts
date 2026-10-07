@@ -150,6 +150,35 @@ export function buildZip64Extra(
     return out;
 }
 
+/**
+ * Zip64 treatment for a LOCAL file header whose sizes are known up front
+ * (a raw-copied payload can be ≥ 4 GiB: a slice of an existing archive, not
+ * a freshly compressed ≤ 2 GiB buffer). APPNOTE §4.5.3: when a local header
+ * carries a Zip64 extra it MUST contain BOTH the original and compressed
+ * sizes (the emit-only-overflowed-fields rule applies to the central
+ * directory only). So: if either size overflows, sentinel both classic
+ * fields and put both u64s in the extra. Exported from this module (not
+ * from src/index.ts) so the ≥ 4 GiB path is unit-testable without a 4 GiB
+ * buffer; shared by the segment generator and the modifier's save().
+ */
+export function lfhZip64Fields(uncompressedSize: number, compressedSize: number): {
+    readonly classicUncompressed: number;
+    readonly classicCompressed: number;
+    readonly extra: Uint8Array | null;
+    readonly usesZip64: boolean;
+} {
+    const usesZip64 = uncompressedSize > SENTINEL_U32 - 1 || compressedSize > SENTINEL_U32 - 1;
+    if (!usesZip64) {
+        return { classicUncompressed: uncompressedSize, classicCompressed: compressedSize, extra: null, usesZip64 };
+    }
+    return {
+        classicUncompressed: SENTINEL_U32,
+        classicCompressed: SENTINEL_U32,
+        extra: buildZip64Extra(uncompressedSize, compressedSize, undefined),
+        usesZip64,
+    };
+}
+
 /** Serialize `{id, data}` extra fields into one block (write-side mirror). */
 export function serializeExtraFields(fields: readonly ZipExtraField[]): Uint8Array {
     const total = fields.reduce((sum, f) => sum + 4 + f.data.length, 0);

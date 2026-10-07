@@ -68,7 +68,7 @@ import {
 } from '../core/zip-diagnostics.js';
 import { bytesEqual, compareNames, validateEntryName } from '../core/zip-encoding.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from '../core/zip-dos-time.js';
-import { buildZip64Extra, serializeExtraFields } from '../core/zip-extra-fields.js';
+import { buildZip64Extra, lfhZip64Fields, serializeExtraFields } from '../core/zip-extra-fields.js';
 import {
     parseCentralFileHeader,
     parseLocalFileHeader,
@@ -191,32 +191,10 @@ interface SourceRecord {
 
 const te = new TextEncoder();
 
-/**
- * @internal Zip64 treatment for an appended LOCAL file header. APPNOTE
- * §4.5.3: when a local header carries a Zip64 extra it MUST contain BOTH
- * the original and compressed sizes (the emit-only-overflowed-fields rule
- * applies to the central directory only). So: if either size overflows,
- * sentinel both classic fields and put both u64s in the extra. Exported
- * from this module (not from src/index.ts) so the ≥4 GiB path is unit-
- * testable without a 4 GiB buffer.
- */
-export function lfhZip64Fields(uncompressedSize: number, compressedSize: number): {
-    readonly classicUncompressed: number;
-    readonly classicCompressed: number;
-    readonly extra: Uint8Array | null;
-    readonly usesZip64: boolean;
-} {
-    const usesZip64 = uncompressedSize > SENTINEL_U32 - 1 || compressedSize > SENTINEL_U32 - 1;
-    if (!usesZip64) {
-        return { classicUncompressed: uncompressedSize, classicCompressed: compressedSize, extra: null, usesZip64 };
-    }
-    return {
-        classicUncompressed: SENTINEL_U32,
-        classicCompressed: SENTINEL_U32,
-        extra: buildZip64Extra(uncompressedSize, compressedSize, undefined),
-        usesZip64,
-    };
-}
+// `lfhZip64Fields` lives in core/zip-extra-fields.ts since 1.1.0 (the segment
+// generator needs it for raw entries); re-exported here for the suites that
+// pin the modifier's ≥ 4 GiB local-header form.
+export { lfhZip64Fields } from '../core/zip-extra-fields.js';
 
 /**
  * Wrap an opened archive in an incremental modifier.
@@ -318,6 +296,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             isDirectory,
             data: isDirectory ? new Uint8Array(0) : edit.data,
             source: null,
+            raw: null,
             method: isDirectory ? 'store' : (compression?.method ?? defaultCompression?.method ?? 'deflate'),
             level,
             deterministic: compression?.deterministic ?? defaultCompression?.deterministic ?? false,
