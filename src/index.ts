@@ -15,6 +15,14 @@ export {
     type ZipReader,
 } from './parser/zip-reader.js';
 
+// ── 1b. Random access over a byte-range source (1.1.0) ───────────────
+export {
+    openZipRange,
+    rangeSourceFromBytes,
+    type ByteRangeSource,
+    type ZipRangeReader,
+} from './parser/zip-range-reader.js';
+
 // ── 2. Forward streaming: CD-less iteration over pipes ───────────────
 export {
     iterateZipEntries,

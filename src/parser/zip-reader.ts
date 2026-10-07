@@ -29,21 +29,24 @@ import {
 import {
     ZipDataError,
     ZipError,
-    ZipFormatError,
-    ZipSecurityError,
     ZipUnsupportedError,
 } from '../types/zip-errors.js';
 import { crc32 } from '../codecs/crc32.js';
 import { getCodec, METHOD_STORE, type ZipCodec } from '../codecs/codec-registry.js';
-import { FLAG_DATA_DESCRIPTOR } from '../core/zip-constants.js';
-import { createDiagnosticEmitter, duplicateNameDiagnostic, nameMismatchDiagnostic } from '../core/zip-diagnostics.js';
+import { createDiagnosticEmitter, duplicateNameDiagnostic } from '../core/zip-diagnostics.js';
 import { encryptionScheme } from '../core/zip-encryption.js';
 import { createProgressTracker, throwIfAborted } from '../core/zip-control.js';
-import { bytesEqual } from '../core/zip-encoding.js';
-import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
+import { resolveLimits } from '../core/zip-limits.js';
 import { parseLocalFileHeader } from '../core/zip-structs.js';
 import { locateEocd } from './zip-eocd.js';
 import { parseCentralDirectory } from './zip-cd.js';
+import {
+    checkDecompressedOutput,
+    createExtentChecker,
+    crossCheckLocalHeader as crossCheckEntryHeader,
+    descriptorSlack,
+    enforceDeclaredSizes,
+} from './zip-entry-checks.js';
 
 /** Options for {@link openZip}. */
 export interface OpenZipOptions extends ZipCommonOptions {
@@ -117,8 +120,6 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
     // ── Lazy state (closure-held, never on the returned object) ──────
     let entryList: ZipEntry[] | undefined;
     let nameIndex: Map<string, ZipEntry> | undefined;
-    /** Sorted start offsets of every entry region + the CD (overlap defence). */
-    let boundaries: number[] | undefined;
 
     const ensureEntries = (): ZipEntry[] => {
         entryList ??= parseCentralDirectory(bytes, layout, limits, emit, {
@@ -141,62 +142,8 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         return nameIndex;
     };
 
-    /**
-     * Overlap defence (CWE-405, payload-sharing smuggling) at O(log n)
-     * per read: the central directory alone yields the sorted start
-     * boundaries of every entry region (plus the CD itself). An entry's
-     * REAL extent — known once its local header is parsed at read time —
-     * must fit entirely before the next boundary. Duplicate header
-     * offsets (two entries claiming one region) are rejected outright.
-     * `validate: 'eager'` runs the per-entry check for every entry.
-     */
-    const ensureBoundaries = (): number[] => {
-        if (boundaries === undefined) {
-            const list = ensureEntries();
-            const sorted = list.map((e) => e.localHeaderOffset);
-            sorted.push(layout.cdOffset);
-            sorted.sort((a, b) => a - b);
-            for (let i = 1; i < sorted.length; i++) {
-                if (sorted[i] === sorted[i - 1]) {
-                    throw new ZipSecurityError('ZIP_ENTRY_OVERLAP',
-                        'zipnative: two entries share one local-header offset — overlapping-entry archives are '
-                        + 'rejected (decompression-bomb/smuggling shape)');
-                }
-            }
-            boundaries = sorted;
-        }
-        return boundaries;
-    };
-
-    /** Enforce that [entry start, dataEnd) crosses no other entry or the CD. */
-    const checkEntryExtent = (entry: ZipEntry, dataEnd: number): void => {
-        if (dataEnd > bytes.length) {
-            throw new ZipFormatError('ZIP_RECORD_TRUNCATED',
-                `zipnative: entry '${entry.name}' data extends past the end of the archive (truncated or corrupt)`);
-        }
-        if (entry.localHeaderOffset >= layout.cdOffset) {
-            throw new ZipSecurityError('ZIP_ENTRY_OVERLAP',
-                `zipnative: entry '${entry.name}' claims to start inside the central directory — `
-                + 'overlapping-entry archives are rejected',
-                entry.name);
-        }
-        const sorted = ensureBoundaries();
-        // Binary search: smallest boundary strictly greater than this start.
-        let lo = 0;
-        let hi = sorted.length;
-        while (lo < hi) {
-            const mid = (lo + hi) >>> 1;
-            if (sorted[mid] <= entry.localHeaderOffset) lo = mid + 1;
-            else hi = mid;
-        }
-        const nextBoundary = lo < sorted.length ? sorted[lo] : bytes.length;
-        if (dataEnd > nextBoundary) {
-            throw new ZipSecurityError('ZIP_ENTRY_OVERLAP',
-                `zipnative: entry '${entry.name}' extends into another entry or the central directory — `
-                + 'overlapping-entry archives are rejected (decompression-bomb/smuggling shape)',
-                entry.name);
-        }
-    };
+    /** Overlap defence (CWE-405) — the shared implementation, boundaries built on first use. */
+    const checkEntryExtent = createExtentChecker(ensureEntries, layout.cdOffset, bytes.length);
 
     const resolveEntry = (entryOrName: ZipEntry | string): ZipEntry => {
         if (typeof entryOrName !== 'string') return entryOrName;
@@ -226,45 +173,10 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
      * REAL localHeaderMatch for them instead of a fabricated one (issue #12).
      */
     const crossCheckLocalHeader = (entry: ZipEntry): Uint8Array => {
-        enforceLimit(limits, 'maxEntryUncompressedSize', entry.uncompressedSize, `entry '${entry.name}' declared size`);
-        if (entry.compressedSize >= 1024 && entry.compressedSize > 0) {
-            const ratio = entry.uncompressedSize / entry.compressedSize;
-            enforceLimit(limits, 'maxCompressionRatio', ratio, `entry '${entry.name}' compression ratio`);
-        }
-
+        enforceDeclaredSizes(limits, entry);
         const lfh = parseLocalFileHeader(bytes, entry.localHeaderOffset);
-        let dataEnd = lfh.dataStart + entry.compressedSize;
-        if ((lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0) {
-            // A trailing descriptor (12–24 bytes) belongs to this entry's
-            // region; the minimal signless size suffices for the boundary
-            // check — crossing the NEXT header start is what matters.
-            dataEnd += 12;
-        }
-        checkEntryExtent(entry, dataEnd);
-        if (lfh.compressionMethod !== entry.compressionMethod) {
-            throw new ZipSecurityError('ZIP_CD_LFH_MISMATCH',
-                `zipnative: entry '${entry.name}' local header declares method ${lfh.compressionMethod} but the `
-                + `central directory says ${entry.compressionMethod} — parser-differential archives are rejected`,
-                entry.name);
-        }
-        if ((lfh.flags & FLAG_DATA_DESCRIPTOR) === 0) {
-            if (lfh.crc32 !== entry.crc32
-                || lfh.compressedSize !== entry.compressedSize
-                || lfh.uncompressedSize !== entry.uncompressedSize) {
-                // Zip64 LFHs may carry 0xFFFFFFFF sentinels with a zip64 extra;
-                // tolerate the sentinel form, reject a contradicting value.
-                const sizesSentinel = lfh.compressedSize === 0xFFFFFFFF && lfh.uncompressedSize === 0xFFFFFFFF;
-                if (!(sizesSentinel && lfh.crc32 === entry.crc32)) {
-                    throw new ZipDataError('ZIP_SIZE_MISMATCH',
-                        `zipnative: entry '${entry.name}' local header sizes/CRC contradict the central directory `
-                        + '(corrupt or hostile archive)',
-                        entry.name, entry.crc32, lfh.crc32);
-                }
-            }
-        }
-        if (!bytesEqual(lfh.name, entry.rawName)) {
-            emit(nameMismatchDiagnostic(entry.name));
-        }
+        checkEntryExtent(entry, lfh.dataStart + entry.compressedSize + descriptorSlack(lfh));
+        crossCheckEntryHeader(entry, lfh, emit);
         return bytes.subarray(lfh.dataStart, lfh.dataStart + entry.compressedSize);
     };
 
@@ -285,23 +197,6 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         return codec;
     };
 
-    const checkOutput = (entry: ZipEntry, out: Uint8Array, verifyCrc: boolean): void => {
-        if (out.length !== entry.uncompressedSize) {
-            throw new ZipDataError('ZIP_SIZE_MISMATCH',
-                `zipnative: entry '${entry.name}' decompressed to ${out.length} bytes but the central directory `
-                + `declares ${entry.uncompressedSize} (corrupt or hostile archive)`,
-                entry.name);
-        }
-        if (verifyCrc) {
-            const actual = crc32(out);
-            if (actual !== entry.crc32) {
-                throw new ZipDataError('ZIP_CRC_MISMATCH',
-                    `zipnative: entry '${entry.name}' CRC-32 mismatch — the data is corrupt `
-                    + '(pass { verifyCrc: false } only if you accept corrupt output)',
-                    entry.name, entry.crc32, actual);
-            }
-        }
-    };
 
     // ── The reader object ────────────────────────────────────────────
     const reader: ZipReader = {
@@ -335,7 +230,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
             }
             // Store returns a zero-copy view; readEntry promises owned bytes.
             const out = entry.compressionMethod === METHOD_STORE ? raw.slice() : raw;
-            checkOutput(entry, out, readOptions?.verifyCrc !== false);
+            checkDecompressedOutput(entry, out, readOptions?.verifyCrc !== false);
             return out;
         },
 
@@ -431,9 +326,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         // Full pass: every entry's real extent verified up front.
         for (const entry of ensureEntries()) {
             const lfh = parseLocalFileHeader(bytes, entry.localHeaderOffset);
-            let dataEnd = lfh.dataStart + entry.compressedSize;
-            if ((lfh.flags & FLAG_DATA_DESCRIPTOR) !== 0) dataEnd += 12;
-            checkEntryExtent(entry, dataEnd);
+            checkEntryExtent(entry, lfh.dataStart + entry.compressedSize + descriptorSlack(lfh));
         }
     }
 

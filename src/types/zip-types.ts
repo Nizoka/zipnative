@@ -57,6 +57,15 @@ export interface ZipLimits {
     readonly maxEntries: number;
     /** Maximum decompressed size of a single entry, bytes. CWE-400. */
     readonly maxEntryUncompressedSize: number;
+    /**
+     * Maximum compressed size of a single entry the byte-range reader
+     * (`openZipRange`) will fetch into memory as one payload — `readEntry`,
+     * `readEntryRaw`, `verifyEntry`, and `readEntryStream` for a codec
+     * without an incremental decoder. The in-memory reader does not consult
+     * it: its payloads are zero-copy views. Default: the uncompressed cap
+     * plus deflate's worst-case expansion. CWE-770. @since 1.1.0
+     */
+    readonly maxEntryCompressedSize: number;
     /** Maximum total decompressed size across an extraction, bytes. CWE-400. */
     readonly maxTotalUncompressedSize: number;
     /**
