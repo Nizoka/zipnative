@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>zipnative — safe, deterministic, streaming ZIP engine for TypeScript</title>
   <meta name="description" content="Zero-dependency ZIP engine in pure TypeScript: random-access reads, secure-by-default extraction, deterministic reproducible archives, incremental modification and worker parallelism — for Node, browsers, Deno, Bun and the agents that operate them.">
-  <meta name="keywords" content="zip, typescript, zero-dependency, streaming, deterministic, reproducible builds, zip-slip, zip64, unzip, archive">
+  <meta name="keywords" content="zip, typescript, zero-dependency, streaming, deterministic, reproducible builds, zip-slip, zip64, unzip, archive, http range, remote zip, canonical zip, iso 21320, secure extraction, mcp, ai agents">
   <meta name="author" content="Nizoka">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#2563eb">
@@ -64,7 +64,16 @@
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@id": "https://zipnative.dev/#org" },
         "softwareVersion": "1.1.0",
-        "description": "Zero-dependency native ZIP engine: random-access reads, secure-by-default extraction, deterministic archives, incremental modification, worker parallelism."
+        "description": "Zero-dependency native ZIP engine: random-access reads in memory or over a byte-range source, secure-by-default extraction, deterministic and canonical archives, incremental modification and raw transplant, worker parallelism.",
+        "featureList": [
+          "Random access over in-memory bytes or an injected byte-range source (HTTP Range, Blob, file handle, object storage)",
+          "Secure-by-default extraction: zip-slip, symlinks, bombs, overlaps, Zip64 spoofing refused",
+          "Deterministic output under a written byte contract; canonicalisation of any archive without recompression",
+          "Incremental modification and raw entry transplant without recompression",
+          "Forward streaming of unseekable sources; Zip64 streaming opt-in; worker parallelism",
+          "Cancellation and progress on every asynchronous call",
+          "39 frozen machine-readable error codes; ISO/IEC 21320-1 conformance gate"
+        ]
       }
     ]
   }
@@ -157,11 +166,11 @@
         </div>
       </div>
     </div>
-    <p class="hero-note">1.0 — stable: the API surface, the 39-code error vocabulary and the deterministic bytes are frozen under semver. Both satellites pin <code>zipnative ^1.0.0</code>.</p>
+    <p class="hero-note">1.1 — additive, zero breaking changes: range access over remote and huge archives, cancellation and progress, raw transplant, canonicalisation of any archive, legacy name decoding, the Zip64 streaming opt-in. The API surface, the 39-code error vocabulary and the deterministic bytes stay frozen under semver. Both satellites pin <code>zipnative ^1.0.0</code>.</p>
   </section>
 
   <div class="metrics">
-    <div class="metric"><div class="metric-value">385+</div><div class="metric-label">Tests</div></div>
+    <div class="metric"><div class="metric-value">740</div><div class="metric-label">Tests</div></div>
     <div class="metric"><div class="metric-value">93.9%</div><div class="metric-label">Coverage</div></div>
     <div class="metric"><div class="metric-value">0</div><div class="metric-label">Dependencies</div></div>
     <div class="metric"><div class="metric-value">6</div><div class="metric-label">Foreign interop tools</div></div>
@@ -203,6 +212,16 @@
           <div class="feature-icon fi-mcp"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 6.8 16.5 11M7.5 17.2 16.5 13"/></svg></div>
           <h3>Worker parallelism</h3>
           <p><code>zipnative/worker</code> fans per-entry compression across a real pool (worker_threads and Web Workers) — byte-identical output, graceful degradation, never an infra failure.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-zero"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4"/><path d="M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div>
+          <h3>Remote and huge archives <span class="pg-tag" style="vertical-align:middle">1.1</span></h3>
+          <p><code>openZipRange()</code> opens a 50&nbsp;GB archive on S3, behind HTTP <code>Range</code> or in a browser <code>File</code> with the memory of its central directory — you inject the byte-range source, the engine never fetches, every security check still applies. Cancel anything with an <code>AbortSignal</code>.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-iso"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/><path d="M18 15l2 2 4-4"/></svg></div>
+          <h3>Reproducible, for any archive <span class="pg-tag" style="vertical-align:middle">1.1</span></h3>
+          <p><code>analyzeDeterminism()</code> names what would drift; <code>canonicalizeZip()</code> rewrites a Gradle, Maven, <code>zip</code> or Explorer archive into a canonical form without recompression — under the same frozen byte contract. <code>addFromReader()</code> assembles artefacts from existing parts in O(bytes copied).</p>
         </article>
       </div>
     </div>
@@ -260,6 +279,7 @@
           <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-read" id="tab-btn-read" data-tab="read">Read</button>
           <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-write" id="tab-btn-write" data-tab="write">Write</button>
           <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-modify" id="tab-btn-modify" data-tab="modify">Modify</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-remote" id="tab-btn-remote" data-tab="remote">Remote</button>
         </div>
         <div class="tab-panel active" id="tab-read" role="tabpanel" aria-labelledby="tab-btn-read">
 <pre><code class="language-typescript">import { openZip, extractZip } from 'zipnative';
@@ -282,6 +302,14 @@ const bytes = zip.toBytes();             // same inputs → same SHA-256, anywhe
 const mod = createZipModifier(openZip(bytes));
 mod.replaceEntry('word/document.xml', updated);
 const saved = mod.save();                // untouched entries never recompressed</code></pre>
+        </div>
+        <div class="tab-panel" id="tab-remote" role="tabpanel" aria-labelledby="tab-btn-remote">
+<pre><code class="language-typescript">import { openZipRange, canonicalizeZip } from 'zipnative';
+
+const zip = await openZipRange({ size, read: (offset, length) => rangeFetch(url, offset, length) });
+const manifest = await zip.readEntry('manifest.json'); // a tail window + the CD + this entry
+
+const canonical = canonicalizeZip(foreignBytes);  // any archive → reproducible, no recompression</code></pre>
         </div>
       </div>
       <p style="text-align:center; margin-top: 24px;"><a href="guides/quickstart.html">Full quickstart →</a></p>
@@ -355,9 +383,12 @@ const saved = mod.save();                // untouched entries never recompressed
           Extraction refuses traversal (<code>../</code>, absolute paths, drive letters,
           NTFS streams), symlink entries and bombs; the reader refuses overlapping
           entries, parser-differential headers and ambiguous end-of-central-directory
-          records. Bounds are named, CWE-tagged, documented and caller-configurable —
-          raising one is always an explicit decision. Every refusal throws a stable
-          machine-readable error code.
+          records — over a byte-range source exactly as over bytes in memory, and a
+          decoder you inject for legacy names cannot smuggle a path past the same gate.
+          Encrypted entries are detected and labelled by scheme (ZipCrypto, WinZip AES,
+          strong encryption), never decrypted in 1.x. Bounds are named, CWE-tagged,
+          documented and caller-configurable — raising one is always an explicit
+          decision. Every refusal throws a stable machine-readable error code.
         </p>
         <p><a class="btn btn-secondary" href="guides/security.html">Read the full threat model</a></p>
       </div>
@@ -373,7 +404,10 @@ const saved = mod.save();                // untouched entries never recompressed
           <code>compression: { deterministic: true }</code> pins the pure-TS encoder:
           the mode for content addressing, caching, signatures and reproducible builds.
           The contract is written down and golden-tested; changing the emitted bytes
-          is a semver-major event.
+          is a semver-major event. Since 1.1 the contract covers archives you did not
+          build: <code>canonicalizeZip()</code> rewrites any ZIP into the canonical form
+          without recompression, and <code>analyzeDeterminism()</code> reports what would
+          otherwise drift — the <a href="guides/reproducible-builds.html">reproducible builds guide</a>.
         </p>
         <p><a class="btn btn-secondary" href="guides/determinism.html">Read the determinism contract</a></p>
       </div>
@@ -461,6 +495,8 @@ const saved = mod.save();                // untouched entries never recompressed
             <li><a href="guides/errors.html">Errors and error codes</a></li>
             <li><a href="guides/use-cases.html">Use cases</a></li>
             <li><a href="guides/conformance.html">Conformance and validation</a></li>
+            <li><a href="guides/large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="guides/reproducible-builds.html">Reproducible builds</a></li>
           </ul>
         </div>
         <div class="footer-col">

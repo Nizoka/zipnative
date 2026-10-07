@@ -90,18 +90,18 @@
     "exports": 106,
     "errorCodes": 39,
     "diagnostics": 12,
-    "testFiles": 60,
+    "testFiles": 61,
     "sampleGenerators": 12,
-    "guides": 9,
-    "playgrounds": 7,
-    "recipes": 12,
+    "guides": 11,
+    "playgrounds": 8,
+    "recipes": 16,
     "interopTools": 6,
     "interopValidations": 19,
     "verifyDocsRules": 47
   },
   "declared": {
     "$comment": "Hand-maintained figures. tests and coverage* are what the last gate run measured — verify-docs derived-counts holds them to test-output/.gate/vitest.json and coverage/coverage-summary.json whenever those are fresher than every test file, and count-tokens holds the prose to them (coverageStatements is the integer floor a doc may quote with a +, coverageMeasured the only decimal it may quote). iso21320 is what scripts/validate-zip.ts canaries against — the pdfnative pdfaSamples pattern: 33 samples must PASS the profile (three of them hostile-but-spec-valid: zip-slip, device-name, duplicate-paths); 5 crafted archives must FAIL with their declared check.",
-    "tests": 724,
+    "tests": 740,
     "coverageStatements": 93,
     "coverageMeasured": 93.9,
     "iso21320": {

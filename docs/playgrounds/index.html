@@ -129,6 +129,16 @@
           <div class="pg-tags"><span class="pg-tag">iterateZipEntries</span><span class="pg-tag">createInflator</span><span class="pg-tag">ReadableStream</span></div>
           <span class="pg-cta">Open streaming →</span>
         </a>
+        <a class="pg-card" href="remote.html">
+          <div class="pg-icon" aria-hidden="true">📡</div>
+          <h3>Remote range access</h3>
+          <p>Open a ZIP of any size through a byte-range source — a dropped file read by
+          <code>Blob.slice()</code>, or a URL served with HTTP <code>Range</code> — and watch how few
+          bytes <code>openZipRange()</code> fetches: a tail window, the central directory, then only the
+          entry you click. Abort mid-read.</p>
+          <div class="pg-tags"><span class="pg-tag">openZipRange</span><span class="pg-tag">ByteRangeSource</span><span class="pg-tag">AbortSignal</span><span class="pg-tag">1.1</span></div>
+          <span class="pg-cta">Open remote access →</span>
+        </a>
         <a class="pg-card" href="cli.html">
           <div class="pg-icon" aria-hidden="true">⌨️</div>
           <h3>CLI command builder <span class="pg-tag" style="vertical-align:middle">zipnative-cli</span></h3>

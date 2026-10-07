@@ -38,6 +38,8 @@ const report = verifyZip(bytes);            // never throws for archive problems
 const zip = createZip({ compression: { deterministic: true } }); // same SHA-256 everywhere
 const mod = createZipModifier(openZip(bytes)); // edit without recompressing
 for await (const e of iterateZipEntries(stream)) { /* unseekable sources */ }
+const remote = await openZipRange(source);  // 1.1: injected byte-range source, O(central directory) memory
+const canonical = canonicalizeZip(bytes);   // 1.1: any archive → reproducible form, no recompression
 ```
 
 ## What agents get wrong (verified pitfalls)
@@ -64,7 +66,19 @@ for await (const e of iterateZipEntries(stream)) { /* unseekable sources */ }
   pure-TS encoder (identical SHA-256 on every runtime); the default tier
   is byte-stable per environment only.
 - **`addStream` > 4 GiB is a typed refusal** (`ZIP_UNSUPPORTED_ZIP64_STREAMING`)
-  — buffer via `add()`; buffered entries and counts are fully Zip64.
+  unless the entry opts in with `{ zip64: true }` (1.1) — buffer via
+  `add()` otherwise; buffered entries and counts are fully Zip64.
+- **Explicit dates are local-time DOS fields by default** — pass
+  `dosTimeMode: 'utc'` (1.1) when a pinned date must reproduce across
+  machines; out-of-range dates clamp with `ZIP_TIMESTAMP_CLAMPED`.
+- **The engine never fetches** — `openZipRange()` takes a
+  `ByteRangeSource { size, read(offset, length) }` you implement over
+  HTTP Range, a Blob or a file handle; a lying source is
+  `ZIP_RECORD_TRUNCATED`.
+- **`skipped` never means ok** — a `verifyEntry()` result with
+  `skipped: 'encrypted' | 'stream-only-codec' | 'unsupported-method'`
+  has `ok: false` and a real `localHeaderMatch`; the archive verdict
+  tolerates the first two reasons, not an unknown method.
 
 ## Verify your own output
 
@@ -83,7 +97,9 @@ clause by the blocking `npm run validate:zip` gate — see the
   [choosing your surface](guides/choose.html) · [CLI](guides/cli.html) ·
   [MCP](guides/mcp.html) · [security](guides/security.html) ·
   [determinism](guides/determinism.html) · [errors](guides/errors.html) ·
-  [use cases](guides/use-cases.html) · [conformance](guides/conformance.html)
+  [use cases](guides/use-cases.html) · [conformance](guides/conformance.html) ·
+  [large and remote archives](guides/large-and-remote.html) ·
+  [reproducible builds](guides/reproducible-builds.html)
 - [data/surfaces.json](data/surfaces.json) — capability × surface matrix;
   [data/cli-surface.json](data/cli-surface.json) — every CLI command and flag
 - Governance: agents draft, humans perform GitHub writes

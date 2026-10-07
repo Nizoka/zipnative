@@ -6,26 +6,26 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 9250,
-      "approxTokens": 2313
+      "bytes": 15847,
+      "approxTokens": 3962
     },
     {
       "url": "agent-brief.md",
       "description": "A compact briefing for AI agents writing code with zipnative — paste it into a coding agent's context.",
-      "bytes": 4871,
-      "approxTokens": 1218
+      "bytes": 5951,
+      "approxTokens": 1488
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 160981,
-      "approxTokens": 40245
+      "bytes": 195322,
+      "approxTokens": 48831
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 17888,
-      "approxTokens": 4472
+      "bytes": 25694,
+      "approxTokens": 6424
     },
     {
       "url": "assets/api.json",
@@ -42,14 +42,14 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, counts and inventories for zipnative, zipnative-cli and zipnative-mcp — the single source of truth.",
-      "bytes": 4209,
-      "approxTokens": 1052
+      "bytes": 4210,
+      "approxTokens": 1053
     },
     {
       "url": "data/surfaces.json",
       "description": "The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.",
-      "bytes": 26252,
-      "approxTokens": 6563
+      "bytes": 26322,
+      "approxTokens": 6581
     },
     {
       "url": "data/cli-surface.json",
@@ -110,8 +110,8 @@
         "running-it-locally",
         "where-it-blocks"
       ],
-      "bytes": 7878,
-      "approxTokens": 1970
+      "bytes": 8105,
+      "approxTokens": 2026
     },
     {
       "title": "The zipnative determinism contract",
@@ -121,12 +121,13 @@
       "anchors": [
         "the-three-levels-of-guarantee",
         "canonicalization-rules-level-1-always",
+        "canonical-compaction-level-1-11",
         "the-frozen-encoder-contract-level-3",
         "documented-determinism-losses",
         "verifying-reproducibility"
       ],
-      "bytes": 4846,
-      "approxTokens": 1212
+      "bytes": 8142,
+      "approxTokens": 2036
     },
     {
       "title": "Errors and error codes",
@@ -140,8 +141,23 @@
         "diagnostics-are-not-errors",
         "see-also"
       ],
-      "bytes": 7764,
-      "approxTokens": 1941
+      "bytes": 8467,
+      "approxTokens": 2117
+    },
+    {
+      "title": "Large and remote archives",
+      "summary": "Open an archive of any size — on S3, behind an HTTP `Range` server, in a browser `File`, on a local file handle — with the memory of its central directory. The engine never fetches: you inject a byte-range source, it asks for exactly the bytes a read needs, and every security check of the in-memory reader applies unchanged.",
+      "html": "guides/large-and-remote.html",
+      "markdown": "guides/large-and-remote.md",
+      "anchors": [
+        "the-byte-range-source",
+        "cancellation-and-progress",
+        "writing-above-4-gib-the-zip64-streaming-opt-in",
+        "reading-what-you-wrote",
+        "see-also"
+      ],
+      "bytes": 8216,
+      "approxTokens": 2054
     },
     {
       "title": "zipnative-mcp — AI client integration",
@@ -166,20 +182,39 @@
     },
     {
       "title": "Quickstart",
-      "summary": "Install zipnative and cover the four core workflows — reading with random access, secure extraction, deterministic creation, and incremental modification — in about five minutes.",
+      "summary": "Install zipnative and cover the core workflows — reading with random access (in memory or over a byte-range source), secure extraction, deterministic creation, incremental modification, canonicalisation and one-call verification — in about five minutes.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
         "install",
         "read-with-random-access",
+        "read-a-remote-or-huge-archive-by-ranges",
         "extract-securely",
         "create--reproducibly",
+        "make-any-archive-reproducible",
         "modify-without-recompressing",
         "verify-in-one-call",
         "going-further"
       ],
-      "bytes": 3430,
-      "approxTokens": 858
+      "bytes": 5423,
+      "approxTokens": 1356
+    },
+    {
+      "title": "Reproducible builds",
+      "summary": "Measure, canonicalise, prove. `deterministic: true` has made zipnative's own output reproducible since 0.2; 1.1 extends the guarantee to archives you did not build — a Gradle JAR, a Maven artefact, an Explorer ZIP, a `zip` from a CI image — with a report that says what would drift, a canonical rewrite that fixes it without recompression, and a transplant primitive that assembles artefacts from…",
+      "html": "guides/reproducible-builds.html",
+      "markdown": "guides/reproducible-builds.md",
+      "anchors": [
+        "why-archives-drift",
+        "1-measure--analyzedeterminism",
+        "2-canonicalise--canonicalizezip",
+        "3-prove--the-gate",
+        "4-assemble--addraw-and-addfromreader",
+        "timestamps-and-time-zones",
+        "see-also"
+      ],
+      "bytes": 7763,
+      "approxTokens": 1941
     },
     {
       "title": "Security model",
@@ -190,11 +225,12 @@
         "why-zip-needs-this",
         "the-guards",
         "the-forward-readers-trust-caveat",
+        "injected-decoders-and-sources-11",
         "what-the-engine-never-does",
         "reporting"
       ],
-      "bytes": 2405,
-      "approxTokens": 601
+      "bytes": 4026,
+      "approxTokens": 1007
     },
     {
       "title": "Use cases",
@@ -210,8 +246,8 @@
         "picking-parts-not-a-platform",
         "see-also"
       ],
-      "bytes": 17076,
-      "approxTokens": 4269
+      "bytes": 17561,
+      "approxTokens": 4390
     }
   ]
 }

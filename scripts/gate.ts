@@ -127,7 +127,11 @@ function joinNotes(...parts: Array<string | null>): string | null {
 
 function sampleCount(): string | null {
     let n = 0;
-    walkFiles(OUTPUT_DIR, (p) => { if (p.endsWith('.zip')) n++; });
+    walkFiles(OUTPUT_DIR, (p) => {
+        // Dot-directories (.gate logs, the .compat extraction) are never samples.
+        const inside = p.slice(OUTPUT_DIR.length).split('\\').join('/');
+        if (p.endsWith('.zip') && !inside.includes('/.')) n++;
+    });
     return n > 0 ? `${n} archives` : null;
 }
 
@@ -220,6 +224,11 @@ export const STEPS: readonly Step[] = [
     },
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
+    // The previous release's own suite against today's src/ — the behavioural
+    // half of the zero-breaking-change policy (tests/tools/api-compat.test.ts
+    // is the surface half). CI runs it as its own required job; the publish
+    // profile repeats it so a release never ships on a stale CI run.
+    { id: 'compat:previous', npmScript: 'compat:previous', profiles: ['publish'] },
     { id: 'test:generate', npmScript: 'test:generate', profiles: ['ci', 'publish'], note: sampleCount },
     { id: 'verify:samples', npmScript: 'verify:samples', profiles: ['ci', 'publish'] },
     { id: 'validate:zip', npmScript: 'validate:zip', profiles: ['ci', 'publish'] },

@@ -60,6 +60,7 @@
       <a href="./secure-extract.html">Secure extraction</a>
       <a href="./modify.html">Incremental modify</a>
       <a href="./stream.html">Forward streaming</a>
+      <a href="./remote.html">Remote range access</a>
       <a href="./cli.html">CLI builder</a>
       <a href="./mcp.html">MCP explorer</a>
       <a href="./" style="margin-left:auto;">All →</a>
@@ -76,6 +77,15 @@
           <select id="method" class="pg-picker" style="flex:0 0 auto;min-width:120px">
             <option value="deflate">deflate</option>
             <option value="store">store</option>
+          </select>
+        </label>
+        <label>date
+          <input id="date" class="pg-picker" type="text" value="2026-01-02T03:04:06Z" style="flex:0 0 auto;min-width:190px" aria-label="Pinned timestamp (ISO) — empty for the DOS epoch">
+        </label>
+        <label>dosTimeMode
+          <select id="dos-time-mode" class="pg-picker" style="flex:0 0 auto;min-width:90px">
+            <option value="utc" selected>utc</option>
+            <option value="local">local</option>
           </select>
         </label>
         <button id="build" class="btn btn-primary" type="button">Build archive →</button>
@@ -163,14 +173,23 @@ Built entirely in the browser.</textarea>
         const method = $('method').value;
         const deterministic = $('deterministic').checked;
 
-        const zip = createZip({ compression: { method, deterministic } });
+        const dateText = $('date').value.trim();
+        const dosTimeMode = $('dos-time-mode').value;
+        const clamps = [];
+        const zip = createZip({
+          compression: { method, deterministic },
+          ...(dateText ? { defaultDate: new Date(dateText) } : {}),
+          dosTimeMode,
+          onDiagnostic: (d) => { if (d.code === 'ZIP_TIMESTAMP_CLAMPED') clamps.push(d.message); },
+        });
         for (const s of specs) zip.add(s.name, s.data);
         const t0 = performance.now();
         const bytes = zip.toBytes();
         const ms = (performance.now() - t0).toFixed(1);
 
         // Read it straight back — the archive is its own proof.
-        const reader = openZip(bytes, { validate: 'eager' });
+        const reader = openZip(bytes, { validate: 'eager', dosTimeMode });
+        const firstDate = [...reader.entries()][0].lastModified;
         const rows = $('entry-rows');
         rows.innerHTML = '';
         for (const entry of reader.entries()) {
@@ -189,7 +208,9 @@ Built entirely in the browser.</textarea>
         const sha = await sha256Hex(bytes);
         $('summary').textContent =
           `${specs.length} ${specs.length === 1 ? 'entry' : 'entries'} · ${fmtBytes(bytes.length)} · built in ${ms} ms\n` +
-          `method: ${method} · deterministic: ${deterministic}\n` +
+          `method: ${method} · deterministic: ${deterministic} · dosTimeMode: ${dosTimeMode}\n` +
+          `timestamp read back: ${firstDate.toISOString()}${dosTimeMode === 'local' ? ' (local fields — depends on this machine\'s time zone)' : ' (UTC fields — the same on every machine)'}\n` +
+          (clamps.length ? `${clamps[0]}\n` : '') +
           `SHA-256: ${sha}` +
           (deterministic ? '\n\n↻ deterministic: true — rebuilding these exact inputs gives this exact SHA-256 on any runtime.'
                          : '\n\n(non-deterministic tier — bytes are stable per environment only.)');

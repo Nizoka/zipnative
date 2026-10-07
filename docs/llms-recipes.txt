@@ -105,10 +105,10 @@ export default async function run(): Promise<Record<string, string>> {
 import { crc32, openZip, registerCodec, ZipError } from 'zipnative';
 
 export default async function run(): Promise<Record<string, string>> {
-    // A tiny archive whose single entry claims method 99 with a raw
+    // A tiny archive whose single entry claims method 97 with a raw
     // (identity-"compressed") payload — normally unreadable.
     const payload = new TextEncoder().encode('exotic method payload');
-    const archive = buildMethod99Archive(payload);
+    const archive = buildMethod97Archive(payload);
 
     let beforeCode = '(none)';
     try {
@@ -118,8 +118,8 @@ export default async function run(): Promise<Record<string, string>> {
     }
 
     registerCodec({
-        method: 99,
-        name: 'identity-99',
+        method: 97,
+        name: 'identity-97',
         decompressSync: (data) => data.slice(),
     });
     const after = new TextDecoder().decode(openZip(archive).readEntry('x.bin'));
@@ -127,8 +127,8 @@ export default async function run(): Promise<Record<string, string>> {
     return { 'before-code': beforeCode, after };
 }
 
-/** Hand-assembled single-entry archive declaring compression method 99. */
-function buildMethod99Archive(data: Uint8Array): Uint8Array {
+/** Hand-assembled single-entry archive declaring compression method 97 — 99 is WinZip AES, which 1.1 labels feature: aes. */
+function buildMethod97Archive(data: Uint8Array): Uint8Array {
     const te = new TextEncoder();
     const name = te.encode('x.bin');
     const crc = crc32(data);
@@ -136,7 +136,7 @@ function buildMethod99Archive(data: Uint8Array): Uint8Array {
     const lv = new DataView(lfh.buffer);
     lv.setUint32(0, 0x04034b50, true);
     lv.setUint16(4, 20, true);
-    lv.setUint16(8, 99, true); // compression method
+    lv.setUint16(8, 97, true); // compression method
     lv.setUint32(14, crc, true);
     lv.setUint32(18, data.length, true);
     lv.setUint32(22, data.length, true);
@@ -147,7 +147,7 @@ function buildMethod99Archive(data: Uint8Array): Uint8Array {
     cv.setUint32(0, 0x02014b50, true);
     cv.setUint16(4, 0x031E, true);
     cv.setUint16(6, 20, true);
-    cv.setUint16(10, 99, true);
+    cv.setUint16(10, 97, true);
     cv.setUint32(16, crc, true);
     cv.setUint32(20, data.length, true);
     cv.setUint32(24, data.length, true);
@@ -168,6 +168,48 @@ function buildMethod99Archive(data: Uint8Array): Uint8Array {
     out.set(cfh, cdOffset);
     out.set(eocd, cdOffset + cfh.length);
     return out;
+}
+```
+
+---
+<!-- source: recipes/determinism-report.ts -->
+
+```ts
+/**
+ * Recipe: measure, canonicalise, prove. `analyzeDeterminism()` names every
+ * entry that breaks the canonical form (wall-clock timestamps, insertion
+ * order, foreign extra fields…); `canonicalizeZip()` rewrites any archive
+ * into that form without recompressing a payload, idempotently, and the
+ * resulting bytes are part of the frozen determinism contract.
+ */
+import { analyzeDeterminism, canonicalizeZip, openZip } from 'zipnative';
+import { createZip } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    // A "foreign-looking" archive: insertion order, a pinned wall-clock date.
+    const zip = createZip({ order: 'insertion', defaultDate: new Date(Date.UTC(2024, 4, 6, 7, 8, 10)), dosTimeMode: 'utc' });
+    zip.add('zeta.txt', 'last by name, first by insertion');
+    zip.add('alpha.txt', 'first by name');
+    const messy = zip.toBytes();
+
+    const before = analyzeDeterminism(messy);
+    const concerns = [...new Set(before.offenders.map((o) => o.concern))].sort();
+
+    const canonical = canonicalizeZip(messy);
+    const after = analyzeDeterminism(canonical);
+    const again = canonicalizeZip(canonical);
+    const idempotent = again.length === canonical.length && again.every((b, i) => b === canonical[i]);
+
+    // The payloads travelled untouched: same CRCs, same compressed bytes.
+    const names = [...openZip(canonical).entries()].map((e) => e.name);
+
+    return {
+        before: String(before.deterministic),
+        concerns: concerns.join(','),
+        after: String(after.deterministic),
+        idempotent: String(idempotent),
+        order: names.join(','),
+    };
 }
 ```
 
@@ -376,6 +418,57 @@ export default async function run(): Promise<Record<string, string>> {
 ```
 
 ---
+<!-- source: recipes/remote-range.ts -->
+
+```ts
+/**
+ * Recipe: open an archive through an injected byte-range source — the
+ * shape of an HTTP `Range` client, a `Blob`, a file handle or object
+ * storage — and read one entry with the memory of the central directory.
+ * The engine never fetches: `openZipRange()` asks the source for exactly
+ * the bytes a read needs (one tail window, the central directory, the
+ * entry's local header and payload), and every cross-check of `openZip()`
+ * applies unchanged.
+ */
+import { createZip, openZipRange, type ByteRangeSource } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    // The "remote" archive: ~480 KB of stored padding around the entry we
+    // want — larger than the tail window the reader fetches to find the
+    // end-of-central-directory record (bounded by maxEocdScanBytes + 64 KiB).
+    const zip = createZip({ compression: { deterministic: true } });
+    zip.add('README.md', '# remote\n');
+    zip.add('data/padding.txt', 'padding '.repeat(60_000), { compression: { method: 'store' } });
+    zip.add('manifest.json', '{"content":"hello remote"}');
+    const archive = zip.toBytes();
+
+    // A counting source over the bytes — swap `archive.subarray` for a
+    // fetch with a Range header, `blob.slice`, or `handle.read` in production.
+    let reads = 0;
+    let bytesFetched = 0;
+    const source: ByteRangeSource = {
+        size: archive.length,
+        async read(offset, length) {
+            reads++;
+            bytesFetched += Math.min(length, archive.length - offset);
+            return archive.subarray(offset, offset + length);
+        },
+    };
+
+    const remote = await openZipRange(source);
+    const names = [...remote.entries()].map((e) => e.name);
+    const manifest = JSON.parse(new TextDecoder().decode(await remote.readEntry('manifest.json'))) as { content: string };
+
+    return {
+        entries: String(names.length),
+        content: manifest.content,
+        // The padding entry was never fetched: the reads stay far below the archive size.
+        'reads-bounded': String(reads <= 4 && bytesFetched < archive.length / 2),
+    };
+}
+```
+
+---
 <!-- source: recipes/resumable-inflate.ts -->
 
 ```ts
@@ -485,6 +578,39 @@ export default async function run(): Promise<Record<string, string>> {
 ```
 
 ---
+<!-- source: recipes/utc-dates.ts -->
+
+```ts
+/**
+ * Recipe: timestamps that do not depend on the process time zone. DOS
+ * date-time fields carry no zone; by default an explicit `Date` is written
+ * as local time (the Info-ZIP / 7-Zip convention, byte-compatible with
+ * 1.0). `dosTimeMode: 'utc'` writes and reads the UTC fields instead, so a
+ * pinned date reproduces on every machine. Out-of-range dates clamp with
+ * the `ZIP_TIMESTAMP_CLAMPED` diagnostic rather than silently drifting.
+ */
+import { createZip, openZip, type ZipDiagnostic } from 'zipnative';
+
+export default async function run(): Promise<Record<string, string>> {
+    const pinned = new Date(Date.UTC(2026, 0, 2, 3, 4, 6));
+    const zip = createZip({ defaultDate: pinned, dosTimeMode: 'utc' });
+    zip.add('a.txt', 'pinned to 2026-01-02T03:04:06Z on every machine');
+    const entry = openZip(zip.toBytes(), { dosTimeMode: 'utc' }).getEntry('a.txt');
+
+    const diagnostics: ZipDiagnostic[] = [];
+    const old = createZip({ dosTimeMode: 'utc', onDiagnostic: (d) => diagnostics.push(d) });
+    old.add('b.txt', 'born before the DOS epoch', { date: new Date(Date.UTC(1975, 6, 15)) });
+    const clamped = openZip(old.toBytes(), { dosTimeMode: 'utc' }).getEntry('b.txt');
+
+    return {
+        'utc-roundtrip': entry?.lastModified.toISOString() ?? '(missing)',
+        clamped: clamped?.lastModified.toISOString() ?? '(missing)',
+        diagnostic: diagnostics.map((d) => d.code).join(',') || '(none)',
+    };
+}
+```
+
+---
 <!-- source: recipes/verify-archive.ts -->
 
 ```ts
@@ -518,6 +644,60 @@ export default async function run(): Promise<Record<string, string>> {
         'good-entries': String(good.entries.filter((e) => e.ok).length),
         'bad-ok': String(bad.ok),
         'not-zip-code': notZip.error?.code ?? '(none)',
+    };
+}
+```
+
+---
+<!-- source: recipes/zip64-stream.ts -->
+
+```ts
+/**
+ * Recipe: stream an entry that MAY exceed 4 GiB. A streamed entry cannot
+ * promote to Zip64 after the fact — its sizes are unknown when the local
+ * header is written — so the caller opts in per entry with `zip64: true`:
+ * version 45, sentinel sizes and a (0, 0) Zip64 extra in the local header,
+ * a 24-byte data descriptor, both sizes in the central record (APPNOTE
+ * 4.3.9.2). Without the opt-in a stream crossing 4 GiB is a typed refusal.
+ */
+import { createZip, openZip, verifyZip } from 'zipnative';
+
+async function* chunks(): AsyncGenerator<Uint8Array> {
+    const te = new TextEncoder();
+    for (let i = 0; i < 8; i++) yield te.encode(`chunk ${i} of a stream that may grow past 4 GiB\n`);
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    const zip = createZip();
+    zip.addStream('big.log', chunks(), { zip64: true, compression: { method: 'store' } });
+    zip.add('tail.txt', 'buffered entry after the streamed one', { compression: { method: 'store' } });
+
+    const parts: Uint8Array[] = [];
+    for await (const part of zip.stream()) parts.push(part);
+    const total = parts.reduce((n, p) => n + p.length, 0);
+    const bytes = new Uint8Array(total);
+    let at = 0;
+    for (const p of parts) { bytes.set(p, at); at += p.length; }
+
+    const reader = openZip(bytes);
+    const big = reader.getEntry('big.log');
+    const tail = reader.getEntry('tail.txt');
+    if (big === null || tail === null) throw new Error('entries missing');
+
+    // Local header: version needed to extract at offset 4, name and extra lengths at 26/28.
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const lfhVersion = view.getUint16(big.localHeaderOffset + 4, true);
+    const nameLen = view.getUint16(big.localHeaderOffset + 26, true);
+    const extraLen = view.getUint16(big.localHeaderOffset + 28, true);
+    const dataStart = big.localHeaderOffset + 30 + nameLen + extraLen;
+    // The descriptor sits between the payload and the next local header.
+    const descriptorBytes = tail.localHeaderOffset - (dataStart + big.compressedSize);
+
+    return {
+        'lfh-version': String(lfhVersion),
+        'descriptor-bytes': String(descriptorBytes),
+        'zip64-extra': String(extraLen),
+        verified: String(verifyZip(bytes).ok),
     };
 }
 ```

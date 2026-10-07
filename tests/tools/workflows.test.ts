@@ -129,7 +129,17 @@ describe('ci.yml', () => {
         expect(ci).toMatch(/^  os:\s*$/m);
         expect(ci).toMatch(/node-version:\s*\[22, 24\]/);
         expect(ci).toMatch(/os:\s*\[windows-latest, macos-latest\]/);
-        expect(requiredChecks()).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'os (windows-latest)', 'os (macos-latest)']));
+        expect(requiredChecks()).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'os (windows-latest)', 'os (macos-latest)', 'compat-previous']));
+        expect(ci).toMatch(/^  compat-previous:\s*$/m);
+    });
+
+    it('compat-previous fetches only the previous tag, anonymously, and runs the previous suite through the npm script', () => {
+        const job = /^  compat-previous:[\s\S]*?(?=^  [a-z-]+:\s*$|(?![\s\S]))/m.exec(ci)?.[0] ?? '';
+        expect(job).toMatch(/persist-credentials: false/);
+        expect(job).toMatch(/git fetch --no-tags --depth=1 origin "\+refs\/tags\/\$\{TAG\}:refs\/tags\/\$\{TAG\}"/);
+        expect(job).toMatch(/node-version-file: \.nvmrc/);
+        expect(job).toMatch(/run: npm run compat:previous/);
+        expect(job).not.toMatch(/fetch-depth: 0/);
     });
 
     it('has no path filter: its jobs are required checks that must always report', () => {

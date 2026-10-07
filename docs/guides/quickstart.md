@@ -1,8 +1,9 @@
 # Quickstart
 
-> Install zipnative and cover the four core workflows — reading with random
-> access, secure extraction, deterministic creation, and incremental
-> modification — in about five minutes.
+> Install zipnative and cover the core workflows — reading with random
+> access (in memory or over a byte-range source), secure extraction,
+> deterministic creation, incremental modification, canonicalisation and
+> one-call verification — in about five minutes.
 
 ## Install
 
@@ -30,6 +31,22 @@ for await (const chunk of zip.readEntryStream('video.bin')) {
     // bounded memory for large entries
 }
 ```
+
+## Read a remote or huge archive by ranges
+
+```ts
+import { openZipRange } from 'zipnative';
+
+const zip = await openZipRange({
+    size: contentLength,                          // known up front
+    read: (offset, length) => rangeFetch(url, offset, length), // HTTP Range, Blob.slice, FileHandle.read…
+});
+const manifest = await zip.readEntry('manifest.json');   // one tail window + the central directory + this entry
+for await (const chunk of zip.readEntryStream('data.bin')) { /* 256 KiB ranged reads */ }
+```
+
+The engine never fetches: the source is yours, the limits and cross-checks
+are the same as `openZip()` — the [large and remote archives guide](large-and-remote.html).
 
 ## Extract securely
 
@@ -64,6 +81,18 @@ for await (const chunk of zip.stream()) { /* send */ }
 Identical inputs give identical SHA-256 on every runtime — the
 [determinism contract](determinism.html).
 
+## Make any archive reproducible
+
+```ts
+import { analyzeDeterminism, canonicalizeZip } from 'zipnative';
+
+analyzeDeterminism(foreignBytes).offenders;      // what would drift: timestamps, order, extra fields…
+const canonical = canonicalizeZip(foreignBytes); // sorted, epoch timestamps, extras dropped — no recompression
+```
+
+Idempotent, and the bytes are under the frozen contract — the
+[reproducible builds guide](reproducible-builds.html).
+
 ## Modify without recompressing
 
 ```ts
@@ -78,7 +107,13 @@ const compact = mod.saveCompact();   // true deletion, still no recompression
 ```
 
 Note: `save()` keeps every original byte — removed content remains
-recoverable; `saveCompact()` is the deletion path.
+recoverable; `saveCompact()` is the deletion path, and
+`saveCompact({ canonical: true })` the canonical one.
+
+To assemble an archive from entries of other archives without
+recompressing them, `createZip().addFromReader(reader, entry)` transplants
+the compressed bytes (verified first) and `addRaw()` takes a payload you
+already compressed.
 
 ## Verify in one call
 
@@ -96,6 +131,13 @@ console.log(report.ok, report.entryCount);
 ## Going further
 
 - Parallel creation across worker threads: `import { createParallelZip } from 'zipnative/worker'`.
+- Cancellation and progress on every asynchronous call: `signal` (an
+  `AbortSignal` — the rejection is `signal.reason`) and `onProgress`.
+- Explicit dates independent of the process time zone: `dosTimeMode: 'utc'`.
+  Legacy name encodings: a `nameDecoder` such as
+  `(b) => new TextDecoder('shift_jis').decode(b)`; extended timestamps and
+  uid/gid: `getExtendedTimestamps(entry)`, `getUnixIds(entry)`.
+- Streamed entries that may exceed 4 GiB: `addStream(name, source, { zip64: true })`.
 - Reading unseekable streams: `iterateZipEntries(source)` — local headers
   only, so prefer `openZip()` whenever the whole archive is available.
 - Every thrown error carries a stable machine-readable `err.code` (39

@@ -137,6 +137,16 @@ exhaustion — both are addressed structurally here.</p>
 <td><code>onDuplicate: &#39;error&#39;</code> by default</td>
 <td>CWE-694</td>
 </tr>
+<tr>
+<td>Unbounded fetch of a compressed payload from a byte-range source (1.1)</td>
+<td><code>maxEntryCompressedSize</code> (1 GiB + 1 MiB) on <code>openZipRange()</code>&#39;s whole-payload reads; the in-memory reader uses zero-copy views and never consults it</td>
+<td>CWE-770</td>
+</tr>
+<tr>
+<td>Encrypted entries (ZipCrypto, WinZip AES, strong encryption)</td>
+<td>detected and refused with <code>ZIP_UNSUPPORTED_ENCRYPTION</code>; <code>feature</code> names the scheme (<code>&#39;aes&#39;</code> since 1.1); never decrypted in 1.x</td>
+<td>—</td>
+</tr>
 </tbody></table>
 <p>Every bound lives on <code>ZipLimits</code>, is documented, and is caller-configurable
 — raising one is an explicit decision, never a silent default.</p>
@@ -146,10 +156,30 @@ directory to cross-check names, sizes or methods, so a hostile archive can
 present different content there than <code>openZip()</code> authoritatively reports.
 Use it only for streams you cannot seek, and never feed its names to a
 filesystem without <code>sanitizeEntryPath()</code>.</p>
+<h2 id="injected-decoders-and-sources-11">Injected decoders and sources (1.1)<a class="heading-anchor" href="#injected-decoders-and-sources-11" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>A <code>nameDecoder</code> decodes entry names whose flag bit 11 is clear (legacy
+code pages). The decoded string goes through the same path sanitisation
+as every other name — <code>..</code>, absolute paths, NUL bytes, NTFS streams and
+device names are refused after decoding, so a decoder cannot smuggle a
+traversal.</li>
+<li>A <code>ByteRangeSource</code> is untrusted like the bytes it serves: every record
+the in-memory reader cross-checks is cross-checked here on the same
+code, a <code>size</code> smaller than the records imply or a short <code>read()</code> is
+<code>ZIP_RECORD_TRUNCATED</code>, the central directory is fetched only after
+<code>maxCentralDirectoryBytes</code> has been checked, and whole-payload fetches
+are bounded by <code>maxEntryCompressedSize</code>.</li>
+<li>An <code>AbortSignal</code> rejects with <code>signal.reason</code> only after the engine has
+released what it held — stream locks, worker pools, in-flight reads.</li>
+</ul>
 <h2 id="what-the-engine-never-does">What the engine never does<a class="heading-anchor" href="#what-the-engine-never-does" aria-label="Link to this section">#</a></h2>
 <p>No filesystem access, no sockets, no <code>eval</code>, no runtime dependencies —
-the supply chain is one repository, watched by CodeQL, OpenSSF Scorecard
-and an adversarial fuzzing suite on Linux and Windows.</p>
+the supply chain is one repository, watched by CodeQL, OpenSSF Scorecard,
+dependency review and an adversarial fuzzing suite on Linux, Windows and
+macOS. Every workflow runs under harden-runner with SHA-pinned actions and
+<code>npm ci --ignore-scripts</code>; releases are published by OIDC Trusted
+Publishing with SLSA Build L2 provenance and a CycloneDX SBOM attested
+alongside the tarball (<code>npm audit signatures</code> verifies).</p>
 <h2 id="reporting">Reporting<a class="heading-anchor" href="#reporting" aria-label="Link to this section">#</a></h2>
 <p>Privately, via GitHub Security Advisories — see
 <a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>.</p>
@@ -183,6 +213,8 @@ and an adversarial fuzzing suite on Linux and Windows.</p>
             <li><a href="errors.html">Errors and error codes</a></li>
             <li><a href="use-cases.html">Use cases</a></li>
             <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
           </ul>
         </div>
         <div class="footer-col">

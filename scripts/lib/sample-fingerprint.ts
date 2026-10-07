@@ -71,6 +71,7 @@ export function sha256Hex(data: Uint8Array | string): string {
 export function* walkZips(dir: string): Generator<string> {
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir).sort()) {
+        if (entry.startsWith('.')) continue; // .gate logs, .compat extraction: never samples
         const p = join(dir, entry);
         if (statSync(p).isDirectory()) yield* walkZips(p);
         else if (entry.endsWith('.zip')) yield p;

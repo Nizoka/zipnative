@@ -22,9 +22,13 @@ sibling [pdfnative](https://github.com/Nizoka/pdfnative). The short version:
 - **Zero breaking changes within a major.** Exports are added, never removed
   or renamed; options and fields are optional; error codes and
   `deterministic: true` bytes are frozen. `tests/tools/api-compat.test.ts`
-  and the sample baseline (`npm run verify:samples`) are the mechanical
-  guards; a bug fix that changes previously-wrong output is listed in the
-  release note's Upgrade section.
+  (every previous export, code and signature still present), the
+  `compat-previous` CI job (the previous release's own test suite run
+  against the current sources — `npm run compat:previous`; exclusions live
+  in `tests/compat/allow-<version>.json` with a reason each) and the sample
+  baseline (`npm run verify:samples`) are the mechanical guards; a bug fix
+  that changes previously-wrong output is listed in the release note's
+  Upgrade section and referenced from the allow-list.
 
 ## Workflow
 
@@ -165,7 +169,8 @@ maintainer; an agent prepares everything and stops before pushing
    confirmed blocker through the normal gate loop.
 6. Open the pull request from `release-notes/PR_TEMPLATE.md`; CI must be green
    on every required check (`ci (22)`, `ci (24)`, `os (windows-latest)`,
-   `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`).
+   `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`,
+   `compat-previous`).
 7. Maintainer: squash-merge, tag `vX.Y.Z`, publish the GitHub Release with the
    release note as body → `publish.yml` → approve the `npm-publish`
    environment → npm Trusted Publishing with provenance; the `attest` job

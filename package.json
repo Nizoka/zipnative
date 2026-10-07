@@ -60,6 +60,7 @@
     "test:generate": "npx tsx scripts/generate-samples.ts",
     "verify:samples": "npx tsx scripts/verify-samples.ts",
     "release:prepare": "npx tsx scripts/release-prepare.ts",
+    "compat:previous": "npx tsx scripts/run-compat.ts",
     "fixtures:generate": "npx tsx scripts/generate-fixtures.ts",
     "verify:docs": "npx tsx scripts/verify-docs.ts",
     "docs:api": "npx tsx scripts/build-api-json.ts",

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reproducible builds — zipnative</title>
+  <meta name="description" content="Measure, canonicalise and prove: analyzeDeterminism, canonicalizeZip and raw transplant turn any archive — Gradle, Maven, zip, Explorer — into a reproducible artefact without recompression, under a frozen byte contract.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://zipnative.dev/guides/reproducible-builds.html">
+  <meta property="og:title" content="Reproducible builds — zipnative">
+  <meta property="og:description" content="Measure, canonicalise and prove: analyzeDeterminism, canonicalizeZip and raw transplant turn any archive — Gradle, Maven, zip, Explorer — into a reproducible artefact without recompression, under a frozen byte contract.">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/guides/reproducible-builds.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/reproducible-builds.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/reproducible-builds.html">
+  <link rel="alternate" type="text/markdown" href="reproducible-builds.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/" },
+          { "@type": "ListItem", "position": 3, "name": "Reproducible builds" }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Reproducible builds",
+        "inLanguage": "en",
+        "description": "Measure, canonicalise and prove: analyzeDeterminism, canonicalizeZip and raw transplant turn any archive — Gradle, Maven, zip, Explorer — into a reproducible artefact without recompression, under a frozen byte contract.",
+        "url": "https://zipnative.dev/guides/reproducible-builds.html",
+        "author": { "@type": "Organization", "name": "Nizoka", "url": "https://zipnative.dev/" }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="./">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Reproducible builds</div>
+    <article id="guide-content" class="guide-content" data-md="reproducible-builds.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="reproducible-builds">Reproducible builds</h1>
+<blockquote>
+<p>Measure, canonicalise, prove. <code>deterministic: true</code> has made zipnative&#39;s
+own output reproducible since 0.2; 1.1 extends the guarantee to archives
+you did not build — a Gradle JAR, a Maven artefact, an Explorer ZIP, a
+<code>zip</code> from a CI image — with a report that says what would drift, a
+canonical rewrite that fixes it without recompression, and a transplant
+primitive that assembles artefacts from existing parts in O(bytes copied).</p>
+</blockquote>
+<h2 id="why-archives-drift">Why archives drift<a class="heading-anchor" href="#why-archives-drift" aria-label="Link to this section">#</a></h2>
+<p>Two builds of the same sources rarely produce the same ZIP: tools write the
+wall-clock modification time into every entry, enumerate the file system
+in whatever order it returns, add tool-specific extra fields (Unix times,
+NTFS times, uid/gid), and link against different zlib builds. Debian&#39;s
+<code>strip-nondeterminism</code>, Gradle&#39;s <code>preserveFileTimestamps = false</code> +
+<code>reproducibleFileOrder = true</code> and Maven&#39;s <code>project.build.outputTimestamp</code>
+each solve it for one producer. zipnative solves it once, for any producer,
+and ties the result to a written byte contract.</p>
+<h2 id="1-measure--analyzedeterminism">1. Measure — <code>analyzeDeterminism()</code><a class="heading-anchor" href="#1-measure--analyzedeterminism" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-ts">import { analyzeDeterminism } from &#39;zipnative&#39;;
+
+const report = analyzeDeterminism(bytes);
+report.deterministic;        // the verdict
+report.epochTimestamps;      // every entry at the DOS epoch?
+report.canonicalOrder;       // raw name bytes ascending?
+report.utf8Flags;            // bit 11 on every non-ASCII name?
+report.canonicalExtras;      // no extra field other than Zip64?
+report.canonicalVersionMadeBy;
+report.noDataDescriptors;    // informational — a streamed layout never fails the verdict
+for (const { name, concern } of report.offenders) console.log(name, concern);
+// concern: &#39;timestamp&#39; | &#39;order&#39; | &#39;utf8-flag&#39; | &#39;extra-field&#39; | &#39;version-made-by&#39; | &#39;data-descriptor&#39;
+</code></pre>
+<p>The report is what the CLI&#39;s <code>inspect --check deterministic</code> and the MCP
+server&#39;s <code>inspect_zip</code> re-derived from <code>entries()</code> in 1.0.0; it throws like
+<code>openZip()</code> when the bytes are not a well-formed archive (a report about an
+archive that cannot be opened would be meaningless) and never for
+conformance concerns.</p>
+<h2 id="2-canonicalise--canonicalizezip">2. Canonicalise — <code>canonicalizeZip()</code><a class="heading-anchor" href="#2-canonicalise--canonicalizezip" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-ts">import { canonicalizeZip } from &#39;zipnative&#39;;
+
+const canonical = canonicalizeZip(bytes);
+analyzeDeterminism(canonical).deterministic;      // true
+canonicalizeZip(canonical);                        // byte-identical: idempotent
+</code></pre>
+<p>The canonical form, applied to every entry of any archive:</p>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Entry order</td>
+<td>sorted by raw name bytes, unsigned bytewise — the writer&#39;s <code>order: &#39;name&#39;</code></td>
+</tr>
+<tr>
+<td>Timestamps</td>
+<td>the DOS epoch, or one pinned <code>date</code> (<code>dosTimeMode</code> applies)</td>
+</tr>
+<tr>
+<td>Name encoding</td>
+<td>UTF-8 with flag bit 11 for every non-ASCII name; the raw bytes are never re-encoded</td>
+</tr>
+<tr>
+<td>version-made-by</td>
+<td>the constant <code>0x032D</code></td>
+</tr>
+<tr>
+<td>Extra fields</td>
+<td>dropped, except Zip64 (0x0001), which is recomputed</td>
+</tr>
+<tr>
+<td>Comments</td>
+<td>dropped unless <code>keepComments: true</code> (archive and entry comments alike)</td>
+</tr>
+<tr>
+<td>External attributes</td>
+<td>kept — Unix modes are content — unless <code>keepExternalAttributes: false</code> resets them to the writer&#39;s defaults</td>
+</tr>
+<tr>
+<td>Payloads</td>
+<td>copied bit for bit: no decompression, no recompression, no dependency on the codec that produced them</td>
+</tr>
+<tr>
+<td>Layout</td>
+<td>the compact layout of <code>saveCompact()</code>: no data descriptors, no SFX prefix, no dead bytes</td>
+</tr>
+</tbody></table>
+<p>The same transformation is available on the modifier —
+<code>createZipModifier(openZip(bytes)).saveCompact({ canonical: true })</code> or
+<code>{ canonical: { date, keepComments, keepExternalAttributes } }</code> — so an
+edit and a canonical rewrite are one pass.</p>
+<p><strong>The canonical bytes are part of the frozen determinism contract.</strong> The
+golden hash in
+<a href="https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts" target="_blank" rel="noopener">tests/parser/zip-canonical.test.ts</a>
+pins the output of <code>canonicalizeZip</code> on a foreign archive; changing it is a
+semver-major release, exactly like the pinned encoder&#39;s bytes.</p>
+<h2 id="3-prove--the-gate">3. Prove — the gate<a class="heading-anchor" href="#3-prove--the-gate" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-ts">import { createHash } from &#39;node:crypto&#39;;
+import { analyzeDeterminism, canonicalizeZip } from &#39;zipnative&#39;;
+
+const artefact = canonicalizeZip(await build());      // whatever produced it
+if (!analyzeDeterminism(artefact).deterministic) throw new Error(&#39;canonical form broken&#39;);
+const digest = createHash(&#39;sha256&#39;).update(artefact).digest(&#39;hex&#39;);
+if (digest !== GOLDEN_SHA256) throw new Error(`artefact drifted: ${digest}`);
+</code></pre>
+<p>A canonical artefact compares byte-for-byte across runners and across the
+tools that produced it. Pair it with the writer&#39;s <code>deterministic: true</code>
+when zipnative is the producer (the pinned encoder makes the <em>compressed
+bytes</em> identical too); canonicalisation keeps a foreign producer&#39;s
+compressed bytes, so the digest holds as long as that producer&#39;s output
+does — which is what <code>strip-nondeterminism</code> promises as well, and why the
+report lists <code>extra-field</code> and <code>timestamp</code> concerns separately from the
+codec.</p>
+<h2 id="4-assemble--addraw-and-addfromreader">4. Assemble — <code>addRaw()</code> and <code>addFromReader()</code><a class="heading-anchor" href="#4-assemble--addraw-and-addfromreader" aria-label="Link to this section">#</a></h2>
+<p>Build artefacts are often assembled from parts that already exist as
+archives: a JAR from a class archive and a resources archive, an OOXML
+document from its parts, a release bundle from per-platform builds. 1.1
+transplants entries without decompressing them:</p>
+<pre><code class="language-ts">import { createZip, openZip } from &#39;zipnative&#39;;
+
+const out = createZip({ compression: { deterministic: true } });
+const classes = openZip(classesZip);
+const resources = openZip(resourcesZip);
+
+for (const entry of classes.entries()) out.addFromReader(classes, entry);
+for (const entry of resources.entries()) out.addFromReader(resources, entry, { verify: false }); // trusted source
+out.addRaw(&#39;META-INF/MANIFEST.MF&#39;, deflatedManifest, { method: 8, crc32, uncompressedSize }); // pre-compressed bytes
+
+const jar = out.toBytes();   // bytes are a function of the inputs and the call order under order: &#39;insertion&#39;
+</code></pre>
+<p><code>addFromReader()</code> copies method, CRC, sizes, timestamp, attributes, comment
+and extra fields (Zip64 excluded — recomputed), and <strong>verifies the source
+entry first</strong>: a corrupt entry is refused with <code>ZIP_CRC_MISMATCH</code> /
+<code>ZIP_SIZE_MISMATCH</code> instead of propagated. <code>verify: false</code> trusts the
+source. Entries whose method has no registered codec are copied opaquely
+either way — <code>verifyZip()</code> later reports them <code>skipped: &#39;unsupported-method&#39;</code>.
+Encrypted entries are refused, as <code>readEntryRaw()</code> refuses them. Worker
+pools never dispatch a raw entry; the sequential and parallel writers
+emit identical bytes.</p>
+<p>The in-memory reader is the source; a <code>ZipRangeReader</code> exposes
+<code>readEntryRaw()</code> as a promise, so transplanting from a remote archive is a
+two-step <code>await zip.readEntryRaw(entry)</code> then <code>addRaw()</code>.</p>
+<h2 id="timestamps-and-time-zones">Timestamps and time zones<a class="heading-anchor" href="#timestamps-and-time-zones" aria-label="Link to this section">#</a></h2>
+<p>An explicit <code>Date</code> is written as a local-time DOS field by default — the
+Info-ZIP and 7-Zip convention, byte-compatible with 1.0. A build that
+pins a date and must reproduce across machines sets <code>dosTimeMode: &#39;utc&#39;</code>
+on the writer (and on the reader, to decode the same instant back):</p>
+<pre><code class="language-ts">const zip = createZip({ defaultDate: new Date(&#39;2026-10-07T00:00:00Z&#39;), dosTimeMode: &#39;utc&#39; });
+</code></pre>
+<p>Out-of-range dates clamp — below 1980-01-01 to the epoch, above
+2107-12-31 23:59:58 to that maximum, an invalid <code>Date</code> to the epoch — with
+the <code>ZIP_TIMESTAMP_CLAMPED</code> diagnostic (fatal under <code>strict</code>); before 1.1
+they produced a wrong date silently.</p>
+<h2 id="see-also">See also<a class="heading-anchor" href="#see-also" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="determinism.html">The determinism contract</a> — the three levels of
+guarantee, the frozen encoder, the canonical compaction rules.</li>
+<li><a href="use-cases.html#case-3--the-reproducibility-gate">Use cases, Case 3</a> —
+the reproducibility gate with zipnative as the producer.</li>
+<li>The <a href="https://github.com/Nizoka/zipnative/blob/main/recipes/determinism-report.ts" target="_blank" rel="noopener"><code>determinism-report</code></a>
+recipe, and <code>zipnative inspect --check deterministic</code> on the CLI.</li>
+</ul>
+<!-- guide:render:end -->
+  </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CONTRIBUTING.md" rel="noopener" target="_blank">Contributing</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="./">All guides</a></li>
+            <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="choose.html">Choosing your surface</a></li>
+            <li><a href="cli.html">CLI guide</a></li>
+            <li><a href="mcp.html">MCP guide</a></li>
+            <li><a href="security.html">Security model</a></li>
+            <li><a href="determinism.html">Determinism contract</a></li>
+            <li><a href="errors.html">Errors and error codes</a></li>
+            <li><a href="use-cases.html">Use cases</a></li>
+            <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+            <li><a href="../data/errors.json">errors.json</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">Benchmarks</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

@@ -74,7 +74,7 @@ The release gate is `npx tsx scripts/gate.ts --publish --require-all`. Each line
 
 ## Merge checklist
 
-- [ ] CI green: `ci (22)`, `ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`, Docs, CodeQL.
+- [ ] CI green: `ci (22)`, `ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`, `compat-previous`, Docs, CodeQL.
 - [ ] `release-notes/v{{version}}.md` reviewed; release date adjusted if publication is not {{date}}.
 - [ ] Squash-merge to `main` with the title `release: v{{version}} — {{headline}}`.
 - [ ] Tag `v{{version}}` on the merge commit; publish the GitHub Release (title `v{{version}} — {{headline}}`, body = the release note) → `publish.yml` → approve the `npm-publish` environment → npm with provenance; the `attest` job attaches the tarball and the SBOM.

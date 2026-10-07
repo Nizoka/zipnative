@@ -60,6 +60,7 @@
       <a href="./secure-extract.html">Secure extraction</a>
       <a href="./modify.html" aria-current="page">Incremental modify</a>
       <a href="./stream.html">Forward streaming</a>
+      <a href="./remote.html">Remote range access</a>
       <a href="./cli.html">CLI builder</a>
       <a href="./mcp.html">MCP explorer</a>
       <a href="./" style="margin-left:auto;">All →</a>
@@ -79,6 +80,7 @@
         <label><input type="checkbox" id="edit-replace" checked> replace <code>report.csv</code> (smaller)</label>
         <label><input type="checkbox" id="edit-add" checked> add <code>changelog.txt</code></label>
         <label><input type="checkbox" id="edit-remove"> remove <code>logo.svg</code></label>
+        <label><input type="checkbox" id="edit-canonical"> canonical <code>saveCompact()</code> (1.1)</label>
         <button id="apply" class="btn btn-primary" type="button">Apply edits &amp; save →</button>
       </div>
 
@@ -107,7 +109,7 @@
   <script src="playground.js" defer></script>
   <script type="module">
     import { loadEngine } from './load-engine.js';
-    const { mod: { createZip, openZip, createZipModifier, ZipError }, source: engineSource } = await loadEngine();
+    const { mod: { createZip, openZip, createZipModifier, analyzeDeterminism, ZipError }, source: engineSource } = await loadEngine();
     const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
 
     const $ = (id) => document.getElementById(id);
@@ -163,7 +165,8 @@
         const t0 = performance.now();
         const appended = mod.save();          // append-only: original bytes verbatim + edits
         const tSave = performance.now();
-        const compacted = mod.saveCompact();  // canonical rewrite, no recompression
+        const canonical = $('edit-canonical').checked;
+        const compacted = mod.saveCompact(canonical ? { canonical: true } : undefined);  // compact rewrite, no recompression
         const tCompact = performance.now();
 
         // Both outputs must re-open — the archive is its own proof.
@@ -175,8 +178,9 @@
         row('save()', appended.length, ra.entryCount,
           edits.length === 0 ? 'no edits → returns the SAME buffer reference'
             : `appended in ${(tSave - t0).toFixed(1)} ms — replaced/removed data lingers as dead bytes`);
-        row('saveCompact()', compacted.length, rc.entryCount,
-          `rewritten in ${(tCompact - tSave).toFixed(1)} ms — removed data is truly gone`);
+        row(canonical ? 'saveCompact({ canonical: true })' : 'saveCompact()', compacted.length, rc.entryCount,
+          `rewritten in ${(tCompact - tSave).toFixed(1)} ms — removed data is truly gone` +
+          (canonical ? '; names sorted, timestamps at the epoch, extras dropped — the reproducible form' : ''));
 
         const dead = appended.length - compacted.length;
         const deadFired = diagnostics.includes('ZIP_DEAD_BYTES_RATIO');
@@ -184,6 +188,7 @@
           (edits.length ? `edits: ${edits.join(', ')}` : 'no edits selected') + '\n' +
           `dead bytes carried by save(): ${fmtBytes(Math.max(dead, 0))} (${appended.length > 0 ? ((dead / appended.length) * 100).toFixed(0) : 0}% of the output)\n` +
           `diagnostics: ${diagnostics.length ? [...new Set(diagnostics)].join(', ') : '(none)'}` +
+          (typeof analyzeDeterminism === 'function' ? `\nanalyzeDeterminism(saveCompact output).deterministic: ${analyzeDeterminism(compacted).deterministic}` : '') +
           (deadFired
             ? '\n\n⚠ ZIP_DEAD_BYTES_RATIO — more than half of save()’s output is dead weight. The remedy is in the diagnostic: use saveCompact().'
             : (edits.length ? '\n\nNo dead-bytes diagnostic — the appended zone stays a minor share of the output.' : ''));

@@ -51,6 +51,13 @@ describe('gate step table', () => {
         before(inProfile('publish'), 'test:generate', 'test:interop');
     });
 
+    it('runs the previous release suite in the publish profile only (CI has its own required job)', () => {
+        expect(inProfile('publish')).toContain('compat:previous');
+        expect(inProfile('ci')).not.toContain('compat:previous');
+        expect(inProfile('fast')).not.toContain('compat:previous');
+        before(inProfile('publish'), 'compat:previous', 'test:generate');
+    });
+
     it('fails loudly when a dist-gated suite finds no bundle', () => {
         const coverage = STEPS.find((s) => s.id === 'test:coverage');
         expect(coverage?.env).toMatchObject({ GATE: '1', GATE_REQUIRE_ARTIFACTS: '1' });

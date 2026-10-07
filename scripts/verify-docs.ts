@@ -950,7 +950,8 @@ for (const page of htmlPages) {
 {
     const declared = ecosystem.derived?.sampleZips;
     if (typeof declared === 'number' && existsSync(resolve(ROOT, 'test-output'))) {
-        const onDisk = walk('test-output').filter((p) => p.endsWith('.zip')).length;
+        // Dot-directories (.gate logs, the .compat extraction) are never samples.
+        const onDisk = walk('test-output').filter((p) => p.endsWith('.zip') && !p.includes('/.')).length;
         if (onDisk > declared) {
             report('docs/assets/ecosystem.json', 1, 'sample-count',
                 `test-output/ holds ${onDisk} archives but derived.sampleZips declares ${declared} — a generator grew; bump the manifest`);
@@ -1194,6 +1195,11 @@ const COMPANION_DOC = /^docs\/(?:guides|playgrounds)\/(?:cli|mcp)\.(?:md|html)$/
         { pattern: /(?<![\d.])(\d+)\s+diagnostic(?:\s+codes?)?\b/g, source: 'derived.diagnostics', mode: 'equal' },
         { pattern: /(?<![\d.])(\d+)[ -](?:frozen[ -])?(?:error[ -])?codes?\b/g, source: 'derived.errorCodes', mode: 'equal', unless: /^[^\n]{0,80}(?:diagnostic|ZipDiagnosticCode)/ },
         { pattern: /(?<![\d.])(\d+)\+?\s+tests\b/g, source: 'declared.tests', mode: 'equal', requireIn: ['AGENTS.md', 'README.md'] },
+        // The homepage metric tiles separate the number from its noun with markup.
+        { pattern: /class="metric-value">(\d+)\+?<\/div>\s*<div class="metric-label">Tests</g, source: 'declared.tests', mode: 'equal', requireIn: ['docs/index.html'] },
+        { pattern: /class="metric-value">(\d+(?:\.\d+)?)\s?%<\/div>\s*<div class="metric-label">Coverage/g, source: 'declared.coverageStatements', mode: 'floor' },
+        { pattern: /class="metric-value">(\d+)<\/div>\s*<div class="metric-label">Foreign interop tools/g, source: 'derived.interopTools', mode: 'equal' },
+        { pattern: /class="metric-value">(\d+)<\/div>\s*<div class="metric-label">Frozen error codes/g, source: 'derived.errorCodes', mode: 'equal' },
         { pattern: /(?<![\d.])(\d+)\+?\s+test files\b/g, source: 'derived.testFiles', mode: 'equal' },
         { pattern: /\bacross\s+(\d+)\+?\s+(?:test\s+)?files\b/g, source: 'derived.testFiles', mode: 'equal' },
         { pattern: /(?<![\d.])(\d+(?:\.\d+)?)\s?(?:%|percent)\+?\s+(?:statement\s+)?coverage\b/g, source: 'declared.coverageStatements', mode: 'floor' },
@@ -1388,7 +1394,7 @@ const COMPANION_DOC = /^docs\/(?:guides|playgrounds)\/(?:cli|mcp)\.(?:md|html)$/
             report(path, 1, 'sample-regression', `${declaredSamples - entries.length} of ${declaredSamples} declared samples have no baseline entry — rebaseline (verify-samples --update) in the release PR, since: ${truthVersion ?? '?'}`, 'warn');
         }
         if (existsSync(resolve(ROOT, 'test-output'))) {
-            const onDisk = walk('test-output').filter((p) => p.endsWith('.zip')).map((p) => p.replace(/^test-output\//, ''));
+            const onDisk = walk('test-output').filter((p) => p.endsWith('.zip') && !p.includes('/.')).map((p) => p.replace(/^test-output\//, ''));
             const tracked = new Set(entries.map(([n]) => n));
             if (onDisk.length > 0 && typeof declaredSamples === 'number' && onDisk.length >= declaredSamples) {
                 for (const [name] of entries) {

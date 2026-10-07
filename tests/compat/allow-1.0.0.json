@@ -1,0 +1,18 @@
+{
+  "$comment": "Files of the v1.0.0 test suite that scripts/run-compat.ts does not run against the current sources. Every entry carries a reason; a behaviour change also names the compatibility-ledger entry (release-notes/v1.1.0.md, Upgrade section) that documents and justifies it. A file listed here without a ledger entry tests the repository tree rather than the engine. Keep this list as short as the ledger: an exclusion that outlives its ledger entry is a hidden breaking change.",
+  "tag": "v1.0.0",
+  "exclude": [
+    {
+      "pattern": "tests/docs/**",
+      "reason": "Repository-tree tests (recipes index, fixture budget, tree-shaking of dist), not engine behaviour — the current suite covers today's tree."
+    },
+    {
+      "pattern": "tests/integration/worker-integration.test.ts",
+      "reason": "Dist-gated: spawns the built worker script from dist/, which the archived tree does not carry; the current suite runs it after the build."
+    },
+    {
+      "pattern": "tests/integration/interop-read.test.ts",
+      "reason": "Spawns the foreign producers (pwsh Compress-Archive cold-starts past the archived 30 s timeout on a loaded machine); the foreign-read direction is covered by the current suite and by conformance.yml, not an engine behaviour of the previous release."
+    }
+  ]
+}

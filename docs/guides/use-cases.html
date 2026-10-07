@@ -189,7 +189,13 @@ zipnative&#39;s own suite; changing the emitted bytes is semver-major.</p>
 <p>Honest limits: the byte guarantee is scoped to <code>deterministic: true</code> —
 the default tier uses the platform&#39;s zlib and is byte-stable per
 environment only. <code>defaultDate: &#39;now&#39;</code> opts out of reproducibility and
-says so with a diagnostic.</p>
+says so with a diagnostic; an explicit <code>Date</code> is a local-time field unless
+<code>dosTimeMode: &#39;utc&#39;</code> is set.</p>
+<p>For an artefact you did not build — a Gradle JAR, a Maven archive, an
+Explorer ZIP — <code>canonicalizeZip()</code> (1.1) rewrites it into the same
+canonical form without recompression and <code>analyzeDeterminism()</code> reports
+what would otherwise drift: the
+<a href="reproducible-builds.html">reproducible builds guide</a>.</p>
 <h2 id="case-4--streaming-intake-at-the-edge">Case 4 — Streaming intake at the edge<a class="heading-anchor" href="#case-4--streaming-intake-at-the-edge" aria-label="Link to this section">#</a></h2>
 <p>Edge runtimes have no filesystem, tight memory, and no Node APIs — and
 uploads arrive as unseekable body streams, which rules out every
@@ -231,7 +237,9 @@ every surface, read or write. ZipCrypto, the format&#39;s legacy cipher, is
 cryptographically broken (Biham–Kocher, a known-plaintext attack that
 recovers the keys from a few kilobytes), so shipping it would be harm
 dressed as a feature; AES-in-ZIP is a vendor extension, not part of the
-ISO/IEC 21320-1 profile the engine writes, and is not in 1.x. Yet
+ISO/IEC 21320-1 profile the engine writes, and is not in 1.x (a 2.0
+candidate; since 1.1 such entries are at least labelled <code>feature: &#39;aes&#39;</code>
+rather than <code>&#39;zipcrypto&#39;</code>). Yet
 confidentiality is a real requirement. The pattern that satisfies it is
 to <strong>encrypt the documents, not the envelope</strong> — with the tool that
 already owns the secret — and let zipnative package the ciphertext:
@@ -351,6 +359,8 @@ surface every case is built from.</li>
             <li><a href="errors.html">Errors and error codes</a></li>
             <li><a href="use-cases.html">Use cases</a></li>
             <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
           </ul>
         </div>
         <div class="footer-col">

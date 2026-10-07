@@ -419,6 +419,7 @@ function validateArchive(bytes: Uint8Array, file: string): Report {
 function walk(dir: string): string[] {
     const out: string[] = [];
     for (const item of readdirSync(dir)) {
+        if (item.startsWith('.')) continue; // .gate logs, .compat extraction: never samples
         const p = resolve(dir, item);
         if (statSync(p).isDirectory()) out.push(...walk(p));
         else if (item.toLowerCase().endsWith('.zip')) out.push(p);

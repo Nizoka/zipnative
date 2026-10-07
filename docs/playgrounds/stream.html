@@ -60,6 +60,7 @@
       <a href="./secure-extract.html">Secure extraction</a>
       <a href="./modify.html">Incremental modify</a>
       <a href="./stream.html" aria-current="page">Forward streaming</a>
+      <a href="./remote.html">Remote range access</a>
       <a href="./cli.html">CLI builder</a>
       <a href="./mcp.html">MCP explorer</a>
       <a href="./" style="margin-left:auto;">All →</a>
@@ -113,6 +114,18 @@
       </div>
       <div id="trust-status" class="pg-status" role="status" aria-live="polite"></div>
       <div class="pg-output" id="trust-summary" hidden></div>
+
+      <h2>4 · Progress and cancellation (1.1)</h2>
+      <p>Every asynchronous call takes <code>signal</code> and <code>onProgress</code>. This stream
+      delivers one chunk every 40&nbsp;ms; press <strong>Abort</strong> while it runs and the
+      iteration rejects with <code>signal.reason</code> — after the engine has released the
+      stream's reader lock without cancelling the stream.</p>
+      <div class="pg-toolbar">
+        <button id="run-cancel" class="btn btn-primary" type="button">Stream slowly →</button>
+        <button id="abort-cancel" class="btn btn-secondary" type="button" disabled>Abort</button>
+      </div>
+      <div id="cancel-status" class="pg-status" role="status" aria-live="polite"></div>
+      <div class="pg-output" id="cancel-progress" hidden></div>
     </article>
   </main>
 
@@ -281,9 +294,52 @@
       }
     }
 
+    // ── 4. Progress + cancellation ──────────────────────────────────────
+    let cancelController = null;
+    async function runCancel() {
+      const st = $('cancel-status');
+      const out = $('cancel-progress');
+      const archive = buildDemoArchive();
+      let offset = 0;
+      const slow = new ReadableStream({
+        async pull(controller) {
+          if (offset >= archive.length) { controller.close(); return; }
+          await new Promise((r) => setTimeout(r, 40));
+          controller.enqueue(archive.subarray(offset, Math.min(offset + 64, archive.length)));
+          offset += 64;
+        },
+      });
+      cancelController = new AbortController();
+      $('abort-cancel').disabled = false;
+      out.hidden = false;
+      out.textContent = 'starting…';
+      const lines = [];
+      try {
+        let n = 0;
+        for await (const entry of iterateZipEntries(slow, {
+          signal: cancelController.signal,
+          onProgress: (p) => { out.textContent = `entriesDone ${p.entriesDone} · entriesTotal ${p.entriesTotal === null ? 'unknown (forward reader)' : p.entriesTotal} · bytesIn ${p.bytesIn} · bytesOut ${p.bytesOut}\n` + lines.join('\n'); },
+        })) {
+          n++;
+          lines.push(`${n}. ${entry.header.name}`);
+          if (entry.header.isDirectory) await entry.skip(); else for await (const _ of entry.data()) { /* drain */ }
+        }
+        setStatus(st, `Streamed ${n} entries to the end — press Abort earlier to see the rejection.`, 'ok');
+      } catch (err) {
+        if (cancelController.signal.aborted) {
+          setStatus(st, `Rejected with signal.reason: "${String(cancelController.signal.reason && cancelController.signal.reason.message || cancelController.signal.reason)}" · stream.locked = ${slow.locked} (lock released, stream not cancelled)`, 'ok');
+        } else if (err instanceof ZipError) setStatus(st, `${err.code}\n${err.message}`, 'error');
+        else setStatus(st, String(err && err.stack ? err.stack : err), 'error');
+      } finally {
+        $('abort-cancel').disabled = true;
+      }
+    }
+
     $('run-iterate').addEventListener('click', runIterate);
     $('run-inflate').addEventListener('click', runInflate);
     $('run-trust').addEventListener('click', runTrust);
+    $('run-cancel').addEventListener('click', runCancel);
+    $('abort-cancel').addEventListener('click', () => { if (cancelController) cancelController.abort(new Error('user pressed Abort')); });
     runIterate();
   </script>
 </body>

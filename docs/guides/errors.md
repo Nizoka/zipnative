@@ -80,8 +80,8 @@ with raised limits on trusted input. Use `code` when the *cause* matters:
 | `ZIP_VALUE_UNREPRESENTABLE` | A 64-bit field exceeds `Number.MAX_SAFE_INTEGER`. |
 | `ZIP_INVALID_ENTRY_NAME` | A writer-side name violates the rules (empty, NUL, backslash, absolute, `..`). |
 | `ZIP_DUPLICATE_ENTRY_NAME` | Duplicate names where uniqueness is required (writer `add()`, modifier source archives). |
-| `ZIP_DEFLATE_TRUNCATED` | A deflate stream ends mid-block. |
-| `ZIP_DEFLATE_CORRUPT` | A deflate stream is structurally invalid (Huffman codes, symbols, back-references, block types). |
+| `ZIP_DEFLATE_TRUNCATED` | A deflate stream ends mid-block — on every tier since 1.1 (node:zlib and DecompressionStream failures are normalised to it). |
+| `ZIP_DEFLATE_CORRUPT` | A deflate stream is structurally invalid (Huffman codes, symbols, back-references, block types) — on every tier since 1.1. |
 
 ### `ZipSecurityError` (active-attack shapes — CWE-tagged)
 
@@ -102,7 +102,7 @@ with raised limits on trusted input. Use `code` when the *cause* matters:
 | `ZIP_SIZE_MISMATCH` | Sizes contradict: declared vs measured, or local vs central metadata. |
 | `ZIP_INFLATE_OUTPUT_OVERFLOW` | Inflate produced more than the declared or permitted output. |
 | `ZIP_DESCRIPTOR_MISMATCH` | No data-descriptor form matches the measured CRC and sizes of a bit-3 entry. |
-| `ZIP_DECOMPRESSION_FAILED` | The active codec failed mid-decompression on a corrupt payload. |
+| `ZIP_DECOMPRESSION_FAILED` | A codec registered with `registerCodec()` or injected with `setInflateImpl()` failed mid-decompression; since 1.1 the built-in deflate tiers never raise it (they raise `ZIP_DEFLATE_CORRUPT` / `ZIP_DEFLATE_TRUNCATED`). |
 
 ### `ZipLimitError` (configurable security bounds)
 
@@ -116,23 +116,25 @@ Carries `limit` (the `ZipLimits` key), `configured` and `observed`.
 ### `ZipUnsupportedError` (deliberate refusals)
 
 Carries `feature` from the closed `ZipUnsupportedFeature` vocabulary:
-`'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`,
-`'cd-less-descriptor'`, or `` `method:${n}` ``.
+`'zipcrypto'`, `'aes'` (1.1), `'strong-encryption'`, `'multi-disk'`,
+`'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` ``.
 
 | Code | Raised when |
 |---|---|
-| `ZIP_UNSUPPORTED_ENCRYPTION` | An entry is encrypted — unsupported in 1.x by policy; check `entry.isEncrypted` to route around it. |
+| `ZIP_UNSUPPORTED_ENCRYPTION` | An entry is encrypted — unsupported in 1.x by policy; `feature` names the scheme (`'zipcrypto'`, `'aes'` for WinZip AES since 1.1, `'strong-encryption'`); check `entry.isEncrypted` to route around it. |
 | `ZIP_UNSUPPORTED_METHOD` | A compression method has no registered codec — `registerCodec()` one. |
 | `ZIP_UNSUPPORTED_MULTI_DISK` | The archive is multi-disk/spanned — an explicit anti-goal. |
-| `ZIP_UNSUPPORTED_ZIP64_STREAMING` | An `addStream()` entry exceeds 4 GiB — buffer via `add()` or split. |
+| `ZIP_UNSUPPORTED_ZIP64_STREAMING` | An `addStream()` entry crosses 4 GiB without `{ zip64: true }` (1.1) — opt in, buffer via `add()`, or split. |
 | `ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR` | Forward reading met a bit-3 entry it cannot delimit (store/encrypted/custom codec) — use `openZip()`. |
-| `ZIP_UNSUPPORTED_CODEC_MODE` | A registered codec supports only the other access mode — the message names the compliant call. |
+| `ZIP_UNSUPPORTED_CODEC_MODE` | A registered codec supports only the other access mode — the message names the compliant call. In the forward reader (1.1), a codec for a method other than store/deflate without `createDecompressor()` is refused before the first byte: `skip()` the entry or use `openZip()`. |
 
 ## Diagnostics are not errors
 
 Non-fatal conformance concerns (odd-but-tolerated shapes, determinism
 losses) never throw by default — they flow through the diagnostics
-channel with their own closed 12-code vocabulary (`ZipDiagnosticCode`),
+channel with their own closed 12-code vocabulary (`ZipDiagnosticCode` —
+`ZIP_TIMESTAMP_CLAMPED`, added in 1.1 for out-of-range or invalid dates,
+is the newest),
 documented alongside the errors in
 [`docs/data/errors.json`](../data/errors.json). `strict: true` escalates
 the first diagnostic into a thrown `ZipError` with code

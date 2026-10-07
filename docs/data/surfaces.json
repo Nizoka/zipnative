@@ -104,7 +104,7 @@
       "id": "transplant",
       "label": "Transplant entries without recompression",
       "since": "1.1.0",
-      "library": { "supported": true, "call": "addRaw() / addFromReader()", "notes": "addFromReader() copies method, CRC, sizes, date, attributes and extra fields from an openZip() or openZipRange() entry and verifies it by default; addRaw() takes a compressed payload with its RawEntryMeta. Worker pools never dispatch raw entries." },
+      "library": { "supported": true, "call": "addRaw() / addFromReader()", "notes": "addFromReader() copies method, CRC, sizes, date, attributes, comment and extra fields from an openZip() entry and verifies it by default; addRaw() takes a compressed payload with its RawEntryMeta (the two-step form for a ZipRangeReader, whose readEntryRaw() is asynchronous). Worker pools never dispatch raw entries." },
       "cli": { "supported": false, "notes": "zipnative-cli 1.0.0 has no merge / split commands; candidates for its next minor." },
       "mcp": { "supported": false, "notes": "zipnative-mcp 1.0.0 has no merge tool; modify_zip copies untouched entries without recompression." }
     },

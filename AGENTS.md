@@ -11,7 +11,7 @@ random access (in memory or over an injected byte-range source),
 secure-by-default extraction, streaming, deterministic output, incremental
 modification. Sibling of pdfnative — same doctrine, same shape.
 
-Quality bar: GAFAM-grade. 724 tests across 60 files (interop-producer skips
+Quality bar: GAFAM-grade. 740 tests across 61 files (interop-producer skips
 vary by machine), 93.9% statement coverage measured at v1.1.0, blocking ISO/IEC
 21320-1 + six-parser interop gates in CI, a byte-level sample baseline, SLSA Build L2 provenance on npm.
 

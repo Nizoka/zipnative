@@ -23,6 +23,21 @@ Packages are published from CI via **npm Trusted Publishing (OIDC)** with
 SBOM is attached to every GitHub Release. Nobody publishes from a laptop
 (`publishConfig.provenance` makes a local `npm publish` fail).
 
+### Supply chain
+
+Every workflow runs under `step-security/harden-runner` (egress audited),
+every action is pinned to a commit SHA (Dependabot owns the bumps),
+dependencies install with `npm ci --ignore-scripts` (`.npmrc` makes it the
+default locally too), pull requests pass dependency review with a
+licence allow-list, and a weekly `npm audit` runs on the lockfile. The
+publish job runs in the `npm-publish` environment behind a required
+reviewer, re-runs the full gate, and publishes with a pinned npm through
+OIDC; a separate `attest` job generates SLSA Build L2 provenance for the
+tarball and the CycloneDX SBOM (`actions/attest-build-provenance`) and
+attaches both to the GitHub Release. Branch and tag rulesets are
+committed under `.github/rulesets/`. The engine itself has no runtime
+dependencies, so the published artefact's transitive closure is empty.
+
 ## Compatibility promise (semver, 1.0+)
 
 - The public API surface ([docs/assets/api.json](docs/assets/api.json)) is
@@ -32,7 +47,15 @@ SBOM is attached to every GitHub Release. Nobody publishes from a laptop
   semver-minor.
 - The `deterministic: true` **output bytes are part of the contract**:
   changing them is semver-major
-  (`ecosystem.json → deterministic_bytes_are_semver_major`).
+  (`ecosystem.json → deterministic_bytes_are_semver_major`); since 1.1 the
+  canonical bytes of `canonicalizeZip()` / `saveCompact({ canonical: true })`
+  are under the same contract.
+- Minor releases are additive: 1.1.0 grew the public surface from 77 to
+  106 exports and removed none, every new behaviour is opt-in, and the byte
+  baseline of the 33 pre-existing samples (`npm run verify:samples`) proves
+  existing output unchanged; the `compat-previous` CI job runs the previous
+  release's own test suite against every change. Each release note carries
+  a compatibility ledger listing every observable change.
 
 ## Security model
 
@@ -56,6 +79,9 @@ headers), and mixes 16/32/64-bit size fields. zipnative defends against:
 | Zip64 field spoofing (sentinel values masking lying 64-bit fields) | Zip64 records cross-checked against every non-sentinel classic field; divergence is fatal | CWE-1288 |
 | Duplicate entry names (shadowing during extraction) | `onDuplicate: 'error'` by default | CWE-694 |
 | Integer overflow (> 2^53 sizes/offsets) | 64-bit fields read via BigInt and rejected above `Number.MAX_SAFE_INTEGER` | CWE-190 |
+| Unbounded allocation for a compressed payload fetched from a byte-range source (1.1) | `maxEntryCompressedSize` (default 1 GiB + 1 MiB) bounds `openZipRange()`'s whole-payload reads; the in-memory reader uses zero-copy views and never consults it | CWE-770 |
+| Lying byte-range source (understated `size`, short reads) | every record cross-checked as under `openZip()`; short reads and size lies are `ZIP_RECORD_TRUNCATED`; the central directory is fetched only after `maxCentralDirectoryBytes` is checked | CWE-20 |
+| Traversal smuggled through an injected name decoder (1.1) | path sanitisation runs on the decoded string; a decoder cannot bypass `sanitizeEntryPath()` | CWE-22 |
 
 Every bound is named, documented on `ZipLimits`, and caller-configurable —
 raising a limit is always an explicit decision, never a silent default.
@@ -86,7 +112,9 @@ Every refusal above is thrown with a **stable machine-readable error code**
 
 - **Encrypted archives are not supported** (read or write) in 1.x.
   ZipCrypto is cryptographically broken; supporting it would create false
-  confidence. Encrypted entries are detected and fail with a typed error.
+  confidence. Encrypted entries are detected and fail with a typed error
+  whose `feature` names the scheme — `'zipcrypto'`, `'aes'` (WinZip AES,
+  labelled since 1.1, a 2.0 candidate) or `'strong-encryption'`.
 - **`removeEntry` + incremental `save()` does not erase content** (v0.4+):
   the append-only save model keeps original bytes verbatim, so removed
   entries remain recoverable from the file. `saveCompact()` is the true
