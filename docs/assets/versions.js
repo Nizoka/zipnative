@@ -21,7 +21,7 @@
     var NPM = 'https://registry.npmjs.org/';
     var PKGS = ['zipnative', 'zipnative-cli', 'zipnative-mcp'];
     var FALLBACK = {
-        'zipnative': { version: '1.0.0', pin: null },
+        'zipnative': { version: '1.1.0', pin: null },
         'zipnative-cli': { version: '1.0.0', pin: '^1.0.0' },
         'zipnative-mcp': { version: '1.0.0', pin: '^1.0.0' }
     };

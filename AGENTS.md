@@ -7,27 +7,27 @@ per-domain files in `.github/instructions/`.
 ## TL;DR
 
 zipnative is a **zero-runtime-dependency, pure-TypeScript ZIP engine**:
-random access, secure-by-default extraction, streaming, deterministic output,
-incremental modification. Sibling of pdfnative — same doctrine, same shape.
+random access (in memory or over an injected byte-range source),
+secure-by-default extraction, streaming, deterministic output, incremental
+modification. Sibling of pdfnative — same doctrine, same shape.
 
-Quality bar: GAFAM-grade. 385+ tests (390 total; interop-producer skips vary by machine), 93.9% statement coverage measured at
-v1.0.0, blocking ISO/IEC 21320-1 + six-parser interop conformance gates in
-CI, SLSA provenance on npm.
+Quality bar: GAFAM-grade. 724 tests across 60 files (interop-producer skips
+vary by machine), 93.9% statement coverage measured at v1.1.0, blocking ISO/IEC
+21320-1 + six-parser interop gates in CI, a byte-level sample baseline, SLSA Build L2 provenance on npm.
 
 ## Commands
 
 ```bash
-npm ci                    # install (dev deps only)
-npm run typecheck:all     # tsc over src + tests + scripts
-npm run lint              # eslint src/
-npm run test              # vitest run
-npm run test:coverage     # with v8 coverage thresholds
-npm run build             # tsup → dist (esm+cjs+dts)
+npm ci --ignore-scripts   # install (dev deps only)
+npm run gate:fast         # typecheck:all, lint, test, verify:docs — the inner loop
+npm run gate              # the CI profile: + coverage, build, dist probes, samples, ISO, interop
+npm run test              # vitest run (test:coverage adds the v8 thresholds)
 npm run check:package     # build + attw + publint
 npm run test:interop      # foreign-tool conformance matrix
 npm run test:generate     # sample corpus → test-output/ (git-ignored)
+npm run verify:samples    # byte baseline of the corpus (--update to rebaseline)
 npm run validate:zip      # ISO/IEC 21320-1 conformance over the corpus
-npm run bench             # vitest bench (bench/)
+npm run verify:docs       # every count, version and page tied to docs/assets/ecosystem.json
 ```
 
 ## Conventions
@@ -42,15 +42,16 @@ npm run bench             # vitest bench (bench/)
   option shape for a concept that already has one.
 - Explicit return types on every export. `export type {}` for types.
 - Errors: message starts `zipnative: ` and **names the remedy**. Typed
-  subclasses only where callers must branch.
+  subclasses only where callers must branch. The 39 codes are frozen:
+  additions are semver-minor, removals semver-major.
 - Diagnostics (non-fatal conformance concerns) go through
   `src/core/zip-diagnostics.ts` — the ONLY module allowed to call
-  `console.warn`. Parser failures throw; conformance concerns diagnose;
-  never mix the two.
+  `console.warn`. Parser failures throw; conformance concerns diagnose.
 - Every untrusted-input loop consults a named, CWE-tagged bound from
   `src/core/zip-limits.ts`. New loop ⇒ new named limit, documented in
-  SECURITY.md in the same PR.
-- Validate early — before any I/O or allocation.
+  SECURITY.md in the same PR. Validate early — before any I/O or allocation.
+- Zero breaking changes inside a major: additive only, new behaviour opt-in,
+  `deterministic: true` bytes unchanged (the sample baseline proves it).
 
 ## Architecture (dependency flow)
 
@@ -63,7 +64,7 @@ types/  ◄─ codecs/ ◄─ core/ ◄─ parser/ ◄─ worker/
   diagnostic emitter? It is *passed in* as a parameter, never imported.
 - `core/` — records/structs, encoding, limits, diagnostics, the shared
   segment generator, builder + stream writer.
-- `parser/` — EOCD/CD/reader/extract/modifier on top of everything.
+- `parser/` — EOCD/CD/reader/range reader/extract/modifier on top of everything.
 - **Sanctioned reverse edges: NONE.** Adding one requires updating this
   file first, in its own reviewed commit.
 
@@ -78,42 +79,33 @@ types/  ◄─ codecs/ ◄─ core/ ◄─ parser/ ◄─ worker/
 | Codecs, compression tiers | `src/codecs/inflate.ts` (tier order + memoization pattern) |
 | Tests / fixtures | `.github/instructions/testing.instructions.md`, `tests/fixtures/README.md` |
 | Determinism (M2+) | `docs/guides/determinism.md` — bytes under `deterministic: true` are a frozen contract |
+| Counts, versions, pages | `docs/assets/ecosystem.json` first, then the prose (`npx tsx scripts/verify-docs.ts --rules`) |
 
 ## Files to never touch without explicit instruction
 
 - `tests/fixtures/**` committed binaries (foreign provenance — regenerating
-  them locally destroys the point)
-- `.gitattributes` (protects those binaries from CRLF corruption)
+  them locally destroys the point) and `.gitattributes` (protects them)
 - SHA pins in `.github/workflows/*.yml` (Dependabot owns bumps)
+- `tests/regression/baselines/samples.sha256.json` (`verify:samples --update` only, justified in the release note)
 
 ## What zipnative will NOT do
 
-No encryption in 1.x (detect + typed error only). No other archive
-formats or built-in exotic codecs. No multi-disk. No filesystem I/O in the
-engine. No archive repair. No sockets, no eval — ever. No runtime
-dependencies — a PR or AI draft proposing one fails review mechanically
-(`npm run verify:issue`).
+No encryption in 1.x (detect + typed error only; AES is a 2.0 candidate).
+No other archive formats or built-in exotic codecs. No multi-disk. No
+filesystem I/O or sockets in the engine (byte-range sources are injected).
+No archive repair. No eval — ever. No runtime dependencies — a PR or AI
+draft proposing one fails review mechanically (`npm run verify:issue`).
 
 ## Ecosystem context
 
 `zipnative` (this repo, core) → two published satellites, each in its own
-repo pinning `zipnative ^1.0.0`: `zipnative-cli` 1.0.0 (binary
-`zipnative`, 15 commands) and `zipnative-mcp` 1.0.0 (binary
-`zipnative-mcp`, 13 tools, 7 prompts). The core stays dependency-free by
-exiling integrations there — filesystem sinks, process I/O, the MCP SDK.
-Cross-repo version facts, command groups, tool and prompt inventories
-live in `docs/assets/ecosystem.json` (single source of truth; the
-`satellite-counts` verify-docs rule ties every count in the prose to it).
-
-Satellite agent contract (shipped, mirroring pdfnative's): the CLI's
-global `--json` envelope carries `err.code` verbatim (13 `E_*` classes
-mapped from the 39 frozen codes), plus token-economy projection —
-compact JSON by default, `--summary` for a minimal verdict, `--fields
-a,b.c` dot-path projection; the MCP server exposes the same projection
-as `verbosity: 'summary'` and `fields: […]` on every read tool. The
-library side of token economy: `docs/agent-brief.md` (paste-ready
-briefing) and `docs/llms-index.json` (byte + approximate token budget per
-artefact, so agents choose what to fetch before spending the tokens).
+repo pinning `zipnative ^1.0.0`: `zipnative-cli` (binary `zipnative`,
+15 commands) and `zipnative-mcp` (binary `zipnative-mcp`, 13 tools,
+7 prompts). The core stays dependency-free by exiling integrations there.
+Versions and inventories live in `docs/assets/ecosystem.json` (single
+source of truth; verify-docs ties every count and version in the prose to
+it). The CLI's `--json` envelope carries `err.code` verbatim; both satellites
+offer token projection. Library side: `docs/agent-brief.md`, `docs/llms-index.json`.
 
 ## AI governance
 
@@ -123,7 +115,6 @@ writes are not allowed. Issue drafts go to `.github/drafts/` and must pass
 
 ## Versioning
 
-SemVer + Conventional Commits. Manual version bumps, Keep-a-Changelog
-CHANGELOG.md, one `release-notes/vX.Y.Z.md` per release (Security section
-first, mandatory "Downstream integration notes"). `CITATION.cff` version
-stays in sync with `package.json`.
+SemVer + Conventional Commits. Manual version bumps, Keep-a-Changelog CHANGELOG.md,
+one `release-notes/vX.Y.Z.md` per release (Security section first, mandatory
+"Downstream integration notes"). `CITATION.cff` version stays in sync with `package.json`.

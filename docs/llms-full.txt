@@ -4,7 +4,7 @@
 > secure-by-default extraction, streaming, deterministic archives (v0.2+) and
 > incremental modification (v0.4+). Node ≥22, browsers, Deno, Bun, Workers.
 
-Verified on: 2026-09-07
+Verified on: 2026-10-07
 
 Machine-readable artefacts: docs/agent-brief.md (a compact briefing for
 coding agents — paste it into your context), docs/assets/api.json (the
@@ -139,7 +139,7 @@ artefact.
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 
-## Ecosystem (all three packages published, 1.0.0)
+## Ecosystem (core 1.1.0; zipnative-cli and zipnative-mcp 1.0.0, both pinning ^1.0.0)
 
 - `zipnative-cli` — `npx zipnative-cli <command>` (binary `zipnative`),
   15 commands: create, modify, list, inspect, cat, extract, stream,
@@ -389,7 +389,7 @@ ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 
 
 | Package | Purpose | Status |
 |---|---|---|
-| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 77 exports, zero runtime dependencies | 1.0.0 |
+| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 106 exports, zero runtime dependencies | 1.1.0 |
 | [`zipnative-cli`](https://github.com/Nizoka/zipnative-cli) | command-line tool (`npx zipnative-cli`, binary `zipnative`) — 15 commands, `--json` envelope, `--dry-run`, JSON Schemas, shell completion; the filesystem trust boundary the engine refuses to be | 1.0.0 |
 | [`zipnative-mcp`](https://github.com/Nizoka/zipnative-mcp) | MCP server for AI assistants (`npx zipnative-mcp`) — 13 tools, 7 prompts, sandboxed file resources, stdio + Streamable HTTP | 1.0.0 |
 
@@ -398,15 +398,13 @@ Both satellites pin `zipnative ^1.0.0` in their `dependencies` and add nothing t
 ## Development
 
 ```bash
-npm ci
-npm run typecheck:all   # src + tests + scripts
-npm run lint
-npm run test:coverage
-npm run build
-npm run test:interop    # validate generated archives with unzip/7z/Expand-Archive/jar
+npm ci --ignore-scripts
+npm run gate:fast       # typecheck:all, lint, test, verify:docs — the inner loop
+npm run gate            # what CI runs: coverage, build, dist probes, samples, ISO/IEC 21320-1, interop
+npm run test:interop    # validate generated archives with unzip/7z/bsdtar/python/jar/Expand-Archive
 ```
 
-Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite is 724 tests across 60 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Origin
 
@@ -476,6 +474,15 @@ honest alternative named in the notes below.
 | Worker-parallel compression | `createParallelZip` (`zipnative/worker`) | `create --parallel` | `create_zip` (`parallel`) |
 | Constant-memory writing | `addStream` + `stream()` | `create --stream`, `--stdin-name` | `create_zip` (`stream: true`, file mode) |
 | Incremental modification | `createZipModifier` → `save` / `saveCompact` | `modify` (`--compact`, `--in-place`) | `modify_zip` (`append` / `compact`) |
+| Random access over a remote or huge archive *(1.1)* | `openZipRange` over an injected `ByteRangeSource` | — (candidate: `--url`) | — (candidate: a remote-archive resource) |
+| Cancellation and progress *(1.1)* | `signal`, `onProgress` on every asynchronous call | — (candidate: `--timeout`) | — (the host's transport timeout) |
+| Transplant entries without recompression *(1.1)* | `addRaw` / `addFromReader` | — (candidate: `merge`) | — (`modify_zip` copies untouched entries) |
+| Canonicalise for reproducible builds *(1.1)* | `canonicalizeZip`, `saveCompact({ canonical: true })` | — (candidate: `canonicalize`) | — (candidate) |
+| Determinism report *(1.1)* | `analyzeDeterminism` | `inspect --check deterministic` (re-derived in 1.0.0) | `inspect_zip` (`check: deterministic`, re-derived in 1.0.0) |
+| Legacy name encodings, extended metadata *(1.1)* | `nameDecoder` option; `getExtendedTimestamps` / `getUnixIds` | — (candidate: `--name-encoding`) | — (candidate: `nameEncoding`) |
+| UTC DOS timestamps *(1.1)* | `dosTimeMode: 'utc'` | — (recomposes dates itself in 1.0.0) | — (uncompensated in 1.0.0, issue #9) |
+| Zip64 streaming opt-in *(1.1)* | `addStream(…, { zip64: true })` | — (candidate: `--zip64`) | — |
+| Verification skip reasons *(1.1)* | `verifyEntry().skipped` | `verify` (re-derived in 1.0.0) | `verify_zip` (`entries: skipped`, re-derived in 1.0.0) |
 | CRC-32 | `crc32` | `crc32` | `compute_crc32` |
 | Raw DEFLATE decompression (bounded) | `createInflator` | `inflate --max-output` | `inflate_raw` (`maxOutput` required) |
 | Custom codecs / codec injection | `registerCodec`, `setDeflateImpl`, `setInflateImpl` | `--codec <module>` (command line only) | — (deliberately: a codec module is arbitrary code) |
@@ -1502,7 +1509,7 @@ implementations.
 ## Running it locally
 
 ```bash
-npm run test:generate   # writes the 33-sample corpus to test-output/
+npm run test:generate   # writes the 38-sample corpus to test-output/
 npm run validate:zip    # levels 0 + 1 (ISO profile + foreign integrity)
 npm run test:interop    # level 2 (differential extraction matrix)
 ```
@@ -1746,7 +1753,7 @@ Carries `feature` from the closed `ZipUnsupportedFeature` vocabulary:
 
 Non-fatal conformance concerns (odd-but-tolerated shapes, determinism
 losses) never throw by default — they flow through the diagnostics
-channel with their own closed 11-code vocabulary (`ZipDiagnosticCode`),
+channel with their own closed 12-code vocabulary (`ZipDiagnosticCode`),
 documented alongside the errors in
 [`docs/data/errors.json`](../data/errors.json). `strict: true` escalates
 the first diagnostic into a thrown `ZipError` with code

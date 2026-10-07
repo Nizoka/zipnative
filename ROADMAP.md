@@ -60,7 +60,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 ## 0.7.x — Interop corpus expansion + docs finish ✅ *(shipped 2026-09-01)*
 
 - Interop write cases 7 → 11 (SFX stubs via the modifier,
-  comment-heavy, empty archive, store-only) — gate total 17 validations
+  comment-heavy, empty archive, store-only) — gate total 17 validations <!-- verify-docs:allow count-tokens (0.7 figure, historical) -->
   with the 6 foreign-producer reads; refusal-posture suite
   pinning the typed refusals foreign tools tolerate
 - Guide renderer (`docs:guides`, .md as the source of truth) +
@@ -124,6 +124,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 
 ## 1.0.0 ✅ *(shipped 2026-09-02, current)*
 
+<!-- verify-docs:allow count-tokens (1.0.0 figure, historical) -->
 - Semver commitment: the 77-export API surface, the 39-code error
   vocabulary and the `deterministic: true` bytes are frozen (SECURITY.md
   states the promise; `tsdoc-complete` polices 77/77 documented exports)

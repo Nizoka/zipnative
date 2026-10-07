@@ -132,7 +132,7 @@ Carries `feature` from the closed `ZipUnsupportedFeature` vocabulary:
 
 Non-fatal conformance concerns (odd-but-tolerated shapes, determinism
 losses) never throw by default — they flow through the diagnostics
-channel with their own closed 11-code vocabulary (`ZipDiagnosticCode`),
+channel with their own closed 12-code vocabulary (`ZipDiagnosticCode`),
 documented alongside the errors in
 [`docs/data/errors.json`](../data/errors.json). `strict: true` escalates
 the first diagnostic into a thrown `ZipError` with code

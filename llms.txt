@@ -4,7 +4,7 @@
 > secure-by-default extraction, streaming, deterministic archives (v0.2+) and
 > incremental modification (v0.4+). Node ≥22, browsers, Deno, Bun, Workers.
 
-Verified on: 2026-09-07
+Verified on: 2026-10-07
 
 Machine-readable artefacts: docs/agent-brief.md (a compact briefing for
 coding agents — paste it into your context), docs/assets/api.json (the
@@ -139,7 +139,7 @@ artefact.
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 
-## Ecosystem (all three packages published, 1.0.0)
+## Ecosystem (core 1.1.0; zipnative-cli and zipnative-mcp 1.0.0, both pinning ^1.0.0)
 
 - `zipnative-cli` — `npx zipnative-cli <command>` (binary `zipnative`),
   15 commands: create, modify, list, inspect, cat, extract, stream,

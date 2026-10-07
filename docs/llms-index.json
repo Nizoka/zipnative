@@ -1,25 +1,25 @@
 {
   "$comment": "Index of zipnative’s machine-readable artefacts and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. approxTokens = bytes/4, approximate by construction.",
   "site": "https://zipnative.dev",
-  "verifiedOn": "2026-09-07",
+  "verifiedOn": "2026-10-07",
   "artefacts": [
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 9215,
-      "approxTokens": 2304
+      "bytes": 9250,
+      "approxTokens": 2313
     },
     {
       "url": "agent-brief.md",
       "description": "A compact briefing for AI agents writing code with zipnative — paste it into a coding agent's context.",
-      "bytes": 4861,
-      "approxTokens": 1215
+      "bytes": 4871,
+      "approxTokens": 1218
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 159113,
-      "approxTokens": 39778
+      "bytes": 160981,
+      "approxTokens": 40245
     },
     {
       "url": "llms-recipes.txt",
@@ -30,26 +30,26 @@
     {
       "url": "assets/api.json",
       "description": "The mechanically extracted export surface — the API ground truth.",
-      "bytes": 22664,
-      "approxTokens": 5666
+      "bytes": 32639,
+      "approxTokens": 8160
     },
     {
       "url": "data/errors.json",
       "description": "The frozen error-code and diagnostic registry — code, class, cause, remedy.",
-      "bytes": 17241,
-      "approxTokens": 4310
+      "bytes": 20451,
+      "approxTokens": 5113
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, counts and inventories for zipnative, zipnative-cli and zipnative-mcp — the single source of truth.",
-      "bytes": 3202,
-      "approxTokens": 801
+      "bytes": 4209,
+      "approxTokens": 1052
     },
     {
       "url": "data/surfaces.json",
       "description": "The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.",
-      "bytes": 18647,
-      "approxTokens": 4662
+      "bytes": 26252,
+      "approxTokens": 6563
     },
     {
       "url": "data/cli-surface.json",
@@ -71,8 +71,8 @@
         "you-can-switch-later",
         "further-reading"
       ],
-      "bytes": 8351,
-      "approxTokens": 2088
+      "bytes": 9756,
+      "approxTokens": 2439
     },
     {
       "title": "zipnative-cli — Command-line reference",

@@ -1,13 +1,13 @@
 {
   "$comment": "Machine-readable registry of zipnative's stable error codes (ZipErrorCode in src/types/zip-errors.ts) and diagnostic codes (ZipDiagnosticCode in src/types/zip-types.ts). Codes are frozen from 0.8.0: removal or renaming is semver-major; additions are semver-minor. The error-parity rule of scripts/verify-docs.ts enforces bidirectional sync with the source unions and class membership.",
   "package": "zipnative",
-  "verifiedOn": "2026-09-02",
+  "verifiedOn": "2026-10-07",
   "errors": [
     {
       "code": "ZIP_INVALID_OPTION",
       "class": "ZipError",
       "since": "0.8.0",
-      "raisedWhen": "An option value fails validation: compression.level outside 0-9, a non-positive chunkSize, or an argument shape the API forbids.",
+      "raisedWhen": "An option value fails validation: compression.level outside 0-9, a non-positive chunkSize, zip64: true on a buffered entry (add(), addDirectory(), the modifier — only addStream() takes it), a malformed RawEntryMeta for addRaw(), or an argument shape the API forbids.",
       "remedy": "Fix the option value at the call site — the message names the offending option and the accepted range."
     },
     {
@@ -77,7 +77,7 @@
       "code": "ZIP_ZIP64_EOCD_MISPLACED",
       "class": "ZipFormatError",
       "since": "0.8.0",
-      "raisedWhen": "The zip64 end-of-central-directory record is not where the locator points (and not at the fallback position).",
+      "raisedWhen": "The zip64 end-of-central-directory record is not where the locator points (and not at the fallback position). The byte-range reader (openZipRange) sizes its tail window for the APPNOTE layout, so a record placed far from its locator is reported with this code there too.",
       "remedy": "Corrupt archive, or an unsupported prepended-data layout — rebuild the archive without the prefix."
     },
     {
@@ -91,7 +91,7 @@
       "code": "ZIP_RECORD_TRUNCATED",
       "class": "ZipFormatError",
       "since": "0.8.0",
-      "raisedWhen": "A fixed or variable-length ZIP record (EOCD, zip64 EOCD, central or local header) or an entry's payload overruns the available bytes.",
+      "raisedWhen": "A fixed or variable-length ZIP record (EOCD, zip64 EOCD, central or local header) or an entry's payload overruns the available bytes — including a byte-range source (openZipRange) whose declared size is smaller than the records imply or whose read() returns fewer bytes than requested.",
       "remedy": "The archive is truncated — verify the transfer completed."
     },
     {
@@ -133,14 +133,14 @@
       "code": "ZIP_DEFLATE_TRUNCATED",
       "class": "ZipFormatError",
       "since": "0.8.0",
-      "raisedWhen": "A deflate stream ends mid-block: the data ran out before the final block completed.",
+      "raisedWhen": "A deflate stream ends mid-block: the data ran out before the final block completed. Raised on every tier since 1.1.0 — the pure-TS inflater, node:zlib (Z_BUF_ERROR) and DecompressionStream are normalised to this code.",
       "remedy": "The compressed payload is truncated — re-obtain the archive."
     },
     {
       "code": "ZIP_DEFLATE_CORRUPT",
       "class": "ZipFormatError",
       "since": "0.8.0",
-      "raisedWhen": "A deflate stream is structurally invalid: bad Huffman codes, invalid symbols, out-of-range back-references, LEN/NLEN mismatches, or an unsupported block type.",
+      "raisedWhen": "A deflate stream is structurally invalid: bad Huffman codes, invalid symbols, out-of-range back-references, LEN/NLEN mismatches, or an unsupported block type. Raised on every tier since 1.1.0 — node:zlib (Z_DATA_ERROR, Z_NEED_DICT) and DecompressionStream failures are normalised to this code.",
       "remedy": "The compressed payload is corrupt — re-obtain the archive."
     },
     {
@@ -223,8 +223,8 @@
       "code": "ZIP_DECOMPRESSION_FAILED",
       "class": "ZipDataError",
       "since": "0.8.0",
-      "raisedWhen": "The active codec failed mid-decompression (corrupt payload surfaced through node:zlib, DecompressionStream, or an injected codec).",
-      "remedy": "The data is corrupt or hostile — the wrapped detail is in the message."
+      "raisedWhen": "A codec registered with registerCodec() or injected with setInflateImpl() threw mid-decompression. Since 1.1.0 the built-in deflate tiers never raise it: their failures are ZIP_DEFLATE_CORRUPT, ZIP_DEFLATE_TRUNCATED or ZIP_INFLATE_OUTPUT_OVERFLOW on every tier.",
+      "remedy": "The data is corrupt or hostile, or the injected codec is faulty — the wrapped detail is in the message."
     },
     {
       "code": "ZIP_LIMIT_EXCEEDED",
@@ -247,8 +247,8 @@
       "code": "ZIP_UNSUPPORTED_ENCRYPTION",
       "class": "ZipUnsupportedError",
       "since": "0.8.0",
-      "feature": "zipcrypto | strong-encryption",
-      "raisedWhen": "An entry is encrypted (ZipCrypto or strong encryption) — encryption is unsupported in 1.x by policy.",
+      "feature": "zipcrypto | aes | strong-encryption",
+      "raisedWhen": "An entry is encrypted — ZipCrypto (bit 0), WinZip AES (method 99 or the 0x9901 extra field, labelled feature 'aes' since 1.1.0) or strong encryption (bit 6). Encryption is unsupported in 1.x by policy; AES is a 2.0 candidate.",
       "remedy": "Check entry.isEncrypted to route around such entries; encrypted entries remain copyable by the modifier without decompression."
     },
     {
@@ -272,8 +272,8 @@
       "class": "ZipUnsupportedError",
       "since": "0.8.0",
       "feature": "zip64-streaming",
-      "raisedWhen": "An addStream() entry exceeds 4 GiB (Zip64 streaming is not implemented yet).",
-      "remedy": "Buffer the content via add() or split it; a per-entry opt-in is tracked on the roadmap."
+      "raisedWhen": "An addStream() entry crosses 4 GiB without the per-entry Zip64 opt-in — the classic streaming layout cannot represent it, and the refusal happens before the crossing chunk is emitted.",
+      "remedy": "Pass { zip64: true } to addStream() for entries that may exceed 4 GiB (Zip64 local header, 24-byte descriptor — 1.1.0), buffer the content via add(), or split it."
     },
     {
       "code": "ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR",
@@ -288,8 +288,8 @@
       "class": "ZipUnsupportedError",
       "since": "0.8.0",
       "feature": "method:<n>",
-      "raisedWhen": "A registered codec supports only the other access mode: stream-only codecs via readEntry(), or codecs without a streaming decompressor via readEntryStream().",
-      "remedy": "The message names the compliant call (readEntryStream() or readEntry())."
+      "raisedWhen": "A registered codec supports only the other access mode: stream-only codecs via readEntry(), codecs without a streaming decompressor via readEntryStream(); and, since 1.1.0, the forward reader (iterateZipEntries) refuses — before the first byte — a codec for a method other than store/deflate that does not expose createDecompressor(), as does the byte-range reader (openZipRange) for a codec with neither createDecompressor() nor the mode the call needs.",
+      "remedy": "The message names the compliant call (readEntryStream() or readEntry()); in the forward reader, skip() the entry or open the complete archive with openZip(); for your own codec, implement createDecompressor()."
     }
   ],
   "diagnostics": [

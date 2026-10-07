@@ -1,13 +1,23 @@
 {
   "$comment": "Fingerprints (SHA-256 of the bytes) of every sample in test-output/. Regenerate deliberately with `npx tsx scripts/verify-samples.ts --update`, and say why in the release notes: a changed hash means existing output changed. Each entry's `since` names the release whose output the hash is: it is carried forward untouched while the sample is unchanged, and moves to the release doing the rebaseline when the hash changes, so the chain 1.0.0 -> 1.1.0 -> 1.2.0 stays auditable and every re-anchoring is visible in the diff.",
-  "baselineVersion": "1.0.0",
-  "provenance": "Initial baseline: every entry is anchored to the release that created it. Replace this note with the account of how the entries were verified; later rebaselines carry it forward.",
+  "baselineVersion": "1.1.0",
+  "provenance": "1.0.0 entries: captured on the v1.0.0 tree under TZ=UTC before any 1.1.0 engine change, so they prove the 1.1.0 writer emits byte-identical output for every 1.0.0 sample. 1.1.0 entries: the five samples the release added (zip64/zip64-streamed, incremental/merged-from-two, names-encoding/shift-jis-legacy, attributes/unix-ids, attributes/ntfs-timestamps), each validated by scripts/validate-zip.ts (ISO/IEC 21320-1 profile, shift-jis-legacy being an expected non-conformant) and opened by every extractor of the interop matrix that supports its trait. Later rebaselines carry this note forward and append their own account.",
   "timezone": "UTC",
   "entries": {
+    "attributes/ntfs-timestamps.zip": {
+      "hash": "7e378fd7c7d30f52550399c32877d47cbc6d7c7eb8f9e0ec3d0477c76207c842",
+      "size": 168,
+      "since": "1.1.0"
+    },
     "attributes/unix-attrs.zip": {
       "hash": "4417c2c0731ec2c1a1c5848034b6f1073be23a3a5559588f54aa30aead169c94",
       "size": 365,
       "since": "1.0.0"
+    },
+    "attributes/unix-ids.zip": {
+      "hash": "09543610f3e210acb41d30f9579763a4e3bd6d3e7e11bdfad3e558234838a60a",
+      "size": 183,
+      "since": "1.1.0"
     },
     "basic-formats/deflate-level-1.zip": {
       "hash": "8d9d95aaaa56bfd0c75ac4ff160df6d635ddc7f13e61e3bb596194a2087c3f09",
@@ -99,6 +109,11 @@
       "size": 902,
       "since": "1.0.0"
     },
+    "incremental/merged-from-two.zip": {
+      "hash": "9db90421d63fdb959b3692b3dd019169a870e132ad4878b9c2ae812624c58539",
+      "size": 862,
+      "since": "1.1.0"
+    },
     "names-encoding/ascii.zip": {
       "hash": "9f3bcfd34e1a25bec0aced377cf0fac05f3655b7203c82b0acec0fbd01575c90",
       "size": 261,
@@ -108,6 +123,11 @@
       "hash": "9bb424b22fae362c046f26c90ef2320d1aa9083533481b0dec49dad81e12ffd2",
       "size": 292,
       "since": "1.0.0"
+    },
+    "names-encoding/shift-jis-legacy.zip": {
+      "hash": "7a9073b6c5727733d78ff1502ea0164b1f4bc837df3264ab936db11710f27b74",
+      "size": 156,
+      "since": "1.1.0"
     },
     "names-encoding/unicode-utf8.zip": {
       "hash": "a2adfe9d290e90e51bfb3273d4b0fd6fdbb9b2158ac133aa211fe07bd6197dac",
@@ -168,6 +188,11 @@
       "hash": "67a173d208f7d3706babfe0ef2b48fd948c843ca4d2aef9d78098bbdbb7fd410",
       "size": 6570122,
       "since": "1.0.0"
+    },
+    "zip64/zip64-streamed.zip": {
+      "hash": "56afae27e9ba6f4a3d0283a3bb2b6e4bc455c880414d2aaab7ad6797e3c6614e",
+      "size": 434,
+      "since": "1.1.0"
     }
   }
 }

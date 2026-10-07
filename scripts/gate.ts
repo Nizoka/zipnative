@@ -104,7 +104,7 @@ function foreignZipToolPresent(): boolean {
 
 function testCount(): string | null {
     if (!existsSync(VITEST_JSON)) return null;
-    // The whole suite, skipped tests included — the figure `derived.tests`
+    // The whole suite, skipped tests included — the figure `declared.tests`
     // in docs/assets/ecosystem.json is held to.
     const report = JSON.parse(readFileSync(VITEST_JSON, 'utf8')) as { numTotalTests?: number; numPassedTests?: number };
     const total = report.numTotalTests ?? report.numPassedTests;

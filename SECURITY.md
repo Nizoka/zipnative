@@ -10,7 +10,8 @@ issue for security reports. You should receive an initial response within 7 days
 
 | Version | Supported |
 |---|---|
-| 1.0.x | ✅ |
+| 1.1.x | ✅ |
+| 1.0.x | ✅ (security fixes) |
 | < 1.0 (git tags, never published to npm) | ❌ |
 
 Only the latest published minor version receives security fixes.

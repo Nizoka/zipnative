@@ -55,6 +55,15 @@ honest alternative named in the notes below.
 | Worker-parallel compression | `createParallelZip` (`zipnative/worker`) | `create --parallel` | `create_zip` (`parallel`) |
 | Constant-memory writing | `addStream` + `stream()` | `create --stream`, `--stdin-name` | `create_zip` (`stream: true`, file mode) |
 | Incremental modification | `createZipModifier` → `save` / `saveCompact` | `modify` (`--compact`, `--in-place`) | `modify_zip` (`append` / `compact`) |
+| Random access over a remote or huge archive *(1.1)* | `openZipRange` over an injected `ByteRangeSource` | — (candidate: `--url`) | — (candidate: a remote-archive resource) |
+| Cancellation and progress *(1.1)* | `signal`, `onProgress` on every asynchronous call | — (candidate: `--timeout`) | — (the host's transport timeout) |
+| Transplant entries without recompression *(1.1)* | `addRaw` / `addFromReader` | — (candidate: `merge`) | — (`modify_zip` copies untouched entries) |
+| Canonicalise for reproducible builds *(1.1)* | `canonicalizeZip`, `saveCompact({ canonical: true })` | — (candidate: `canonicalize`) | — (candidate) |
+| Determinism report *(1.1)* | `analyzeDeterminism` | `inspect --check deterministic` (re-derived in 1.0.0) | `inspect_zip` (`check: deterministic`, re-derived in 1.0.0) |
+| Legacy name encodings, extended metadata *(1.1)* | `nameDecoder` option; `getExtendedTimestamps` / `getUnixIds` | — (candidate: `--name-encoding`) | — (candidate: `nameEncoding`) |
+| UTC DOS timestamps *(1.1)* | `dosTimeMode: 'utc'` | — (recomposes dates itself in 1.0.0) | — (uncompensated in 1.0.0, issue #9) |
+| Zip64 streaming opt-in *(1.1)* | `addStream(…, { zip64: true })` | — (candidate: `--zip64`) | — |
+| Verification skip reasons *(1.1)* | `verifyEntry().skipped` | `verify` (re-derived in 1.0.0) | `verify_zip` (`entries: skipped`, re-derived in 1.0.0) |
 | CRC-32 | `crc32` | `crc32` | `compute_crc32` |
 | Raw DEFLATE decompression (bounded) | `createInflator` | `inflate --max-output` | `inflate_raw` (`maxOutput` required) |
 | Custom codecs / codec injection | `registerCodec`, `setDeflateImpl`, `setInflateImpl` | `--codec <module>` (command line only) | — (deliberately: a codec module is arbitrary code) |

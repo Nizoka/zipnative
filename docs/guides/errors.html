@@ -348,7 +348,7 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 <h2 id="diagnostics-are-not-errors">Diagnostics are not errors<a class="heading-anchor" href="#diagnostics-are-not-errors" aria-label="Link to this section">#</a></h2>
 <p>Non-fatal conformance concerns (odd-but-tolerated shapes, determinism
 losses) never throw by default — they flow through the diagnostics
-channel with their own closed 11-code vocabulary (<code>ZipDiagnosticCode</code>),
+channel with their own closed 12-code vocabulary (<code>ZipDiagnosticCode</code>),
 documented alongside the errors in
 <a href="../data/errors.json"><code>docs/data/errors.json</code></a>. <code>strict: true</code> escalates
 the first diagnostic into a thrown <code>ZipError</code> with code

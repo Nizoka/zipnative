@@ -9,7 +9,7 @@
    the cdn-pin verify-docs rule — bump it with every release.
    ═══════════════════════════════════════════════════════════════ */
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 
 const CDN_URLS = [
   `https://esm.sh/zipnative@${VERSION}`,

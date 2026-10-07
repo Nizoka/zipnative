@@ -213,7 +213,7 @@ ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 
 
 | Package | Purpose | Status |
 |---|---|---|
-| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 77 exports, zero runtime dependencies | 1.0.0 |
+| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 106 exports, zero runtime dependencies | 1.1.0 |
 | [`zipnative-cli`](https://github.com/Nizoka/zipnative-cli) | command-line tool (`npx zipnative-cli`, binary `zipnative`) — 15 commands, `--json` envelope, `--dry-run`, JSON Schemas, shell completion; the filesystem trust boundary the engine refuses to be | 1.0.0 |
 | [`zipnative-mcp`](https://github.com/Nizoka/zipnative-mcp) | MCP server for AI assistants (`npx zipnative-mcp`) — 13 tools, 7 prompts, sandboxed file resources, stdio + Streamable HTTP | 1.0.0 |
 
@@ -222,15 +222,13 @@ Both satellites pin `zipnative ^1.0.0` in their `dependencies` and add nothing t
 ## Development
 
 ```bash
-npm ci
-npm run typecheck:all   # src + tests + scripts
-npm run lint
-npm run test:coverage
-npm run build
-npm run test:interop    # validate generated archives with unzip/7z/Expand-Archive/jar
+npm ci --ignore-scripts
+npm run gate:fast       # typecheck:all, lint, test, verify:docs — the inner loop
+npm run gate            # what CI runs: coverage, build, dist probes, samples, ISO/IEC 21320-1, interop
+npm run test:interop    # validate generated archives with unzip/7z/bsdtar/python/jar/Expand-Archive
 ```
 
-Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite is 724 tests across 60 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Origin
 

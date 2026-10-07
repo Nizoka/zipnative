@@ -190,6 +190,60 @@ honest alternative named in the notes below.</p>
 <td><code>modify_zip</code> (<code>append</code> / <code>compact</code>)</td>
 </tr>
 <tr>
+<td>Random access over a remote or huge archive <em>(1.1)</em></td>
+<td><code>openZipRange</code> over an injected <code>ByteRangeSource</code></td>
+<td>— (candidate: <code>--url</code>)</td>
+<td>— (candidate: a remote-archive resource)</td>
+</tr>
+<tr>
+<td>Cancellation and progress <em>(1.1)</em></td>
+<td><code>signal</code>, <code>onProgress</code> on every asynchronous call</td>
+<td>— (candidate: <code>--timeout</code>)</td>
+<td>— (the host&#39;s transport timeout)</td>
+</tr>
+<tr>
+<td>Transplant entries without recompression <em>(1.1)</em></td>
+<td><code>addRaw</code> / <code>addFromReader</code></td>
+<td>— (candidate: <code>merge</code>)</td>
+<td>— (<code>modify_zip</code> copies untouched entries)</td>
+</tr>
+<tr>
+<td>Canonicalise for reproducible builds <em>(1.1)</em></td>
+<td><code>canonicalizeZip</code>, <code>saveCompact({ canonical: true })</code></td>
+<td>— (candidate: <code>canonicalize</code>)</td>
+<td>— (candidate)</td>
+</tr>
+<tr>
+<td>Determinism report <em>(1.1)</em></td>
+<td><code>analyzeDeterminism</code></td>
+<td><code>inspect --check deterministic</code> (re-derived in 1.0.0)</td>
+<td><code>inspect_zip</code> (<code>check: deterministic</code>, re-derived in 1.0.0)</td>
+</tr>
+<tr>
+<td>Legacy name encodings, extended metadata <em>(1.1)</em></td>
+<td><code>nameDecoder</code> option; <code>getExtendedTimestamps</code> / <code>getUnixIds</code></td>
+<td>— (candidate: <code>--name-encoding</code>)</td>
+<td>— (candidate: <code>nameEncoding</code>)</td>
+</tr>
+<tr>
+<td>UTC DOS timestamps <em>(1.1)</em></td>
+<td><code>dosTimeMode: &#39;utc&#39;</code></td>
+<td>— (recomposes dates itself in 1.0.0)</td>
+<td>— (uncompensated in 1.0.0, issue #9)</td>
+</tr>
+<tr>
+<td>Zip64 streaming opt-in <em>(1.1)</em></td>
+<td><code>addStream(…, { zip64: true })</code></td>
+<td>— (candidate: <code>--zip64</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Verification skip reasons <em>(1.1)</em></td>
+<td><code>verifyEntry().skipped</code></td>
+<td><code>verify</code> (re-derived in 1.0.0)</td>
+<td><code>verify_zip</code> (<code>entries: skipped</code>, re-derived in 1.0.0)</td>
+</tr>
+<tr>
 <td>CRC-32</td>
 <td><code>crc32</code></td>
 <td><code>crc32</code></td>

@@ -129,7 +129,7 @@ implementations.
 ## Running it locally
 
 ```bash
-npm run test:generate   # writes the 33-sample corpus to test-output/
+npm run test:generate   # writes the 38-sample corpus to test-output/
 npm run validate:zip    # levels 0 + 1 (ISO profile + foreign integrity)
 npm run test:interop    # level 2 (differential extraction matrix)
 ```

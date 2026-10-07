@@ -1,6 +1,6 @@
 {
   "name": "zipnative",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Zero-dependency native ZIP engine: random-access reads without extracting, secure-by-default extraction (zip-slip, zip-bomb and header-ambiguity guards), true streaming, deterministic reproducible archives, and incremental modification without recompression. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, built under a human-in-the-loop AI-agent governance policy.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -59,6 +59,7 @@
     "validate:zip": "npx tsx scripts/validate-zip.ts",
     "test:generate": "npx tsx scripts/generate-samples.ts",
     "verify:samples": "npx tsx scripts/verify-samples.ts",
+    "release:prepare": "npx tsx scripts/release-prepare.ts",
     "fixtures:generate": "npx tsx scripts/generate-fixtures.ts",
     "verify:docs": "npx tsx scripts/verify-docs.ts",
     "docs:api": "npx tsx scripts/build-api-json.ts",

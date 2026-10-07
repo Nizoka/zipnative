@@ -1,6 +1,6 @@
 {
-  "$comment": "Machine-readable form of the capability × surface table in docs/guides/choose.md. Hand-maintained, verified against the sources on the date below: library `call` names against docs/assets/api.json (the mechanically extracted export surface), CLI `command` names against packages.zipnative-cli.commandGroups and MCP `tool` names against packages.zipnative-mcp.tools in docs/assets/ecosystem.json (the single source of truth for names and counts — regenerate nothing from this file). All three surfaces are 1.0.0, so no `since` is recorded. `supported: false` cells carry a note naming the honest alternative where one exists.",
-  "verifiedOn": "2026-09-07",
+  "$comment": "Machine-readable form of the capability × surface table in docs/guides/choose.md. Hand-maintained, verified against the sources on the date below: library `call` names against docs/assets/api.json (the mechanically extracted export surface), CLI `command` names against packages.zipnative-cli.commandGroups and MCP `tool` names against packages.zipnative-mcp.tools in docs/assets/ecosystem.json (the single source of truth for names and counts — regenerate nothing from this file). A capability introduced after 1.0.0 carries `since` (the engine release that added it; verify-docs surfaces-shape checks it is a semver no newer than the engine version); the 1.0.0 capabilities carry none. `supported: false` cells carry a note naming the honest alternative where one exists — for the 1.1.0 capabilities the satellites have not surfaced yet, the note says so and names the candidate command, tool or flag.",
+  "verifiedOn": "2026-10-07",
   "surfaces": {
     "library": { "package": "zipnative", "install": "npm install zipnative" },
     "cli": { "package": "zipnative-cli", "install": "npx zipnative-cli <command>", "binary": "zipnative" },
@@ -83,6 +83,78 @@
       "library": { "supported": true, "call": "createZipModifier() → save() / saveCompact()", "notes": "save() is append-only (removed content stays recoverable); saveCompact() truly deletes. 7-Zip's CLI mis-reads append-only output." },
       "cli": { "supported": true, "command": "modify", "notes": "--add / --replace / --remove / --rename / --comment; --compact for true deletion; --in-place with an atomic rename; every untouched entry is verified before re-emission." },
       "mcp": { "supported": true, "tool": "modify_zip", "notes": "operations[] (add, replace, remove, rename, setComment); mode: append | compact." }
+    },
+    {
+      "id": "range-access",
+      "label": "Random access over a remote or huge archive (byte-range source)",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "openZipRange() → entries() / readEntry() / readEntryStream() / readEntryRaw() / verifyEntry()", "notes": "The caller injects a ByteRangeSource (fetch + Range, Blob.slice, FileHandle.read, S3 GetObject); memory is O(central directory) plus one chunk; the same limits and cross-checks as openZip(), plus maxEntryCompressedSize for whole-payload fetches." },
+      "cli": { "supported": false, "notes": "zipnative-cli 1.0.0 predates openZipRange(); a --url / ranged-file source is a candidate for its next minor." },
+      "mcp": { "supported": false, "notes": "zipnative-mcp 1.0.0 predates openZipRange(); a remote-archive resource is a candidate for its next minor." }
+    },
+    {
+      "id": "cancel-progress",
+      "label": "Cancellation and progress on asynchronous calls",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "signal / onProgress on every asynchronous call (extractZipStream, iterateZipEntries, readEntryStream, stream, createParallelZip, openZipRange)", "notes": "AbortSignal rejects with signal.reason after releasing resources (stream locks released without cancel, worker pool closed); ZipProgress reports entries and bytes in / out." },
+      "cli": { "supported": false, "notes": "Not surfaced by zipnative-cli 1.0.0; a --timeout and a progress bar are candidates for its next minor." },
+      "mcp": { "supported": false, "notes": "Not surfaced by zipnative-mcp 1.0.0; the host enforces timeouts at the transport." }
+    },
+    {
+      "id": "transplant",
+      "label": "Transplant entries without recompression",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "addRaw() / addFromReader()", "notes": "addFromReader() copies method, CRC, sizes, date, attributes and extra fields from an openZip() or openZipRange() entry and verifies it by default; addRaw() takes a compressed payload with its RawEntryMeta. Worker pools never dispatch raw entries." },
+      "cli": { "supported": false, "notes": "zipnative-cli 1.0.0 has no merge / split commands; candidates for its next minor." },
+      "mcp": { "supported": false, "notes": "zipnative-mcp 1.0.0 has no merge tool; modify_zip copies untouched entries without recompression." }
+    },
+    {
+      "id": "canonicalize",
+      "label": "Canonicalise any archive for reproducible builds",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "canonicalizeZip() or createZipModifier() → saveCompact() with canonical: true", "notes": "Name-sorted, timestamps pinned, extras dropped except Zip64, comments dropped unless kept, payloads preserved bit for bit; idempotent, and the bytes are part of the frozen determinism contract (determinism guide)." },
+      "cli": { "supported": false, "notes": "zipnative-cli 1.0.0 predates canonicalizeZip(); a canonicalize command is a candidate for its next minor (modify --compact keeps the original order)." },
+      "mcp": { "supported": false, "notes": "zipnative-mcp 1.0.0 predates canonicalizeZip(); modify_zip compact keeps the original order." }
+    },
+    {
+      "id": "determinism-report",
+      "label": "Determinism report",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "analyzeDeterminism()", "notes": "Reports pinned timestamps, name order, UTF-8 flags, extra fields and comments per entry with a deterministic verdict — what the satellites re-derived in 1.0.0." },
+      "cli": { "supported": true, "command": "inspect --check deterministic", "notes": "zipnative-cli 1.0.0 re-derives the verdict from entries(); its next minor can delegate to analyzeDeterminism()." },
+      "mcp": { "supported": true, "tool": "inspect_zip", "notes": "check: deterministic — zipnative-mcp 1.0.0 re-derives the verdict; its next minor can delegate to analyzeDeterminism()." }
+    },
+    {
+      "id": "legacy-names",
+      "label": "Legacy name encodings and extended metadata",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "nameDecoder option (openZip, openZipRange, iterateZipEntries, extractZip); getExtendedTimestamps() / getUnixIds()", "notes": "The decoder is injected (new TextDecoder(\"shift_jis\") and the like) and applies only when bit 11 is clear; the decoded string goes through the same path sanitisation. UT (0x5455), NTFS (0x000a) and ux (0x7875) extra fields are read, never written." },
+      "cli": { "supported": false, "notes": "zipnative-cli 1.0.0 decodes CP437 / UTF-8 only; a --name-encoding flag is a candidate for its next minor." },
+      "mcp": { "supported": false, "notes": "zipnative-mcp 1.0.0 decodes CP437 / UTF-8 only; a nameEncoding parameter is a candidate for its next minor." }
+    },
+    {
+      "id": "utc-timestamps",
+      "label": "UTC DOS timestamps",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "dosTimeMode option on every call that writes or reads lastModified", "notes": "'local' is the byte-compatible default (Info-ZIP / 7-Zip convention); 'utc' makes explicit dates independent of the process time zone, on the write and the read side. Out-of-range or invalid dates clamp with the ZIP_TIMESTAMP_CLAMPED diagnostic." },
+      "cli": { "supported": false, "notes": "zipnative-cli 1.0.0 recomposes dates itself (parseIsoDateUtc); its next minor can pass dosTimeMode: utc instead." },
+      "mcp": { "supported": false, "notes": "zipnative-mcp 1.0.0 does not compensate for the process time zone (issue #9); its next minor can pass dosTimeMode: utc." }
+    },
+    {
+      "id": "zip64-streaming",
+      "label": "Zip64 streaming opt-in (entries that may exceed 4 GiB)",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "addStream() with zip64: true", "notes": "Zip64 local header (version 45, sentinel sizes, a (0, 0) Zip64 extra) and a 24-byte data descriptor, per APPNOTE 4.3.9.2; the central record always carries both sizes. Without the opt-in a stream crossing 4 GiB is refused (ZIP_UNSUPPORTED_ZIP64_STREAMING)." },
+      "cli": { "supported": false, "notes": "Not surfaced by zipnative-cli 1.0.0 (create --stream buffers nothing and refuses above 4 GiB); a --zip64 flag is a candidate for its next minor." },
+      "mcp": { "supported": false, "notes": "Not surfaced by zipnative-mcp 1.0.0; create_zip stream mode refuses above 4 GiB." }
+    },
+    {
+      "id": "verify-skip-reasons",
+      "label": "Verification skip reasons",
+      "since": "1.1.0",
+      "library": { "supported": true, "call": "verifyEntry() / verifyZip() — skipped: encrypted | stream-only-codec | unsupported-method", "notes": "The local header is cross-checked even when the payload cannot be verified, so localHeaderMatch is always real; a skipped entry is never ok, and the archive rule treats encrypted and stream-only skips as non-fatal, an unknown method as fatal." },
+      "cli": { "supported": true, "command": "verify", "notes": "zipnative-cli 1.0.0 re-derives the reason from entry flags; its next minor can print skipped verbatim." },
+      "mcp": { "supported": true, "tool": "verify_zip", "notes": "entries: skipped — zipnative-mcp 1.0.0 re-derives the reason; its next minor can relay skipped verbatim." }
     },
     {
       "id": "crc32",

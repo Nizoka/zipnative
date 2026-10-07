@@ -12,8 +12,8 @@ Zero-runtime-dependency ZIP engine in pure TypeScript. One entry point —
 creation); everything public is exported there, nothing else is API. No
 classes: factories return interfaces. Node ≥ 22, browsers, Deno, Bun,
 Workers. The engine never touches the filesystem, never opens a socket,
-never evals. 1.0: the 77-export surface, the 39-code error vocabulary and
-the `deterministic: true` output bytes are frozen under semver.
+never evals. 1.0 froze the API surface (106 exports at 1.1), the 39-code
+error vocabulary and the `deterministic: true` output bytes under semver.
 
 Two published satellites wrap the same engine, both 1.0.0, both pinning
 `zipnative ^1.0.0`: `zipnative-cli` (binary `zipnative`, 15 commands —
@@ -77,7 +77,7 @@ clause by the blocking `npm run validate:zip` gate — see the
 ## Where to read more
 
 - [llms.txt](llms.txt) — the documentation entry point (~1.7k tokens)
-- [assets/api.json](assets/api.json) — all 77 exports with signatures
+- [assets/api.json](assets/api.json) — all 106 exports with signatures
 - [data/errors.json](data/errors.json) — the frozen error registry
 - Guides: [quickstart](guides/quickstart.html) ·
   [choosing your surface](guides/choose.html) · [CLI](guides/cli.html) ·
