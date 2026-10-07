@@ -4,6 +4,21 @@ Regenerated manually per minor release (`npm run bench`); never a CI gate
 (shared-runner variance — see `.github/workflows/bench.yml` for the
 non-blocking trend archive).
 
+> **v1.1.0 note (2026-10-08):** the in-memory read and write hot paths are
+> unchanged in this release (every 1.1.0 feature is a new module or an opt-in
+> parameter whose default path is the 1.0.0 one), so the v0.2.0 scenario
+> numbers below remain the reference. Two `npm run bench` runs on the
+> reference laptop (4-core i7-4510U, 2 GHz, under load) returned relative
+> errors of 15–40 % at 10 samples and disagreed on the ordering of the two
+> near-tie scenarios (inventory: zipnative 1.47× faster than fflate in one
+> run, 1.46× slower in the other; random access: fflate 1.33× then 1.28×
+> ahead; creation: fflate 2.36× then 1.64× ahead of zipnative), which is
+> noise, not a measurement — a quiet-machine refresh is scheduled with 1.2.
+> The new `openZipRange()` is not benchmarked here: its cost is round trips to
+> the injected source (one tail window, the central directory, then one
+> header and one payload per read), which the counting-source tests in
+> `tests/parser/zip-range-reader.test.ts` pin exactly.
+
 > **v0.5.0 note (2026-09-01):** the read/write hot paths are unchanged in
 > this release, so the v0.2.0 scenario numbers below remain the reference.
 > Parallel creation (`createParallelZip`) scales with cores on entries

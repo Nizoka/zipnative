@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-10-07
+## [1.1.0] - 2026-10-08
 
 **Zero breaking changes.** The public surface grew from 77 to 106 exports with none removed, the 39 error codes are unchanged, every new behaviour is opt-in, and the `deterministic: true` bytes are unchanged — proven by the byte baseline of the 33 pre-existing samples (`npm run verify:samples`), by `tests/tools/api-compat.test.ts` (every 1.0.0 export, code and signature still present) and by the `compat-previous` CI job (the 1.0.0 test suite run against these sources). The one deliberate output change — dates outside the DOS range, previously wrong — is entry C1 of the compatibility ledger in [release-notes/v1.1.0.md](release-notes/v1.1.0.md).
 
@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZipUnsupportedFeature` + `'aes'`, `ZipEntry.nameEncoding` + `'custom'`, `ZipDiagnosticCode` + `ZIP_TIMESTAMP_CLAMPED` (additive; an exhaustive consumer `switch` adds a case — ledger C5); `ZipWriter`, `ZipModifier.saveCompact(options?)`, `ZipCodec`, `ZipCommonOptions`, `AddEntryOptions`, `ZipLimits` extended with optional members (C6).
 - The messages of `ZIP_UNSUPPORTED_ZIP64_STREAMING` and `ZIP_UNSUPPORTED_CODEC_MODE` name the new remedies (outside the contract — C8); `recipes/custom-codec.ts` uses method 97 (C9).
 - `ci.yml` gains the `os` (Windows, macOS) and `compat-previous` jobs, runs the gate with `--require-all` and drops its path filter; `conformance.yml` runs samples, baseline, ISO validation and interop through the gate on Linux and Windows and the 4 GiB streaming test behind `ZIPNATIVE_BIG_TESTS`; `sample-regression.yml`; rulesets require `ci (22)`, `ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`, `compat-previous`.
-- ROADMAP: the post-1.0 items resolved (Zip64 opt-in shipped; AES moved to the 2.0 candidates; 1.2 candidates listed); SECURITY.md gains the supply-chain section, the `1.1.x` support row and three threat rows; AGENTS.md fits a 120-line budget; README, llms.txt, the agent brief, the homepage and the guides describe 1.1; `verifiedOn` 2026-10-07.
+- ROADMAP: the post-1.0 items resolved (Zip64 opt-in shipped; AES moved to the 2.0 candidates; 1.2 candidates listed); SECURITY.md gains the supply-chain section, the `1.1.x` support row and three threat rows; AGENTS.md fits a 120-line budget; README, llms.txt, the agent brief, the homepage and the guides describe 1.1; `verifiedOn` 2026-10-08.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 {
   "$comment": "Machine-readable form of the capability × surface table in docs/guides/choose.md. Hand-maintained, verified against the sources on the date below: library `call` names against docs/assets/api.json (the mechanically extracted export surface), CLI `command` names against packages.zipnative-cli.commandGroups and MCP `tool` names against packages.zipnative-mcp.tools in docs/assets/ecosystem.json (the single source of truth for names and counts — regenerate nothing from this file). A capability introduced after 1.0.0 carries `since` (the engine release that added it; verify-docs surfaces-shape checks it is a semver no newer than the engine version); the 1.0.0 capabilities carry none. `supported: false` cells carry a note naming the honest alternative where one exists — for the 1.1.0 capabilities the satellites have not surfaced yet, the note says so and names the candidate command, tool or flag.",
-  "verifiedOn": "2026-10-07",
+  "verifiedOn": "2026-10-08",
   "surfaces": {
     "library": { "package": "zipnative", "install": "npm install zipnative" },
     "cli": { "package": "zipnative-cli", "install": "npx zipnative-cli <command>", "binary": "zipnative" },

@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable registry of zipnative's stable error codes (ZipErrorCode in src/types/zip-errors.ts) and diagnostic codes (ZipDiagnosticCode in src/types/zip-types.ts). Codes are frozen from 0.8.0: removal or renaming is semver-major; additions are semver-minor. The error-parity rule of scripts/verify-docs.ts enforces bidirectional sync with the source unions and class membership.",
   "package": "zipnative",
-  "verifiedOn": "2026-10-07",
+  "verifiedOn": "2026-10-08",
   "errors": [
     {
       "code": "ZIP_INVALID_OPTION",

@@ -6,7 +6,7 @@
 > archives, canonicalisation and raw transplant (v1.1+). Node ≥22,
 > browsers, Deno, Bun, Workers.
 
-Verified on: 2026-10-07
+Verified on: 2026-10-08
 
 Machine-readable artefacts: docs/agent-brief.md (a compact briefing for
 coding agents — paste it into your context), docs/assets/api.json (the

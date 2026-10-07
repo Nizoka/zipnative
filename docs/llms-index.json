@@ -1,7 +1,7 @@
 {
   "$comment": "Index of zipnative’s machine-readable artefacts and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; verify-docs llms-index-sync enforces freshness. approxTokens = bytes/4, approximate by construction.",
   "site": "https://zipnative.dev",
-  "verifiedOn": "2026-10-07",
+  "verifiedOn": "2026-10-08",
   "artefacts": [
     {
       "url": "llms.txt",

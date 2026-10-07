@@ -55,8 +55,8 @@ zipnative 1.1.0 is the first minor since the freeze and keeps every promise 1.0.
 
 ## Docs, samples & recipes
 
-- Release note `release-notes/v1.1.0.md` (Security first; Upgrade = the ledger; Downstream integration notes) and the `CHANGELOG.md` entry `## [1.1.0] - 2026-10-07` (the previously unreleased ecosystem-docs entry folded in).
-- Manifest `docs/assets/ecosystem.json`: version 1.1.0, `verifiedOn` 2026-10-07, `derived.*` (exports 106, errorCodes 39, diagnostics 12, testFiles 61, sampleGenerators 12, guides 11, playgrounds 8, recipes 16, interopTools 6, interopValidations 19, verifyDocsRules 47, sampleZips 38), `declared` (tests 740, coverage 93 / 93.9, iso21320 33 / 5).
+- Release note `release-notes/v1.1.0.md` (Security first; Upgrade = the ledger; Downstream integration notes) and the `CHANGELOG.md` entry `## [1.1.0] - 2026-10-08` (the previously unreleased ecosystem-docs entry folded in).
+- Manifest `docs/assets/ecosystem.json`: version 1.1.0, `verifiedOn` 2026-10-08, `derived.*` (exports 106, errorCodes 39, diagnostics 12, testFiles 61, sampleGenerators 12, guides 11, playgrounds 8, recipes 16, interopTools 6, interopValidations 19, verifyDocsRules 47, sampleZips 38), `declared` (tests 740, coverage 93 / 93.9, iso21320 33 / 5).
 - CDN pin in `docs/playgrounds/load-engine.js` moves to `zipnative@1.1.0`, so the playgrounds resolve once the release is published (documented window between merge and publish).
 - Guides 9 → 11 (`large-and-remote`, `reproducible-builds`); playgrounds 7 → 8 (`remote`); recipes 12 → 16; samples 33 → 38 (five new entries baselined with `since: 1.1.0`, the 33 others byte-identical); interop write cases 11 → 13.
 - Two satellite issue drafts under `.github/drafts/` (git-ignored; `verify:issue` OK) for the human to file: `zipnative-cli-bump-1.1.0.md`, `zipnative-mcp-bump-1.1.0.md`.
@@ -86,7 +86,7 @@ PENDING — `.claude/skills/release-audit` (auditor A: claims vs code; auditor B
 
 - [ ] Create the GitHub environment `npm-publish` (required reviewer); link the npm Trusted Publisher to `publish.yml` and that environment; apply `.github/rulesets/main.json` and `tags.json` in Settings → Rules (the new required check is `compat-previous`); enable the dependency graph (dependency review).
 - [ ] CI green on every required check.
-- [ ] `release-notes/v1.1.0.md` reviewed; release date adjusted if publication is not 2026-10-07 (`npx tsx scripts/release-prepare.ts --version 1.1.0 --date <merge day>` restamps `verifiedOn`, the sitemap and the CHANGELOG heading).
+- [ ] `release-notes/v1.1.0.md` reviewed; release date adjusted if publication is not 2026-10-08 (`npx tsx scripts/release-prepare.ts --version 1.1.0 --date <merge day>` restamps `verifiedOn`, the sitemap and the CHANGELOG heading).
 - [ ] Squash-merge to `main` with the title `release: v1.1.0 — range access, reproducible-for-any-archive, issues #9–#12, supply-chain parity`.
 - [ ] Tag `v1.1.0` on the merge commit; publish the GitHub Release (title `v1.1.0 — range access, reproducible-for-any-archive, issues #9–#12, supply-chain parity`, body = the release note) → `publish.yml` → approve the `npm-publish` environment → npm with provenance; the `attest` job attaches the tarball and the SBOM.
 - [ ] After publication: `npm view zipnative version` prints 1.1.0, `npm audit signatures` verifies the provenance, and the CDN pin on the site (`zipnative@1.1.0`) resolves — the remote playground needs it.

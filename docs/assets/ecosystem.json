@@ -78,7 +78,7 @@
   "engine": {
     "node": ">=22"
   },
-  "verifiedOn": "2026-10-07",
+  "verifiedOn": "2026-10-08",
   "site": "https://zipnative.dev",
   "contracts": {
     "deterministic_bytes_are_semver_major": true,

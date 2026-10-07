@@ -8,7 +8,7 @@ authors:
 repository-code: "https://github.com/Nizoka/zipnative"
 license: MIT
 version: 1.1.0
-date-released: 2026-10-07
+date-released: 2026-10-08
 abstract: "Zero-dependency native ZIP engine in pure TypeScript: random-access reads, secure-by-default extraction, streaming, deterministic archives and incremental modification, for Node.js, browsers, Deno, Bun and Workers."
 keywords:
   - zip
