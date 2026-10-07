@@ -91,10 +91,13 @@ describe('deflateRawJS: differential round-trip through zlib inflate', () => {
 
 describe('deflateRawJS: self round-trip through our own inflate', () => {
     for (const { name, data } of CORPORA) {
+        // Same generous timeout as the differential block: the 1 MiB corpus
+        // takes ~18 s uninstrumented on a loaded machine (forks pool, every
+        // file in parallel) and far more under coverage.
         it(`${name} round-trips through inflateRawJS at level 6`, () => {
             const compressed = deflateRawJS(data, 6);
             expect(inflateRawJS(compressed, Math.max(1, data.length))).toEqual(data);
-        });
+        }, 180_000);
     }
 });
 

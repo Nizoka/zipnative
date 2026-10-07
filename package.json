@@ -53,6 +53,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "gate": "npx tsx scripts/gate.ts",
+    "gate:fast": "npx tsx scripts/gate.ts --fast",
     "test:interop": "npx tsx scripts/run-interop.ts",
     "validate:zip": "npx tsx scripts/validate-zip.ts",
     "test:generate": "npx tsx scripts/generate-samples.ts",
@@ -65,6 +67,9 @@
     "docs:all": "npm run docs:api && npm run docs:guides && npm run docs:llms",
     "docs:serve": "npx serve docs/ --listen 5000",
     "verify:issue": "node scripts/verify-issue.mjs",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "hooks:uninstall": "node scripts/install-git-hooks.mjs --uninstall",
+    "agents:rules": "npx tsx scripts/build-claude-rules.ts",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
@@ -146,5 +151,6 @@
   },
   "overrides": {
     "esbuild": "0.28.1"
-  }
+  },
+  "packageManager": "npm@10.9.2"
 }

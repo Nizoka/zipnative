@@ -32,6 +32,12 @@ export default defineConfig({
         // takes seconds to cold-start) and coverage instrumentation slows the
         // streaming codec paths; the default 5 s flakes on both.
         testTimeout: 30_000,
+        // Under the gate (scripts/gate.ts sets GATE=1) a JSON report lands
+        // next to the step logs so the gate can print the test count; the
+        // default reporter stays for humans.
+        reporters: process.env.GATE === '1'
+            ? ['default', ['json', { outputFile: rootUrl('./test-output/.gate/vitest.json') }]]
+            : ['default'],
         coverage: {
             provider: 'v8',
             include: ['src/**/*.ts'],

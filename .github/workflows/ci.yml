@@ -1,28 +1,28 @@
 name: CI
 
+# The `ci` job runs `scripts/gate.ts --ci`, the single definition of "green":
+# the step list lives in that file's STEPS table (typecheck:all, lint, build,
+# dist-check, dist-probe, test:coverage, check:package, verify:docs,
+# test:generate, verify:samples, validate:zip) and is not repeated here, so
+# CI and the contributor loop cannot drift apart. `--require-all` turns any
+# SKIP into a FAIL: a runner missing a tool goes red instead of quietly
+# passing.
+#
+# `npm audit` runs outside the gate on purpose: the gate is hermetic (no
+# network) so its verdict is the same on a laptop and on a runner. The
+# foreign-tool interop matrix has its own workflow (conformance.yml) and
+# runs again in the publish profile.
+#
+# No `paths-ignore`: the job ids below are required status checks
+# (.github/rulesets/main.json), and a required check that never reports
+# leaves a documentation-only pull request stuck on "Expected — waiting for
+# status". docs.yml keeps its own path filter because it is not required.
+
 on:
   push:
     branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/*.md'
-      - '.github/FUNDING.yml'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitignore'
   pull_request:
     branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/*.md'
-      - '.github/FUNDING.yml'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitignore'
 
 permissions:
   contents: read
@@ -32,9 +32,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The job ids and the matrices are load-bearing: the main ruleset requires
+  # the status checks `ci (22)`, `ci (24)`, `os (windows-latest)` and
+  # `os (macos-latest)` (.github/rulesets/main.json).
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
@@ -42,90 +45,93 @@ jobs:
         node-version: [22, 24]
 
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      # No lifecycle script of any dependency runs on the runner; the
+      # repository's own .npmrc says the same for every developer machine.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
-      - name: Type check
-        run: npm run typecheck:all
+      - name: Run the quality gate (CI profile)
+        run: npx tsx scripts/gate.ts --ci --require-all
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Test with coverage
-        run: npm run test:coverage
-
-      - name: Build
-        run: npm run build
-
-      - name: Verify dist output
-        run: |
-          test -f dist/index.js
-          test -f dist/index.cjs
-          test -f dist/index.d.ts
-          test -f dist/index.d.cts
-          test -f dist/worker/index.js
-          test -f dist/worker/zip-worker.js
-
-      # Real node:worker_threads against the built worker bundle — this
-      # suite self-skips when dist/ is absent, so it must run post-build.
-      - name: Worker integration (real threads, post-build)
-        run: npx vitest run tests/worker/worker-integration.test.ts
-
-      # --profile node16: legacy node10 (pre-"exports") resolution cannot
-      # see subpath exports like ./worker; engines require Node >= 22.
-      # --ignore-rules cjs-resolves-to-esm: ./worker/zip-worker.js is the
-      # ESM-only worker SCRIPT — loaded by URL, never require()d; the
-      # subpath exists so bundlers/import.meta.resolve can locate it.
-      - name: Check package exports (attw + publint)
-        run: |
-          npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm
-          npx publint
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-logs-node${{ matrix.node-version }}
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore
 
   # A ZIP library lives or dies on Windows correctness: path separators,
-  # CRLF fixture corruption, case-insensitive filesystems, reserved names.
-  # This job is blocking from day one — any "skip on win32" needs a linked issue.
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 20
+  # CRLF fixture corruption, case-insensitive filesystems, reserved names —
+  # and macOS is where most contributors and a large share of users run. The
+  # same gate runs on both, on the pinned Node line: coverage, the package
+  # checks, the docs rules and the 33-sample byte baseline — which is how
+  # the "byte-identical on every host" promise is proven on three operating
+  # systems rather than asserted on one. Both matrix entries are required
+  # status checks (.github/rulesets/main.json).
+  #
+  # harden-runner supports Windows runners in audit mode only, so this job
+  # can never move to `egress-policy: block`; the action does not support
+  # macOS at all, so the step is skipped there (`if: runner.os != 'macOS'`) —
+  # the one documented exemption to "every job starts with harden-runner".
+  os:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
 
     steps:
+      - name: Harden the runner
+        if: runner.os != 'macOS'
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
-      - name: Type check
-        run: npm run typecheck:all
+      # The same gate as the Linux matrix; `npm audit` stays on Linux (network,
+      # once is enough). The gate builds before the suites that need dist/.
+      - name: Run the quality gate (CI profile)
+        run: npx tsx scripts/gate.ts --ci --require-all
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm run test
-
-      - name: Build
-        run: npm run build
-
-      - name: Worker integration (real threads, post-build)
-        run: npx vitest run tests/worker/worker-integration.test.ts
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-logs-${{ matrix.os }}
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore

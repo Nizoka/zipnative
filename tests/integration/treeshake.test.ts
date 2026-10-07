@@ -17,6 +17,11 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const hasDist = existsSync(resolve(ROOT, 'dist/index.js'));
+// Under the gate (scripts/gate.ts, GATE_REQUIRE_ARTIFACTS=1) build runs
+// first, so a missing bundle is a broken pipeline, never a reason to skip.
+if (!hasDist && process.env.GATE_REQUIRE_ARTIFACTS === '1') {
+    throw new Error('dist/index.js is missing but GATE_REQUIRE_ARTIFACTS=1 — the gate builds before testing');
+}
 
 async function bundle(contents: string): Promise<string> {
     const result = await build({

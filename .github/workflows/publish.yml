@@ -9,114 +9,185 @@ on:
 #   This workflow uses npm Trusted Publishing — no long-lived NPM_TOKEN secret.
 #   The OIDC id-token permission mints a short-lived token that:
 #     1. Authorises the `npm publish` HTTP request
-#     2. Signs the provenance attestation (SLSA Level 2+ via Sigstore)
-#   Configure at npmjs.com → package settings → "Configure Trusted Publishing".
+#     2. Signs the provenance attestation (SLSA Build L2 via Sigstore)
+#   Configure at npmjs.com → package settings → "Configure Trusted Publishing",
+#   bound to this file AND to the `npm-publish` environment below.
+#
+# Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
+# and approves the `npm-publish` environment; nothing here opens or edits a
+# release, the attest job only attaches files to one that already exists.
 permissions:
   contents: read
-  id-token: write
+
+# One release at a time, and a running publish is never cancelled half-way.
+concurrency:
+  group: publish
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # `id-token: write` mints the OIDC token for Trusted Publishing + provenance.
-    # `contents: write` lets the workflow attach the generated SBOM to the release.
+    # A protected environment (required reviewer) gates the OIDC token: the
+    # job cannot mint one before the maintainer approves the run.
+    environment: npm-publish
     permissions:
-      contents: write
+      contents: read
       id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
     steps:
+      # Audit mode for the first two weeks, then switch to `egress-policy: block`
+      # with the endpoints this job actually reaches:
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     registry.npmjs.org:443
+      #     fulcio.sigstore.dev:443
+      #     rekor.sigstore.dev:443
+      #     tuf-repo-cdn.sigstore.dev:443
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          # A range resolves to the NEWEST available Node (currently 24.x),
-          # whose bundled npm >= 11.5.1 is required by npm Trusted Publishing
-          # (token-less OIDC). A '22.x' pin would ship npm 10.9 and break the
-          # publish. The floor mirrors the engines >= 22 support policy.
-          node-version: '>=22.14.0'
+          # The release is built on the Node line .nvmrc names — the same one
+          # contributors develop on — not on whatever ">= floor" resolves to.
+          node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org
           cache: npm
 
-      # The publish re-runs the ENTIRE gate — a release that skips a check
-      # is a release that can ship a regression. Same steps as ci.yml.
+      # A manual dispatch on a branch must not publish that branch: the ref
+      # must be the tag of the version package.json declares, and the tag
+      # must match it. (On "release published" the ref is always the tag.)
+      - name: Read the version and check it against the tag
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "::error::Publish runs only from a tag; got ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
+            exit 1
+          fi
+          echo "Publishing zipnative ${VERSION} from tag ${GITHUB_REF_NAME}"
+
+      # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
+      # npm ≥ 11.5.1. The client is pinned to one exact release so the bytes
+      # that publish are the same on every run — the engine itself is still
+      # built and tested on the .nvmrc line.
+      - name: Install the pinned npm client
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
-      - name: Type check
-        run: npm run typecheck:all
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test with coverage
-        run: npm run test:coverage
-
-      - name: Build
-        run: npm run build
-
-      - name: Verify dist output
+      - name: Record foreign tool versions
         run: |
-          test -f dist/index.js
-          test -f dist/index.cjs
-          test -f dist/index.d.ts
-          test -f dist/index.d.cts
-          test -f dist/worker/index.js
-          test -f dist/worker/zip-worker.js
+          {
+            echo '## Interop tool versions (ubuntu-latest, publish)'
+            echo '```'
+            unzip -v | head -1 || true
+            7z i | head -3 || true
+            bsdtar --version || true
+            python3 --version || true
+            java -version 2>&1 | head -1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      # Real node:worker_threads against the built worker bundle — this
-      # suite self-skips when dist/ is absent, so it must run post-build.
-      - name: Worker integration (real threads, post-build)
-        run: npx vitest run tests/worker/worker-integration.test.ts
+      # Every gate step — typecheck, lint, build, dist checks, coverage, the
+      # package checks, the docs rules, samples against the baseline chain,
+      # the ISO/IEC 21320-1 validator and the six-tool interop matrix.
+      # --require-all: a missing tool fails the release instead of skipping.
+      - name: Run the quality gate (publish profile)
+        run: npx tsx scripts/gate.ts --publish --require-all
 
-      # --profile node16: legacy node10 (pre-"exports") resolution cannot
-      # see subpath exports like ./worker; engines require Node >= 22.
-      # --ignore-rules cjs-resolves-to-esm: ./worker/zip-worker.js is the
-      # ESM-only worker SCRIPT — loaded by URL, never require()d.
-      - name: Check package exports (attw + publint)
-        run: |
-          npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm
-          npx publint
-
-      # Conformance gates: the domain checks (the analogue of a PDF
-      # library's veraPDF gate) — the release must never publish samples
-      # the reference validator rejects, nor archives foreign extractors
-      # cannot read. BLOCKING.
-      - name: Generate the sample corpus
-        run: npm run test:generate
-
-      - name: Validate ISO/IEC 21320-1 conformance (blocking)
-        run: npm run validate:zip
-
-      - name: Interop conformance (blocking)
-        run: npm run test:interop
-
-      - name: Verify documentation integrity
-        run: npm run verify:docs
-
-      - name: Generate SBOM (CycloneDX)
-        # Software Bill of Materials for supply-chain transparency. Uses the
-        # CycloneDX generator via npx (build-time only — adds ZERO runtime
-        # dependencies to the published package).
-        run: npx --yes @cyclonedx/cyclonedx-npm@^1 --output-format JSON --output-file sbom.cdx.json
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: sbom-cyclonedx
-          path: sbom.cdx.json
-          retention-days: 90
-
-      - name: Attach SBOM to release
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" sbom.cdx.json --clobber
+      - name: Show the package contents
+        run: npm pack --dry-run
 
       - name: Publish
         run: npm publish --provenance --access public
+
+  # Attests the tarball and a CycloneDX SBOM built from the same commit, and
+  # attaches both to the GitHub release when the maintainer has created it.
+  attest:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.publish.outputs.version }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # .npmrc sets ignore-scripts, so prepublishOnly does not run for
+      # `npm pack`: build explicitly, as the gate did in the publish job.
+      - name: Build
+        run: npm run build
+
+      - name: Generate the SBOM (CycloneDX, runtime dependencies only)
+        run: npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "zipnative-${VERSION}.cdx.json"
+
+      - name: Pack the tarball
+        run: |
+          set -euo pipefail
+          npm pack
+          test -f "zipnative-${VERSION}.tgz"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            zipnative-${{ env.VERSION }}.tgz
+            zipnative-${{ env.VERSION }}.cdx.json
+
+      # The release is created by the maintainer (human-in-the-loop); on a
+      # workflow_dispatch without one, the artefacts stay in the attestation
+      # store and nothing is created here.
+      - name: Attach the tarball and SBOM to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" "zipnative-${VERSION}.tgz" "zipnative-${VERSION}.cdx.json" --clobber --repo "${GITHUB_REPOSITORY}"
+          else
+            echo "::notice::No GitHub release v${VERSION} exists; the tarball and SBOM were attested but not attached."
+          fi
