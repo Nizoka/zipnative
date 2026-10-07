@@ -29,6 +29,15 @@
  * (stored data is not self-delimiting — the descriptor signature is
  * legal inside it), encrypted + bit 3, and custom codecs + bit 3.
  *
+ * Registered codecs (1.1.0, issue #11): an entry whose method is neither
+ * store nor deflate is decoded through the codec's `createDecompressor()`
+ * — the incremental push/end form, O(chunk) memory. A codec that offers
+ * only the whole-buffer `decompressSync` / `decompressStream` is refused
+ * BEFORE the first byte with `ZIP_UNSUPPORTED_CODEC_MODE` (skip() stays
+ * usable; `openZip()` on the complete archive still decodes it). Store and
+ * deflate always use the built-in pumps, whatever is registered over ids
+ * 0 and 8 — `openZip()` honours such overrides, the forward reader cannot.
+ *
  * @module parser/zip-iterate
  */
 
@@ -43,8 +52,8 @@ import {
     ZipUnsupportedError,
 } from '../types/zip-errors.js';
 import { crc32 } from '../codecs/crc32.js';
-import { getCodec, METHOD_DEFLATE, METHOD_STORE } from '../codecs/codec-registry.js';
-import { hasDecompressionStream } from '../codecs/inflate.js';
+import { getCodec, METHOD_DEFLATE, METHOD_STORE, type ZipCodec } from '../codecs/codec-registry.js';
+import { hasDecompressionStream, normalizeInflateError } from '../codecs/inflate.js';
 import { createInflator } from '../codecs/inflate-stream.js';
 import {
     FLAG_DATA_DESCRIPTOR,
@@ -58,6 +67,7 @@ import {
 } from '../core/zip-constants.js';
 import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import { createDiagnosticEmitter, invalidUtf8NameDiagnostic } from '../core/zip-diagnostics.js';
+import { encryptionScheme } from '../core/zip-encryption.js';
 import { decodeCp437, decodeUtf8Strict } from '../core/zip-encoding.js';
 import { dosDateTimeToDate } from '../core/zip-dos-time.js';
 import { parseExtraFields, resolveUtMtime, resolveZip64 } from '../core/zip-extra-fields.js';
@@ -265,7 +275,7 @@ export async function* iterateZipEntries(
 
                 data: (): AsyncGenerator<Uint8Array, void, undefined> => {
                     if (isEncrypted) {
-                        const feature = (lfh.flags & FLAG_STRONG_ENCRYPTION) !== 0 ? 'strong-encryption' : 'zipcrypto';
+                        const feature = encryptionScheme(lfh.flags, lfh.compressionMethod, fields);
                         throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
                             `zipnative: entry '${name}' is encrypted (${feature}) — encryption is not supported; `
                             + 'skip() it to continue',
@@ -278,8 +288,22 @@ export async function* iterateZipEntries(
                             + 'registered codec — skip() it, or registerCodec() one',
                             `method:${lfh.compressionMethod}`);
                     }
+                    // A registered codec is driven only through its incremental
+                    // form (issue #11): the whole-buffer `decompressSync` /
+                    // `decompressStream` cannot be honoured chunk-wise, and a
+                    // refusal BEFORE the first byte keeps skip() usable. Store
+                    // and deflate use the built-in pumps whatever is registered
+                    // over their ids.
+                    const builtIn = lfh.compressionMethod === METHOD_STORE || lfh.compressionMethod === METHOD_DEFLATE;
+                    if (!builtIn && codec.createDecompressor === undefined) {
+                        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_CODEC_MODE',
+                            `zipnative: entry '${name}' uses method ${lfh.compressionMethod} — iterateZipEntries streams `
+                            + 'only store, deflate and codecs exposing createDecompressor(); skip() it, or use openZip() '
+                            + 'on the complete archive to decode it through the registered codec',
+                            `method:${lfh.compressionMethod}`);
+                    }
                     guardConsume();
-                    return usesDescriptor ? streamDescriptorEntry() : streamEntryData(entry);
+                    return usesDescriptor ? streamDescriptorEntry() : streamEntryData(builtIn ? null : codec);
                 },
 
                 skip: async (): Promise<void> => {
@@ -362,7 +386,8 @@ export async function* iterateZipEntries(
                 state.done = true;
             }
 
-            async function* streamEntryData(_self: StreamedZipEntry): AsyncGenerator<Uint8Array, void, undefined> {
+            /** `codec` is the registered codec to drive incrementally, or null for the built-in store/deflate pumps. */
+            async function* streamEntryData(codec: ZipCodec | null): AsyncGenerator<Uint8Array, void, undefined> {
                 let produced = 0;
                 let crc = 0;
                 const outputCap = Math.min(uncompressedSize, limits.maxEntryUncompressedSize);
@@ -380,7 +405,31 @@ export async function* iterateZipEntries(
                     crc = crc32(chunk, crc);
                 };
 
-                if (lfh.compressionMethod === METHOD_STORE) {
+                if (codec !== null) {
+                    // A registered codec, O(chunk): every piece off the stream
+                    // goes through its incremental decoder; the output is
+                    // counted and CRC'd exactly like the built-in pumps.
+                    // data() admitted this codec only because the factory exists.
+                    const factory = codec.createDecompressor;
+                    if (factory === undefined) {
+                        throw new ZipError('ZIP_INTERNAL', `zipnative: codec '${codec.name}' lost its createDecompressor between data() and the pump`);
+                    }
+                    const decoder = factory.call(codec, outputCap);
+                    try {
+                        for await (const piece of cursor.take(compressedSize)) {
+                            for (const chunk of decoder.push(piece)) {
+                                account(chunk);
+                                yield chunk;
+                            }
+                        }
+                        for (const chunk of decoder.end()) {
+                            account(chunk);
+                            yield chunk;
+                        }
+                    } catch (err) {
+                        throw wrapCodecError(err, name, codec.name);
+                    }
+                } else if (lfh.compressionMethod === METHOD_STORE) {
                     for await (const piece of cursor.take(compressedSize)) {
                         account(piece);
                         yield piece;
@@ -421,12 +470,24 @@ export async function* iterateZipEntries(
  * decompress in one shot (memory O(compressedSize), bounded by the
  * declared-size and ratio guards the caller already enforced).
  */
-/** Corrupt streams must surface as typed ZipErrors, never platform errors. */
+/**
+ * A decoder failure surfaces with the same `err.code` as the random-access
+ * reader and the pure tier (issue #10): `ZIP_DEFLATE_CORRUPT` /
+ * `ZIP_DEFLATE_TRUNCATED`, never a platform error. A ZipError (the cursor's
+ * own `ZIP_STREAM_TRUNCATED`, a limit) passes through untouched.
+ */
 function wrapInflateError(err: unknown): Error {
+    return normalizeInflateError(err, Number.MAX_SAFE_INTEGER);
+}
+
+/** A registered codec's own failure keeps the documented meaning of ZIP_DECOMPRESSION_FAILED. */
+function wrapCodecError(err: unknown, entryName: string, codecName: string): Error {
     if (err instanceof ZipError) return err;
     const detail = err instanceof Error ? err.message : String(err);
     return new ZipDataError('ZIP_DECOMPRESSION_FAILED',
-        `zipnative: streamed entry failed to decompress (${detail}) — the data is corrupt or hostile`);
+        `zipnative: entry '${entryName}' failed to decompress through codec '${codecName}' (${detail}) — `
+        + 'the data is corrupt or hostile',
+        entryName);
 }
 
 async function* pumpInflate(
@@ -438,22 +499,42 @@ async function* pumpInflate(
         const ds = new DecompressionStream('deflate-raw');
         const writer = ds.writable.getWriter();
         const reader = ds.readable.getReader();
-        // A write-side failure (truncated source, corrupt stream) MUST
-        // abort the writable — otherwise reader.read() waits forever for
-        // input that will never come (the fuzzing suite pins this).
-        let writeError: unknown = null;
+        // A write-side failure MUST abort the writable — otherwise
+        // reader.read() waits forever for input that will never come (the
+        // fuzzing suite pins this). The SOURCE's own failure (a truncated
+        // stream, a limit, the caller's iterable throwing) is kept apart
+        // from the DECODER's rejection, so the caller sees its own error for
+        // the former and a typed deflate error for the latter.
+        let sourceError: unknown = null;
+        let decodeError: unknown = null;
         const writeAll = (async (): Promise<void> => {
             try {
                 for await (const piece of cursor.take(compressedSize)) {
-                    // Copy: engines may detach written chunks, and pieces are
-                    // zero-copy views of the source's buffers.
-                    await writer.write(piece.slice());
+                    try {
+                        // Copy: engines may detach written chunks, and pieces
+                        // are zero-copy views of the source's buffers.
+                        await writer.write(piece.slice());
+                    } catch (err) {
+                        decodeError = err;
+                        break;
+                    }
                 }
-                await writer.close();
+                // close() is where a decoder that accepted every chunk reports
+                // a corrupt or truncated stream — a decode failure, not a
+                // source one.
+                if (decodeError === null) {
+                    try {
+                        await writer.close();
+                    } catch (err) {
+                        decodeError = err;
+                    }
+                }
             } catch (err) {
-                writeError = err;
+                sourceError = err;
+            }
+            if (sourceError !== null || decodeError !== null) {
                 try {
-                    await writer.abort(err);
+                    await writer.abort(sourceError ?? decodeError);
                 } catch { /* already errored */ }
             }
         })();
@@ -467,12 +548,12 @@ async function* pumpInflate(
             }
         } catch (err) {
             await writeAll;
-            throw wrapInflateError(writeError ?? err);
+            if (sourceError !== null) throw sourceError;
+            throw wrapInflateError(decodeError ?? err);
         }
         await writeAll;
-        if (writeError !== null) {
-            throw wrapInflateError(writeError);
-        }
+        if (sourceError !== null) throw sourceError;
+        if (decodeError !== null) throw wrapInflateError(decodeError);
         return;
     }
 

@@ -49,6 +49,10 @@ export const EXTRA_ZIP64 = 0x0001;
 export const EXTRA_UT_TIMESTAMP = 0x5455;      // "UT" extended timestamp
 export const EXTRA_UNICODE_PATH = 0x7075;      // "up" Info-ZIP Unicode Path
 export const EXTRA_UNIX_UIDGID = 0x7875;       // "ux" Info-ZIP Unix uid/gid
+export const EXTRA_AES = 0x9901;               // WinZip AES (AE-1 / AE-2) — detected, never decrypted
+
+/** Compression-method id 99 — WinZip AES envelope (the real method is in the 0x9901 extra). */
+export const METHOD_AES = 99;
 
 // ── External-attribute bits ──────────────────────────────────────────
 

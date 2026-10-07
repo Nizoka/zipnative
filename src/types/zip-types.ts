@@ -137,10 +137,29 @@ export interface ZipEntry {
     readonly usesDataDescriptor: boolean;
 }
 
-/** Result of `ZipReader.verifyEntry()`. */
+/**
+ * Why an entry's content could not be verified (its local header WAS still
+ * cross-checked): `'encrypted'` (payload undecryptable by design),
+ * `'stream-only-codec'` (a registered codec without `decompressSync`) or
+ * `'unsupported-method'` (no codec registered for the method).
+ *
+ * @since 1.1.0
+ */
+export type EntrySkipReason = 'encrypted' | 'stream-only-codec' | 'unsupported-method';
+
+/**
+ * Result of `ZipReader.verifyEntry()`. `ok` is true only when every check
+ * ran and passed; a skipped entry is never `ok`, and `skipped` says why so
+ * a caller can tell "could not verify" from "verified and corrupt".
+ */
 export interface EntryVerification {
     readonly ok: boolean;
     readonly crcMatch: boolean;
     readonly sizeMatch: boolean;
     readonly localHeaderMatch: boolean;
+    /**
+     * Present when the content could not be verified at all; absent when
+     * the CRC and size checks ran. @since 1.1.0
+     */
+    readonly skipped?: EntrySkipReason;
 }

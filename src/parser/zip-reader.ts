@@ -21,6 +21,7 @@
  */
 
 import {
+    type EntrySkipReason,
     type EntryVerification,
     type ZipCommonOptions,
     type ZipEntry,
@@ -34,8 +35,9 @@ import {
 } from '../types/zip-errors.js';
 import { crc32 } from '../codecs/crc32.js';
 import { getCodec, METHOD_STORE, type ZipCodec } from '../codecs/codec-registry.js';
-import { FLAG_DATA_DESCRIPTOR, FLAG_STRONG_ENCRYPTION } from '../core/zip-constants.js';
+import { FLAG_DATA_DESCRIPTOR } from '../core/zip-constants.js';
 import { createDiagnosticEmitter, duplicateNameDiagnostic, nameMismatchDiagnostic } from '../core/zip-diagnostics.js';
+import { encryptionScheme } from '../core/zip-encryption.js';
 import { bytesEqual } from '../core/zip-encoding.js';
 import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import { parseLocalFileHeader } from '../core/zip-structs.js';
@@ -201,15 +203,23 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         return entry;
     };
 
-    /** Shared pre-read validation; returns the compressed payload view. */
-    const prepareRead = (entry: ZipEntry): Uint8Array => {
-        if (entry.isEncrypted) {
-            const feature = (entry.flags & FLAG_STRONG_ENCRYPTION) !== 0 ? 'strong-encryption' : 'zipcrypto';
-            throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
-                `zipnative: entry '${entry.name}' is encrypted (${feature}) — encryption is not supported `
-                + '(see README: What zipnative will NOT do); check entry.isEncrypted to route around such entries',
-                feature);
-        }
+    /** Encrypted payloads are never decoded; the refusal names the scheme (ZipCrypto, AES, strong). */
+    const guardEncryption = (entry: ZipEntry): void => {
+        if (!entry.isEncrypted) return;
+        const feature = encryptionScheme(entry.flags, entry.compressionMethod, entry.extraFields);
+        throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ENCRYPTION',
+            `zipnative: entry '${entry.name}' is encrypted (${feature}) — encryption is not supported `
+            + '(see README: What zipnative will NOT do); check entry.isEncrypted to route around such entries',
+            feature);
+    };
+
+    /**
+     * Cross-check the local header against the central record (the
+     * divergence table in the module header) and return the compressed
+     * payload view. Runs for encrypted entries too — verifyEntry() reports a
+     * REAL localHeaderMatch for them instead of a fabricated one (issue #12).
+     */
+    const crossCheckLocalHeader = (entry: ZipEntry): Uint8Array => {
         enforceLimit(limits, 'maxEntryUncompressedSize', entry.uncompressedSize, `entry '${entry.name}' declared size`);
         if (entry.compressedSize >= 1024 && entry.compressedSize > 0) {
             const ratio = entry.uncompressedSize / entry.compressedSize;
@@ -250,6 +260,12 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
             emit(nameMismatchDiagnostic(entry.name));
         }
         return bytes.subarray(lfh.dataStart, lfh.dataStart + entry.compressedSize);
+    };
+
+    /** Shared pre-read validation; returns the compressed payload view. */
+    const prepareRead = (entry: ZipEntry): Uint8Array => {
+        guardEncryption(entry);
+        return crossCheckLocalHeader(entry);
     };
 
     const codecFor = (entry: ZipEntry): ZipCodec => {
@@ -362,20 +378,37 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
 
         verifyEntry(entryOrName: ZipEntry | string): EntryVerification {
             const entry = resolveEntry(entryOrName);
+            // The local header is cross-checked for EVERY entry, encrypted
+            // ones included (1.0.0 reported them as a header mismatch because
+            // the encryption refusal fired first — issue #12).
             let localHeaderMatch = false;
+            let compressed: Uint8Array | null = null;
+            try {
+                compressed = crossCheckLocalHeader(entry);
+                localHeaderMatch = true;
+            } catch {
+                // A limit, an extent, a method or a size contradiction: the
+                // flag stays false and nothing is decompressed.
+            }
+            const skip = (skipped: EntrySkipReason): EntryVerification =>
+                ({ ok: false, crcMatch: false, sizeMatch: false, localHeaderMatch, skipped });
+            // Classification BEFORE any decompression, in the order a caller
+            // reasons about it: undecryptable, undecodable, unstreamable.
+            if (entry.isEncrypted) return skip('encrypted');
+            const codec = getCodec(entry.compressionMethod);
+            if (codec === null) return skip('unsupported-method');
+            if (codec.decompressSync === undefined) return skip('stream-only-codec');
+
             let crcMatch = false;
             let sizeMatch = false;
-            try {
-                const compressed = prepareRead(entry);
-                localHeaderMatch = true;
-                const codec = codecFor(entry);
-                if (codec.decompressSync !== undefined) {
+            if (compressed !== null) {
+                try {
                     const raw = codec.decompressSync(compressed, entry.uncompressedSize);
                     sizeMatch = raw.length === entry.uncompressedSize;
                     crcMatch = crc32(raw) === entry.crc32;
+                } catch {
+                    // Corrupt payload: the flags stay false.
                 }
-            } catch {
-                // Any failure leaves the corresponding flags false.
             }
             return { ok: localHeaderMatch && crcMatch && sizeMatch, crcMatch, sizeMatch, localHeaderMatch };
         },

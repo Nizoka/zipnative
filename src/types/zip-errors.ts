@@ -94,6 +94,7 @@ export type ZipErrorCode =
  */
 export type ZipUnsupportedFeature =
     | 'zipcrypto'
+    | 'aes'                 // WinZip AES (method 99 / extra 0x9901) — @since 1.1.0
     | 'strong-encryption'
     | 'multi-disk'
     | 'zip64-streaming'

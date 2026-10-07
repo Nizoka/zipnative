@@ -108,6 +108,7 @@ export {
     registerCodec,
     type CodecCompressOptions,
     type ZipCodec,
+    type ZipDecompressor,
 } from './codecs/codec-registry.js';
 export {
     initNodeZipCodecs,
