@@ -202,5 +202,7 @@ async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Arr
     plan.uncompressedSize = uncompressed;
     plan.compressedSize = compressed;
     assertStreamSizesInRange(plan, entryName);
-    yield writeDataDescriptor(crc, compressed, uncompressed, false);
+    // The 24-byte Zip64 descriptor exactly when the local header carries
+    // the speculative Zip64 extra (APPNOTE §4.3.9.2) — i.e. the opt-in.
+    yield writeDataDescriptor(crc, compressed, uncompressed, plan.zip64);
 }

@@ -61,6 +61,8 @@ export interface EntrySpec {
     readonly externalAttributes: number;
     readonly comment: Uint8Array;
     readonly extraFields: readonly ZipExtraField[];
+    /** Stream entries only: the Zip64 streaming opt-in (AddEntryOptions.zip64). */
+    readonly zip64: boolean;
 }
 
 /** One planned entry: codec resolved, payload compressed, sizes known. */
@@ -83,6 +85,14 @@ export interface PlannedEntry {
     crc32: number;
     compressedSize: number;
     uncompressedSize: number;
+    /**
+     * Zip64 streaming layout (stream entries that opted in): speculative
+     * Zip64 extra in the local header, 24-byte descriptor, both sizes in
+     * the central record's extra whatever the final size. Never set by the
+     * planner for buffered entries — createZip's bytes (the determinism
+     * contract) are untouched unless the caller opts in.
+     */
+    readonly zip64: boolean;
     // ── Source-fidelity overrides (set only by the modifier when copying
     //    existing entries; planArchive never sets them, so createZip's
     //    bytes — the determinism contract — are untouched) ─────────────
@@ -139,6 +149,7 @@ function buildStreamPlan(spec: EntrySpec): PlannedEntry {
         crc32: 0,
         compressedSize: 0,
         uncompressedSize: 0,
+        zip64: spec.zip64,
     };
 }
 
@@ -187,6 +198,7 @@ function finishBufferedPlan(
         crc32: crc,
         compressedSize: payload.length,
         uncompressedSize: data.length,
+        zip64: false,
     };
 }
 
@@ -335,17 +347,23 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
         const isStream = plan.source !== null;
 
         // Buffered in-memory payloads never exceed 4 GiB (2 GiB input
-        // cap), so LFH sizes need no Zip64 form; user extras only.
-        const lfhExtra = serializeExtraFields(plan.extraFields);
+        // cap), so LFH sizes need no Zip64 form; user extras only. A stream
+        // entry that opted into Zip64 (1.1.0) carries the speculative form
+        // APPNOTE §4.5.3 prescribes: both classic sizes sentinelled and a
+        // Zip64 extra holding both sizes as zero placeholders — the trailing
+        // 24-byte descriptor is where the real values land.
+        const lfhExtra = plan.zip64
+            ? concat([buildZip64Extra(0, 0, undefined), serializeExtraFields(plan.extraFields)])
+            : serializeExtraFields(plan.extraFields);
         yield seg(writeLocalFileHeader({
-            versionNeeded: 20,
+            versionNeeded: plan.zip64 ? 45 : 20,
             flags: plan.flags,
             compressionMethod: plan.method,
             dosTime: plan.dosTime,
             dosDate: plan.dosDate,
             crc32: isStream ? 0 : plan.crc32,
-            compressedSize: isStream ? 0 : plan.compressedSize,
-            uncompressedSize: isStream ? 0 : plan.uncompressedSize,
+            compressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : plan.compressedSize,
+            uncompressedSize: plan.zip64 ? SENTINEL_U32 : isStream ? 0 : plan.uncompressedSize,
             name: plan.nameBytes,
             extra: lfhExtra,
         }));
@@ -366,8 +384,12 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
     const cdOffset = offset;
     for (let i = 0; i < ctx.plans.length; i++) {
         const plan = ctx.plans[i];
-        const z64Unc = plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : undefined;
-        const z64Comp = plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : undefined;
+        // An opted-in stream entry always carries both final sizes in its
+        // central Zip64 extra (its descriptor is the 24-byte form, and a
+        // validator keys the descriptor width on the Zip64 presence); the
+        // offset follows the overflow rule like every other entry.
+        const z64Unc = plan.zip64 || plan.uncompressedSize > SENTINEL_U32 - 1 ? plan.uncompressedSize : undefined;
+        const z64Comp = plan.zip64 || plan.compressedSize > SENTINEL_U32 - 1 ? plan.compressedSize : undefined;
         const z64Off = offsets[i] > SENTINEL_U32 - 1 ? offsets[i] : undefined;
         const usesZip64 = z64Unc !== undefined || z64Comp !== undefined || z64Off !== undefined;
 
@@ -415,12 +437,19 @@ export function* archiveSegments(ctx: ZipCtx): Generator<ZipSegment, void, numbe
     ));
 }
 
-/** Guard against >4 GiB stream entries (Zip64 streaming is out of scope pre-1.0). */
+/**
+ * Guard against a stream entry crossing 4 GiB WITHOUT the Zip64 opt-in: its
+ * local header was emitted in the classic layout and cannot be patched in a
+ * forward-only stream, so the refusal fires mid-output — the consumer gets a
+ * truncated archive and a typed error naming the remedy. An opted-in plan
+ * (`zip64: true`) is never refused here.
+ */
 export function assertStreamSizesInRange(plan: PlannedEntry, entryName: string): void {
+    if (plan.zip64) return;
     if (plan.uncompressedSize > SENTINEL_U32 - 1 || plan.compressedSize > SENTINEL_U32 - 1) {
         throw new ZipUnsupportedError('ZIP_UNSUPPORTED_ZIP64_STREAMING',
-            `zipnative: stream entry '${entryName}' exceeds 4 GiB — Zip64 streaming is not supported yet; `
-            + 'buffer the content via add() or split it (see README Known Limitations)',
+            `zipnative: stream entry '${entryName}' exceeds 4 GiB in the classic streaming layout — `
+            + 'pass { zip64: true } to addStream() for entries that may exceed 4 GiB, or buffer the content via add()',
             'zip64-streaming');
     }
 }

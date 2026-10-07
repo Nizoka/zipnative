@@ -167,6 +167,27 @@ function writeCases(): WriteCase[] {
             },
         },
         {
+            // The Zip64 streaming opt-in (1.1.0): speculative Zip64 extra in
+            // the local header, 24-byte descriptor, both sizes in the central
+            // record's extra — for an entry that stays small. Random-access
+            // extractors read the central directory; the matrix records which
+            // of them accept the form.
+            name: 'zip64-streamed',
+            mode: 'extract',
+            expected,
+            build: async () => {
+                const zip = createZip();
+                zip.add('readme.txt', 'written by zipnative' + String.fromCharCode(10));
+                zip.add('data/binary.bin', binary);
+                zip.addStream('data/compressible.txt', (async function* () {
+                    for (let i = 0; i < text.length; i += 977) {
+                        yield text.subarray(i, Math.min(i + 977, text.length));
+                    }
+                })(), { zip64: true });
+                return collect(zip.stream());
+            },
+        },
+        {
             // Incremental save() output: dead bytes (the old CD + old EOCD +
             // replaced payloads) sit inside the file — foreign extractors
             // must still accept and extract it correctly.

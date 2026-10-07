@@ -50,18 +50,33 @@ export {
     type VerifyZipOptions,
     type ZipVerificationReport,
 } from './parser/zip-verify.js';
+export {
+    analyzeDeterminism,
+    type AnalyzeDeterminismOptions,
+    type DeterminismConcern,
+    type DeterminismOffender,
+    type DeterminismReport,
+} from './parser/zip-determinism.js';
 
 // ── 4. Modifying: incremental save / compact rewrite ─────────────────
 export {
     createZipModifier,
+    type CanonicalOptions,
+    type CompactOptions,
     type ZipModifier,
     type ZipModifierOptions,
 } from './parser/zip-modifier.js';
-
-// ── 4b. Entry attributes (0.9) ───────────────────────────────────────
 export {
+    canonicalizeZip,
+    type CanonicalizeOptions,
+} from './parser/zip-canonical.js';
+
+// ── 4b. Entry attributes (0.9; the write-side helper since 1.1.0) ────
+export {
+    externalAttributesFromUnixMode,
     getUnixMode,
     isSymlinkEntry,
+    type UnixModeOptions,
 } from './core/zip-attributes.js';
 
 // ── 4c. Byte sources for the streaming entry points (0.9) ────────────

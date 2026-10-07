@@ -74,6 +74,26 @@ export interface AddEntryOptions {
     readonly externalAttributes?: number;
     /** Extra fields to embed verbatim — the caller owns their determinism. */
     readonly extraFields?: readonly ZipExtraField[];
+    /**
+     * `addStream()` only: opt the entry into the Zip64 streaming layout
+     * for content that MAY exceed 4 GiB — the local header carries a
+     * speculative Zip64 extra (both sizes as zero placeholders, APPNOTE
+     * §4.5.3), the trailing data descriptor is the 24-byte form, and the
+     * central record always carries both final sizes in its Zip64 extra.
+     * Without it a stream crossing 4 GiB is refused mid-output
+     * (`ZIP_UNSUPPORTED_ZIP64_STREAMING`). Opt in only for entries that
+     * may really exceed 4 GiB: streaming readers that size the descriptor
+     * from the measured lengths (Java's ZipInputStream) cannot read a small
+     * entry written in this layout; random-access readers (unzip, 7-Zip,
+     * python, bsdtar, jar, Expand-Archive, zipnative) read it fine. Buffered
+     * entries (`add`, `addDirectory`, the modifier) promote to Zip64
+     * automatically and reject this option (`ZIP_INVALID_OPTION`).
+     * `deterministic: true` still buffers a stream through the pure encoder,
+     * whose 2 GiB input cap this option does not lift.
+     *
+     * @since 1.1.0
+     */
+    readonly zip64?: boolean;
 }
 
 /** Archive writer — obtain via {@link createZip}. */
@@ -184,6 +204,13 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
         entryOptions: AddEntryOptions | undefined,
     ): void => {
         const finalName = validateEntryName(name, isDirectory);
+        // Validate early: the Zip64 streaming opt-in has no meaning for a
+        // buffered entry (those promote automatically), so a caller setting
+        // it there is corrected at the call site, not silently ignored.
+        if (entryOptions?.zip64 !== undefined && source === null) {
+            throw new ZipError('ZIP_INVALID_OPTION',
+                `zipnative: entry '${finalName}': zip64 applies to addStream() only — buffered entries promote to Zip64 automatically`);
+        }
         if (names.has(finalName)) {
             throw new ZipFormatError('ZIP_DUPLICATE_ENTRY_NAME',
                 `zipnative: duplicate entry name '${finalName}' — every archive path must be unique`);
@@ -207,6 +234,7 @@ export function createSpecCollector(options?: CreateZipOptions): SpecCollector {
                 ?? (isDirectory ? ((0o040755 << 16) | DOS_ATTR_DIRECTORY) >>> 0 : (0o100644 << 16) >>> 0),
             comment: entryOptions?.comment === undefined ? new Uint8Array(0) : te.encode(entryOptions.comment),
             extraFields: entryOptions?.extraFields ?? [],
+            zip64: entryOptions?.zip64 === true,
         });
     };
 

@@ -53,6 +53,8 @@ import {
 import {
     EXTRA_ZIP64,
     FLAG_DATA_DESCRIPTOR,
+    FLAG_ENCRYPTED,
+    FLAG_STRONG_ENCRYPTION,
     FLAG_UTF8,
     SENTINEL_U16,
     SENTINEL_U32,
@@ -93,6 +95,42 @@ export interface ZipModifierOptions extends ZipCommonOptions {
     readonly defaultDate?: Date | 'now';
 }
 
+/**
+ * The canonical form `saveCompact({ canonical: true })` rewrites an archive
+ * into — zipnative's own deterministic layout (docs/guides/determinism.md,
+ * level 1), applied to content from ANY producer without recompression:
+ * timestamps pinned, entries sorted by raw name bytes, every name re-encoded
+ * as UTF-8 with flag bit 11, extra fields dropped (Zip64 is recomputed;
+ * encrypted entries keep theirs — the 0x9901 AES record is part of the
+ * ciphertext's envelope), comments dropped, version-made-by and internal
+ * attributes constant. The equivalent of Debian's strip-nondeterminism or
+ * Gradle's reproducibleFileOrder + preserveFileTimestamps=false, for any
+ * ZIP. `analyzeDeterminism()` on the output reports `deterministic: true`.
+ *
+ * @since 1.1.0
+ */
+export interface CanonicalOptions {
+    /**
+     * Timestamp written on every entry, read with the modifier's
+     * `dosTimeMode`. Default: the DOS epoch (the deterministic default).
+     */
+    readonly date?: Date;
+    /** Keep the archive comment and the entry comments. Default false. */
+    readonly keepComments?: boolean;
+    /**
+     * Keep each entry's external attributes (Unix modes, DOS attributes).
+     * Default true; `false` writes the canonical defaults (`0o100644` files,
+     * `0o40755` directories).
+     */
+    readonly keepExternalAttributes?: boolean;
+}
+
+/** Options for {@link ZipModifier.saveCompact}. @since 1.1.0 */
+export interface CompactOptions {
+    /** Rewrite into the canonical deterministic form (see {@link CanonicalOptions}). Default false. */
+    readonly canonical?: boolean | CanonicalOptions;
+}
+
 /** Incremental archive modifier — obtain via {@link createZipModifier}. */
 export interface ZipModifier {
     /** The reader this modifier wraps. Its bytes are never mutated. */
@@ -123,8 +161,21 @@ export interface ZipModifier {
      * Edits stay pending — saves are repeatable and each re-plans.
      */
     save(): Uint8Array;
-    /** Canonical rewrite without recompression; removed data is truly gone. */
-    saveCompact(): Uint8Array;
+    /**
+     * Canonical rewrite without recompression; removed data is truly gone.
+     * With `{ canonical: true }` (1.1.0) every entry is also normalised
+     * into the deterministic form — the reproducible-builds fix for an
+     * archive from any producer.
+     */
+    saveCompact(options?: CompactOptions): Uint8Array;
+}
+
+/** `CanonicalOptions` with every default applied. */
+interface ResolvedCanonical {
+    readonly dosDate: number;
+    readonly dosTime: number;
+    readonly keepComments: boolean;
+    readonly keepExternalAttributes: boolean;
 }
 
 type PendingEdit =
@@ -241,9 +292,21 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         return finalName;
     };
 
+    /** Validate early (at addEntry/replaceEntry, not at save): the modifier writes buffered entries only. */
+    const rejectStreamOnlyOptions = (name: string, entryOptions: AddEntryOptions | undefined): void => {
+        if (entryOptions?.zip64 !== undefined) {
+            throw new ZipError('ZIP_INVALID_OPTION',
+                `zipnative: entry '${name}': zip64 applies to addStream() only — buffered entries promote to Zip64 automatically`);
+        }
+    };
+
     /** Build the EntrySpec for one pending `write` (shared by both saves). */
     const specForWrite = (name: string, edit: { data: Uint8Array; options?: AddEntryOptions }): EntrySpec => {
         const isDirectory = name.endsWith('/');
+        if (edit.options?.zip64 !== undefined) {
+            throw new ZipError('ZIP_INVALID_OPTION',
+                `zipnative: entry '${name}': zip64 applies to addStream() only — buffered entries promote to Zip64 automatically`);
+        }
         const compression = edit.options?.compression;
         const level = compression?.level ?? defaultCompression?.level ?? 6;
         if (!Number.isInteger(level) || level < 0 || level > 9) {
@@ -264,6 +327,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 ?? (isDirectory ? ((0o040755 << 16) | 0x10) >>> 0 : (0o100644 << 16) >>> 0),
             comment: edit.options?.comment === undefined ? new Uint8Array(0) : te.encode(edit.options.comment),
             extraFields: edit.options?.extraFields ?? [],
+            zip64: false,
         };
     };
 
@@ -300,7 +364,8 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
      * verbatim survivor (`nameIsUtf8` false, original `rawName`), the
      * source's own flag is preserved untouched.
      */
-    const planForCopy = (source: ZipEntry, nameBytes: Uint8Array, nameIsUtf8: boolean): PlannedEntry => {
+    const planForCopy = (source: ZipEntry, nameBytes: Uint8Array, nameIsUtf8: boolean, canonical: ResolvedCanonical | null = null): PlannedEntry => {
+        if (canonical !== null) return planForCanonicalCopy(source, canonical);
         let flags = source.flags & ~FLAG_DATA_DESCRIPTOR;
         // Set-only: a non-ASCII UTF-8 re-encoding needs bit 11 to stay
         // truthful; an ASCII name is valid under BOTH encodings, so an
@@ -327,9 +392,59 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         crc32: source.crc32,
         compressedSize: source.compressedSize,
         uncompressedSize: source.uncompressedSize,
+        zip64: false,
         versionMadeBy: source.versionMadeBy,
         internalAttributes: source.internalAttributes,
         versionNeededMin: source.versionNeeded,
+        };
+    };
+
+    /**
+     * The canonical copy: same compressed bytes, canonical metadata. The
+     * name is the DECODED name re-encoded as UTF-8 (a CP437 source becomes
+     * a UTF-8 entry, bit 11 always set, as the writer does); the flags keep
+     * only the encryption bits; the extra fields are dropped unless the
+     * entry is encrypted (its 0x9901 record belongs to the ciphertext).
+     */
+    const planForCanonicalCopy = (source: ZipEntry, canonical: ResolvedCanonical): PlannedEntry => {
+        const encryptionBits = source.flags & (FLAG_ENCRYPTED | FLAG_STRONG_ENCRYPTION);
+        const isDirectory = source.isDirectory;
+        return {
+            nameBytes: te.encode(source.name),
+            method: source.compressionMethod,
+            flags: FLAG_UTF8 | encryptionBits,
+            dosDate: canonical.dosDate,
+            dosTime: canonical.dosTime,
+            externalAttributes: canonical.keepExternalAttributes
+                ? source.externalAttributes
+                : (isDirectory ? ((0o040755 << 16) | 0x10) >>> 0 : (0o100644 << 16) >>> 0),
+            comment: canonical.keepComments ? source.comment : new Uint8Array(0),
+            extraFields: source.isEncrypted
+                ? source.extraFields.filter((f: ZipExtraField) => f.id !== EXTRA_ZIP64)
+                : [],
+            payload: rawCompressedSlice(source),
+            source: null,
+            level: 6,
+            deterministic: false,
+            crc32: source.crc32,
+            compressedSize: source.compressedSize,
+            uncompressedSize: source.uncompressedSize,
+            zip64: false,
+            versionNeededMin: source.versionNeeded,
+        };
+    };
+
+    const resolveCanonical = (option: boolean | CanonicalOptions | undefined): ResolvedCanonical | null => {
+        if (option === undefined || option === false) return null;
+        const opts = option === true ? {} : option;
+        const dos = opts.date === undefined
+            ? { dosDate: DETERMINISTIC_DOS_DATE, dosTime: DETERMINISTIC_DOS_TIME }
+            : toDos(opts.date);
+        return {
+            dosDate: dos.dosDate,
+            dosTime: dos.dosTime,
+            keepComments: opts.keepComments === true,
+            keepExternalAttributes: opts.keepExternalAttributes !== false,
         };
     };
 
@@ -383,6 +498,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 throw new ZipError('ZIP_ENTRY_EXISTS',
                     `zipnative: entry '${finalName}' already exists — use replaceEntry() to overwrite it`);
             }
+            rejectStreamOnlyOptions(finalName, entryOptions);
             edits.set(finalName, { kind: 'write', data: bytes, options: entryOptions });
         },
 
@@ -394,6 +510,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                     `zipnative: no entry named '${finalName}' (it may have been removed) — `
                     + 'use addEntry() to create it');
             }
+            rejectStreamOnlyOptions(finalName, entryOptions);
             edits.set(finalName, { kind: 'write', data: bytes, options: entryOptions });
         },
 
@@ -579,26 +696,31 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             return out;
         },
 
-        saveCompact(): Uint8Array {
+        saveCompact(compactOptions?: CompactOptions): Uint8Array {
+            const canonical = resolveCanonical(compactOptions?.canonical);
             const writeSpecs: EntrySpec[] = [];
             const plans: PlannedEntry[] = [];
             for (const [name, edit] of edits) {
                 if (edit.kind === 'write') {
                     writeSpecs.push(specForWrite(name, edit));
                 } else if (edit.kind === 'rawCopy') {
-                    plans.push(planForCopy(edit.source, te.encode(name), true));
+                    // A renamed entry: the canonical copy re-encodes the NEW name.
+                    plans.push(canonical === null
+                        ? planForCopy(edit.source, te.encode(name), true)
+                        : { ...planForCanonicalCopy(edit.source, canonical), nameBytes: te.encode(name) });
                 }
             }
             for (const record of survivingSources()) {
-                plans.push(planForCopy(record.entry, record.entry.rawName, false));
+                plans.push(planForCopy(record.entry, record.entry.rawName, false, canonical));
             }
             plans.push(...planArchive(writeSpecs, new Uint8Array(0), limits, emit).plans);
             plans.sort((a, b) => compareNames(a.nameBytes, b.nameBytes));
             enforceLimit(limits, 'maxEntries', plans.length, 'surviving entry count');
 
+            const comment = pendingComment ?? layout.comment;
             const ctx: ZipCtx = {
                 plans,
-                comment: pendingComment ?? layout.comment,
+                comment: canonical !== null && !canonical.keepComments && pendingComment === null ? new Uint8Array(0) : comment,
                 hasStreamEntries: false,
             };
             return assembleArchive(ctx);
