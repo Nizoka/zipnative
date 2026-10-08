@@ -63,24 +63,31 @@ zipnative 1.1.0 is the first minor since the freeze and keeps every promise 1.0.
 
 ## Verification
 
-The release gate is `npx tsx scripts/gate.ts --publish --require-all`. Each line names the individual gate and what it reported on the release commit (Windows 11, Node 22, 2026-10-08; the gate ran in three resumed segments after fixing the codec-test matchers and the compat extraction path — every step passed on the release tree):
+The release gate is `npx tsx scripts/gate.ts --publish --require-all`. Each line names the individual gate and what it reported on the release commit (Windows 11, Node 22.23, 2026-10-08; one uninterrupted run on the audited-and-fixed tree `72faadc`, 13 steps, 271 s):
 
-- [x] `npm run typecheck:all` — clean (src + tests + scripts), 46.8 s
-- [x] `npm run lint` — clean, 33.2 s
+- [x] `npm run typecheck:all` — clean (src + tests + scripts), 17.5 s
+- [x] `npm run lint` — clean, 6.1 s
 - [x] `npm run build` + dist-check + dist-probe — ESM, CJS, declarations, worker script present; no console / eval / Node I/O leak in the bundles
-- [x] `npm run test:coverage` — 749 tests across 61 files (6 skipped: foreign producers absent), thresholds 85 / 78 / 85 / 85 met, statements 93.9 % (declared.coverageMeasured), 210.9 s
+- [x] `npm run test:coverage` — 749 tests across 61 files (6 skipped: foreign producers absent), thresholds 85 / 78 / 85 / 85 met, statements 93.9 % (declared.coverageMeasured), 70.0 s
 - [x] `npm run check:package` — attw + publint clean
 - [x] `npm run verify:docs` — 47 rules, 0 problems, 0 warnings (`--strict` clean)
 - [x] `npm run test:generate` + `npm run verify:samples` — 38 archives generated, 38 tracked: 33 byte-identical to their 1.0.0 baseline, 5 new with `since: 1.1.0`
 - [x] `npm run validate:zip` — 33 conformant / 5 expected non-conformant, as declared (ISO/IEC 21320-1 profile, independent parser + foreign integrity pass)
 - [x] `npm run test:interop` — 13 write cases extracted and byte-compared by the extractors present on this machine, 6 producers read; documented exclusions only
-- [x] `tests/tools/api-compat.test.ts` + `compat-previous` — api-compat: 77/77 exports present (kind, subpath, signature — `VERSION` aside), 39/39 codes with their classes, 11/11 diagnostics; compat-previous (gate step `compat:previous`, 2026-10-08): the v1.0.0 suite against the 1.1.0 sources — 365 passed, 11 skipped, 0 failed, 3 file exclusions (repository-tree tests, the dist-gated worker integration, the foreign-producer spawner), no behaviour-change exclusion needed
+- [x] `tests/tools/api-compat.test.ts` + `compat-previous` — api-compat: 77/77 exports present (kind, subpath, signature — `VERSION` aside), 39/39 codes with their classes, 11/11 diagnostics; compat-previous (gate step `compat:previous`, 2026-10-08, 84.5 s): the v1.0.0 suite against the 1.1.0 sources — 365 passed, 11 skipped, 0 failed, 3 file exclusions (repository-tree tests, the dist-gated worker integration, the foreign-producer spawner), no behaviour-change exclusion needed
 
 CI (to be observed on the PR): `ci (22)`, `ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`, `compat-previous`, Docs, CodeQL.
 
 ## Pre-release audit
 
-PENDING — `.claude/skills/release-audit` (auditor A: claims vs code; auditor B: machine surfaces vs prose; adversarial verifier; docs-autonomy pass; GO / NO-GO). Ledger under `test-output/.audit/1.1.0/` (not committed); summary to be pasted here.
+Run on 2026-10-08 against `2acf541` per `.claude/skills/release-audit` — Auditor A (62 claim rows, every claim reproduced by a command), Auditor B (47 surface rows), Auditor D (41 calls written from the published docs alone and executed), then two adversarial verifiers re-deriving every finding. Ledger, reports and verdict under `test-output/.audit/1.1.0/` (git-ignored).
+
+- Verified: **1 blocker, 8 majors, 11 minors confirmed; 4 downgraded to notes; 0 rejected; 2 duplicates.** Headline findings: the guides promised a golden hash for `canonicalizeZip` that no test held (B-25); `signal` / `onProgress` were silently ignored where the docs' only example suggested putting them — `stream(options)`, `readEntryStream(entry, options)`, the remote playground (D-06, D-07, B-04); the parallel `toBytes()` reported no progress (D-08); an archive canonicalised with a pinned date failed the guide's own `analyzeDeterminism()` gate (D-12); the `extractZipStream` shape was documented nowhere and the README sample awaited the generator (D-34, V2-01); a non-existent limit name in the guide (B-06).
+- Fixed in `72faadc` (every change additive; `api-compat` records the one widened signature under ledger C6): per-call `signal` / `onProgress` on both writers and both readers, progress on the parallel `toBytes()` and on skipped entries, `analyzeDeterminism({ date, dosTimeMode })`, golden SHA-256 hashes over two committed foreign fixtures, and the twenty documentation corrections listed in the ledger. Fast gate green on the fix (749 tests, 47 verify-docs rules); the full publish gate re-ran on `72faadc`, 13/13 steps — the Verification section.
+- Waived (downgraded notes, 1.2 enhancements): `since` per export in `api.json` (B-08) and interface members in `api.json` (D-36 — the root cause of three documentation gaps, now fixed in prose).
+- Not verifiable locally: the 4 GiB + 1 stream (conformance.yml only), the 2 GiB deterministic cap, Java `ZipInputStream` behaviour and the four interop tools absent on this machine, and the GitHub-side `npm-publish` environment and applied rulesets (merge checklist).
+
+**Verdict: GO** (`test-output/.audit/1.1.0/verdict.md`).
 
 ## Merge checklist
 
