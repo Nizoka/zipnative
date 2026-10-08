@@ -102,7 +102,7 @@ const RULES: ReadonlyArray<readonly [string, string]> = [
     ['anchor-parity', 'every #fragment points at a real id'],
     ['sitemap-parity', 'every indexable page is in the sitemap, every <loc> resolves, lastmod is bounded by verifiedOn'],
     ['sitemap-lastmod-vs-git', '(full clones only) lastmod is on or after the last commit of the page sources'],
-    ['jsonld-version', 'the homepage JSON-LD softwareVersion equals the manifest'],
+    ['jsonld-version', 'JSON-LD parses; every package node carries the manifest version; an ItemList mirrors the hub cards (count, order, numberOfItems, pages exist)'],
     ['cdn-sri', 'third-party executable resources carry integrity + crossorigin'],
     ['contrast', 'theme tokens meet WCAG AA contrast'],
     ['sample-count', 'test-output/ never holds more archives than derived.sampleZips'],
@@ -900,10 +900,36 @@ for (const page of htmlPages) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version', '#library node lacks softwareVersion');
             }
         };
+        // An ItemList (a hub's mainEntity) is a machine-readable copy of the
+        // hub's cards: the 1.1.0 playgrounds hub listed 7 of its 8 pages for
+        // a whole release because nothing compared the two. The list must
+        // name every same-directory page the hub links to, in card order,
+        // with consecutive positions and a numberOfItems equal to its length.
+        const dir = page.slice(0, page.lastIndexOf('/') + 1);
+        const cards = [...html.matchAll(/href="([a-z0-9-]+\.html)"/g)].map((c) => c[1]).filter((f, i, all) => f !== 'index.html' && all.indexOf(f) === i);
+        const checkItemList = (list: Record<string, unknown>): void => {
+            const items = Array.isArray(list['itemListElement']) ? (list['itemListElement'] as Array<Record<string, unknown>>) : [];
+            if (list['numberOfItems'] !== items.length) {
+                report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList numberOfItems ${String(list['numberOfItems'])} != ${items.length} itemListElement entries`);
+            }
+            const files = items.map((item, i) => {
+                if (item['position'] !== i + 1) report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList position ${String(item['position'])} at index ${i} — positions must be 1..n in order`);
+                const url = typeof item['url'] === 'string' ? item['url'] : '';
+                const file = url.slice(url.lastIndexOf('/') + 1);
+                if (!existsSync(resolve(ROOT, dir + file))) report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList item "${String(item['name'])}" points to ${url} — no such page beside the hub`);
+                return file;
+            });
+            if (cards.length > 0 && files.join(' ') !== cards.join(' ')) {
+                report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList [${files.join(', ')}] must equal the hub's cards in order [${cards.join(', ')}]`);
+            }
+        };
         for (const node of nodes) {
             checkVersion(node);
             const about = node['about'];
             if (about !== null && typeof about === 'object') checkVersion(about as Record<string, unknown>);
+            const entity = node['mainEntity'];
+            if (entity !== null && typeof entity === 'object' && (entity as Record<string, unknown>)['@type'] === 'ItemList') checkItemList(entity as Record<string, unknown>);
+            if (node['@type'] === 'ItemList') checkItemList(node);
             const type = node['@type'];
             if ((type === 'WebSite' || type === 'SoftwareSourceCode' || type === 'TechArticle') && node['inLanguage'] === undefined) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `${String(type)} node lacks inLanguage`);
