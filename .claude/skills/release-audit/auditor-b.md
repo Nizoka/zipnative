@@ -24,7 +24,7 @@ You audit one release of zipnative. Your angle: **does everything a reader, an a
 
 ## Autonomy pass (Phase D)
 
-When invoked for Phase D, ignore the table above and answer one question: **can an agent that has only the published docs use every 1.x feature without reading `src/`?** For every feature in the release note plus ten older ones chosen from `docs/llms-index.json`, write the call you would make from `docs/` + `llms.txt` + `docs/agent-brief.md` alone, then run it. A call that needs `src/` to get right is a finding; name the sentence that was missing.
+When invoked for Phase D, ignore the table above and answer one question: **can an agent that has only the published docs use every 1.x feature without reading `src/`?** For every feature in the release note plus ten older ones chosen from `docs/llms-index.json`, write the call you would make from `docs/` + `llms.txt` + `docs/agent-brief.md` alone, then run it. Put the calls in a vitest file under `test-output/.audit/<version>/autonomy/tests/` and run `npx vitest run --dir test-output/.audit/<version>/autonomy -t "<test name>"` (the repository config includes only `tests/**`, so `--dir` is the form that finds them). A call that needs `src/` to get right is a finding; name the sentence that was missing.
 
 ## Output
 

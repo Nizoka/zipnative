@@ -56,7 +56,7 @@ zipnative 1.1.0 is the first minor since the freeze and keeps every promise 1.0.
 ## Docs, samples & recipes
 
 - Release note `release-notes/v1.1.0.md` (Security first; Upgrade = the ledger; Downstream integration notes) and the `CHANGELOG.md` entry `## [1.1.0] - 2026-10-08` (the previously unreleased ecosystem-docs entry folded in).
-- Manifest `docs/assets/ecosystem.json`: version 1.1.0, `verifiedOn` 2026-10-08, `derived.*` (exports 106, errorCodes 39, diagnostics 12, testFiles 61, sampleGenerators 12, guides 11, playgrounds 8, recipes 16, interopTools 6, interopValidations 19, verifyDocsRules 47, sampleZips 38), `declared` (tests 740, coverage 93 / 93.9, iso21320 33 / 5).
+- Manifest `docs/assets/ecosystem.json`: version 1.1.0, `verifiedOn` 2026-10-08, `derived.*` (exports 106, errorCodes 39, diagnostics 12, testFiles 61, sampleGenerators 12, guides 11, playgrounds 8, recipes 16, interopTools 6, interopValidations 19, verifyDocsRules 47, sampleZips 38), `declared` (tests 749, coverage 93 / 93.9, iso21320 33 / 5).
 - CDN pin in `docs/playgrounds/load-engine.js` moves to `zipnative@1.1.0`, so the playgrounds resolve once the release is published (documented window between merge and publish).
 - Guides 9 → 11 (`large-and-remote`, `reproducible-builds`); playgrounds 7 → 8 (`remote`); recipes 12 → 16; samples 33 → 38 (five new entries baselined with `since: 1.1.0`, the 33 others byte-identical); interop write cases 11 → 13.
 - Two satellite issue drafts under `.github/drafts/` (git-ignored; `verify:issue` OK) for the human to file: `zipnative-cli-bump-1.1.0.md`, `zipnative-mcp-bump-1.1.0.md`.
@@ -68,7 +68,7 @@ The release gate is `npx tsx scripts/gate.ts --publish --require-all`. Each line
 - [x] `npm run typecheck:all` — clean (src + tests + scripts), 46.8 s
 - [x] `npm run lint` — clean, 33.2 s
 - [x] `npm run build` + dist-check + dist-probe — ESM, CJS, declarations, worker script present; no console / eval / Node I/O leak in the bundles
-- [x] `npm run test:coverage` — 740 tests across 61 files (6 skipped: foreign producers absent), thresholds 85 / 78 / 85 / 85 met, statements 93.9 % (declared.coverageMeasured), 210.9 s
+- [x] `npm run test:coverage` — 749 tests across 61 files (6 skipped: foreign producers absent), thresholds 85 / 78 / 85 / 85 met, statements 93.9 % (declared.coverageMeasured), 210.9 s
 - [x] `npm run check:package` — attw + publint clean
 - [x] `npm run verify:docs` — 47 rules, 0 problems, 0 warnings (`--strict` clean)
 - [x] `npm run test:generate` + `npm run verify:samples` — 38 archives generated, 38 tracked: 33 byte-identical to their 1.0.0 baseline, 5 new with `since: 1.1.0`

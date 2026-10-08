@@ -33,8 +33,13 @@ export interface StreamControl {
     readonly onProgress?: ZipProgressHandler;
 }
 
-/** Options for `ZipWriter.stream()`. */
-export interface StreamOptions {
+/**
+ * Options for `ZipWriter.stream()`: the chunk size, and — per call — the
+ * cancellation signal and progress handler (1.1.0). Given here they
+ * override the ones passed to `createZip()` / `createParallelZip()` for
+ * this stream only; given there they apply to every call.
+ */
+export interface StreamOptions extends StreamControl {
     /** Output chunk size in bytes. Default 64 KiB, clamped to 1 KiB – 16 MiB. */
     readonly chunkSize?: number;
 }

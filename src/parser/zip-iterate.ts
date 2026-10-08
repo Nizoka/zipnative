@@ -312,6 +312,10 @@ export async function* iterateZipEntries(
                     const discard = cursor.take(compressedSize);
                     for (let res = await discard.next(); !res.done; res = await discard.next()) { /* discard */ }
                     state.done = true;
+                    // A skipped entry is a completed entry: its compressed bytes
+                    // were consumed, nothing was produced.
+                    progress.bytesIn(compressedSize);
+                    progress.entryDone();
                 },
             };
 

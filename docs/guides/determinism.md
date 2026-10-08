@@ -51,9 +51,10 @@ enforce it byte-for-byte.
 `canonicalizeZip(bytes)` and `saveCompact({ canonical: true })` rewrite
 *any* archive — whoever produced it — into the canonical form without
 decompressing a payload, and the resulting bytes are part of this
-contract: the golden hash in
+contract: the golden SHA-256 hashes in
 [tests/parser/zip-canonical.test.ts](https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts)
-pins them on a foreign archive, and changing them is semver-major.
+pin `canonicalizeZip()` over two committed foreign fixtures (a bsdtar and
+a PowerShell archive), and changing them is semver-major.
 
 | Aspect | Rule |
 |---|---|
@@ -70,7 +71,10 @@ pins them on a foreign archive, and changing them is semver-major.
 `analyzeDeterminism(bytes)` reports which of these rules an archive
 already satisfies (`epochTimestamps`, `canonicalOrder`, `utf8Flags`,
 `canonicalExtras`, `canonicalVersionMadeBy`, `noDataDescriptors` — the
-last informational) and names every offending entry. The
+last informational) and names every offending entry. It checks for the
+DOS epoch unless given the pinned date: `analyzeDeterminism(bytes, { date,
+dosTimeMode })` is the verdict for an archive canonicalised with that
+`date`. The
 [reproducible builds guide](reproducible-builds.html) walks through
 measure → canonicalise → prove.
 

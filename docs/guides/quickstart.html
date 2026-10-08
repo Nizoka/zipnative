@@ -126,7 +126,13 @@ for (const file of files) {
 }
 </code></pre>
 <p>The engine never touches a filesystem; join <code>file.path</code> under your own
-root (see the <a href="security.html">security guide</a>).</p>
+root (see the <a href="security.html">security guide</a>). Directory entries are not
+returned — recreate directories from the file paths. For large archives,
+<code>extractZipStream()</code> yields <code>{ path, entry, stream() }</code> entry by entry:</p>
+<pre><code class="language-ts">for await (const file of extractZipStream(bytes, { signal, onProgress })) {
+    for await (const chunk of file.stream()) { /* bounded memory; consume before advancing */ }
+}
+</code></pre>
 <h2 id="create--reproducibly">Create — reproducibly<a class="heading-anchor" href="#create--reproducibly" aria-label="Link to this section">#</a></h2>
 <pre><code class="language-ts">import { createZip } from &#39;zipnative&#39;;
 

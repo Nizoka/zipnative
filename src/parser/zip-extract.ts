@@ -48,7 +48,7 @@ export interface ExtractedEntry {
     readonly entry: ZipEntry;
 }
 
-/** One extracted file, streamed. */
+/** One extracted file, streamed: `{ path, entry, stream() }` — `stream()` yields the content in chunks and must be consumed (or discarded) before the iterator advances; there is no `data` field. */
 export interface ExtractedStreamEntry {
     readonly path: string;
     readonly entry: ZipEntry;
@@ -185,9 +185,11 @@ export function extractZip(bytes: Uint8Array, options?: ExtractOptions): Extract
 }
 
 /**
- * Extract an archive entry-by-entry with streamed content — bounded
- * memory for large entries. Consume (or discard) each `stream()` before
- * advancing.
+ * Extract an archive entry-by-entry with streamed content: an async
+ * iterable of `{ path, entry, stream() }` — consume (or discard) each
+ * `stream()` before advancing (it is an `async function*`: iterate it
+ * with `for await`, never `await` the call itself). Bounded memory for
+ * large entries; directory entries are not yielded.
  */
 export async function* extractZipStream(
     bytes: Uint8Array,

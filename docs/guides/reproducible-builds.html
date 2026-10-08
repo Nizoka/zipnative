@@ -107,6 +107,10 @@ report.canonicalVersionMadeBy;
 report.noDataDescriptors;    // informational — a streamed layout never fails the verdict
 for (const { name, concern } of report.offenders) console.log(name, concern);
 // concern: &#39;timestamp&#39; | &#39;order&#39; | &#39;utf8-flag&#39; | &#39;extra-field&#39; | &#39;version-made-by&#39; | &#39;data-descriptor&#39;
+
+// Timestamps are checked against the DOS epoch; for an archive canonicalised
+// with a pinned date, pass that date (and the dosTimeMode it was written with):
+analyzeDeterminism(bytes, { date: pinned, dosTimeMode: &#39;utc&#39; });
 </code></pre>
 <p>The report is what the CLI&#39;s <code>inspect --check deterministic</code> and the MCP
 server&#39;s <code>inspect_zip</code> re-derived from <code>entries()</code> in 1.0.0; it throws like
@@ -130,7 +134,7 @@ canonicalizeZip(canonical);                        // byte-identical: idempotent
 </thead>
 <tbody><tr>
 <td>Entry order</td>
-<td>sorted by raw name bytes, unsigned bytewise — the writer&#39;s <code>order: &#39;name&#39;</code></td>
+<td>sorted by raw name bytes, unsigned bytewise — the writer&#39;s default <code>order: &#39;canonical&#39;</code></td>
 </tr>
 <tr>
 <td>Timestamps</td>
@@ -170,15 +174,16 @@ canonicalizeZip(canonical);                        // byte-identical: idempotent
 <code>{ canonical: { date, keepComments, keepExternalAttributes } }</code> — so an
 edit and a canonical rewrite are one pass.</p>
 <p><strong>The canonical bytes are part of the frozen determinism contract.</strong> The
-golden hash in
+golden SHA-256 hashes in
 <a href="https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts" target="_blank" rel="noopener">tests/parser/zip-canonical.test.ts</a>
-pins the output of <code>canonicalizeZip</code> on a foreign archive; changing it is a
-semver-major release, exactly like the pinned encoder&#39;s bytes.</p>
+pin the output of <code>canonicalizeZip</code> over two committed foreign fixtures;
+changing them is a semver-major release, exactly like the pinned encoder&#39;s
+bytes.</p>
 <h2 id="3-prove--the-gate">3. Prove — the gate<a class="heading-anchor" href="#3-prove--the-gate" aria-label="Link to this section">#</a></h2>
 <pre><code class="language-ts">import { createHash } from &#39;node:crypto&#39;;
 import { analyzeDeterminism, canonicalizeZip } from &#39;zipnative&#39;;
 
-const artefact = canonicalizeZip(await build());      // whatever produced it
+const artefact = canonicalizeZip(await build());      // whatever produced it (add { date } to pin one — then pass the same date below)
 if (!analyzeDeterminism(artefact).deterministic) throw new Error(&#39;canonical form broken&#39;);
 const digest = createHash(&#39;sha256&#39;).update(artefact).digest(&#39;hex&#39;);
 if (digest !== GOLDEN_SHA256) throw new Error(`artefact drifted: ${digest}`);
@@ -204,7 +209,14 @@ const resources = openZip(resourcesZip);
 
 for (const entry of classes.entries()) out.addFromReader(classes, entry);
 for (const entry of resources.entries()) out.addFromReader(resources, entry, { verify: false }); // trusted source
-out.addRaw(&#39;META-INF/MANIFEST.MF&#39;, deflatedManifest, { method: 8, crc32, uncompressedSize }); // pre-compressed bytes
+// A payload you compressed yourself, or lifted with readEntryRaw() (the
+// compressed bytes as a Uint8Array): the entry carries the metadata.
+const source = classes.getEntry(&#39;META-INF/MANIFEST.MF&#39;)!;
+out.addRaw(&#39;META-INF/MANIFEST.MF&#39;, classes.readEntryRaw(source), {
+    method: source.compressionMethod,       // 8 = deflate, 0 = store
+    crc32: source.crc32,
+    uncompressedSize: source.uncompressedSize,
+});
 
 const jar = out.toBytes();   // bytes are a function of the inputs and the call order under order: &#39;insertion&#39;
 </code></pre>

@@ -6,38 +6,38 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 15847,
-      "approxTokens": 3962
+      "bytes": 17506,
+      "approxTokens": 4377
     },
     {
       "url": "agent-brief.md",
       "description": "A compact briefing for AI agents writing code with zipnative — paste it into a coding agent's context.",
-      "bytes": 5951,
-      "approxTokens": 1488
+      "bytes": 6040,
+      "approxTokens": 1510
     },
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 195322,
-      "approxTokens": 48831
+      "bytes": 199002,
+      "approxTokens": 49751
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 25694,
-      "approxTokens": 6424
+      "bytes": 25732,
+      "approxTokens": 6433
     },
     {
       "url": "assets/api.json",
       "description": "The mechanically extracted export surface — the API ground truth.",
-      "bytes": 32639,
-      "approxTokens": 8160
+      "bytes": 33265,
+      "approxTokens": 8316
     },
     {
       "url": "data/errors.json",
       "description": "The frozen error-code and diagnostic registry — code, class, cause, remedy.",
-      "bytes": 20451,
-      "approxTokens": 5113
+      "bytes": 20475,
+      "approxTokens": 5119
     },
     {
       "url": "assets/ecosystem.json",
@@ -48,8 +48,8 @@
     {
       "url": "data/surfaces.json",
       "description": "The capability × surface matrix (library, CLI, MCP) — the machine-readable twin of the choose guide.",
-      "bytes": 26322,
-      "approxTokens": 6581
+      "bytes": 26414,
+      "approxTokens": 6604
     },
     {
       "url": "data/cli-surface.json",
@@ -126,8 +126,8 @@
         "documented-determinism-losses",
         "verifying-reproducibility"
       ],
-      "bytes": 8142,
-      "approxTokens": 2036
+      "bytes": 8388,
+      "approxTokens": 2097
     },
     {
       "title": "Errors and error codes",
@@ -156,8 +156,8 @@
         "reading-what-you-wrote",
         "see-also"
       ],
-      "bytes": 8216,
-      "approxTokens": 2054
+      "bytes": 8756,
+      "approxTokens": 2189
     },
     {
       "title": "zipnative-mcp — AI client integration",
@@ -196,8 +196,8 @@
         "verify-in-one-call",
         "going-further"
       ],
-      "bytes": 5423,
-      "approxTokens": 1356
+      "bytes": 5781,
+      "approxTokens": 1445
     },
     {
       "title": "Reproducible builds",
@@ -213,8 +213,8 @@
         "timestamps-and-time-zones",
         "see-also"
       ],
-      "bytes": 7763,
-      "approxTokens": 1941
+      "bytes": 8383,
+      "approxTokens": 2096
     },
     {
       "title": "Security model",

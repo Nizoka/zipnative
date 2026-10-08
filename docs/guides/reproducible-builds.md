@@ -33,6 +33,10 @@ report.canonicalVersionMadeBy;
 report.noDataDescriptors;    // informational — a streamed layout never fails the verdict
 for (const { name, concern } of report.offenders) console.log(name, concern);
 // concern: 'timestamp' | 'order' | 'utf8-flag' | 'extra-field' | 'version-made-by' | 'data-descriptor'
+
+// Timestamps are checked against the DOS epoch; for an archive canonicalised
+// with a pinned date, pass that date (and the dosTimeMode it was written with):
+analyzeDeterminism(bytes, { date: pinned, dosTimeMode: 'utc' });
 ```
 
 The report is what the CLI's `inspect --check deterministic` and the MCP
@@ -55,7 +59,7 @@ The canonical form, applied to every entry of any archive:
 
 | Aspect | Rule |
 |---|---|
-| Entry order | sorted by raw name bytes, unsigned bytewise — the writer's `order: 'name'` |
+| Entry order | sorted by raw name bytes, unsigned bytewise — the writer's default `order: 'canonical'` |
 | Timestamps | the DOS epoch, or one pinned `date` (`dosTimeMode` applies) |
 | Name encoding | UTF-8 with flag bit 11 for every non-ASCII name; the raw bytes are never re-encoded |
 | version-made-by | the constant `0x032D` |
@@ -71,10 +75,11 @@ The same transformation is available on the modifier —
 edit and a canonical rewrite are one pass.
 
 **The canonical bytes are part of the frozen determinism contract.** The
-golden hash in
+golden SHA-256 hashes in
 [tests/parser/zip-canonical.test.ts](https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts)
-pins the output of `canonicalizeZip` on a foreign archive; changing it is a
-semver-major release, exactly like the pinned encoder's bytes.
+pin the output of `canonicalizeZip` over two committed foreign fixtures;
+changing them is a semver-major release, exactly like the pinned encoder's
+bytes.
 
 ## 3. Prove — the gate
 
@@ -82,7 +87,7 @@ semver-major release, exactly like the pinned encoder's bytes.
 import { createHash } from 'node:crypto';
 import { analyzeDeterminism, canonicalizeZip } from 'zipnative';
 
-const artefact = canonicalizeZip(await build());      // whatever produced it
+const artefact = canonicalizeZip(await build());      // whatever produced it (add { date } to pin one — then pass the same date below)
 if (!analyzeDeterminism(artefact).deterministic) throw new Error('canonical form broken');
 const digest = createHash('sha256').update(artefact).digest('hex');
 if (digest !== GOLDEN_SHA256) throw new Error(`artefact drifted: ${digest}`);
@@ -113,7 +118,14 @@ const resources = openZip(resourcesZip);
 
 for (const entry of classes.entries()) out.addFromReader(classes, entry);
 for (const entry of resources.entries()) out.addFromReader(resources, entry, { verify: false }); // trusted source
-out.addRaw('META-INF/MANIFEST.MF', deflatedManifest, { method: 8, crc32, uncompressedSize }); // pre-compressed bytes
+// A payload you compressed yourself, or lifted with readEntryRaw() (the
+// compressed bytes as a Uint8Array): the entry carries the metadata.
+const source = classes.getEntry('META-INF/MANIFEST.MF')!;
+out.addRaw('META-INF/MANIFEST.MF', classes.readEntryRaw(source), {
+    method: source.compressionMethod,       // 8 = deflate, 0 = store
+    crc32: source.crc32,
+    uncompressedSize: source.uncompressedSize,
+});
 
 const jar = out.toBytes();   // bytes are a function of the inputs and the call order under order: 'insertion'
 ```

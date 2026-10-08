@@ -105,7 +105,8 @@ export interface ZipModifierOptions extends ZipCommonOptions {
  * ciphertext's envelope), comments dropped, version-made-by and internal
  * attributes constant. The equivalent of Debian's strip-nondeterminism or
  * Gradle's reproducibleFileOrder + preserveFileTimestamps=false, for any
- * ZIP. `analyzeDeterminism()` on the output reports `deterministic: true`.
+ * ZIP. `analyzeDeterminism()` on the output reports `deterministic: true`
+ * (pass the same `date` to it when one was pinned).
  *
  * @since 1.1.0
  */

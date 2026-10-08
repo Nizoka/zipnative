@@ -362,6 +362,7 @@
     {
       "code": "ZIP_TIMESTAMP_CLAMPED",
       "severity": "info",
+      "since": "1.1.0",
       "raisedWhen": "A Date passed as defaultDate or an entry date is invalid, before 1980-01-01 or after 2107-12-31 23:59:58; the DOS epoch (or the maximum) was written instead of a fictitious in-range date. Since 1.1.0.",
       "remedy": "Pass a Date within 1980-2107 (dosTimeMode selects the wall-clock it is read with), or omit it for the deterministic epoch default."
     }

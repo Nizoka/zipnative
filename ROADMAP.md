@@ -195,6 +195,9 @@ pre-existing samples proves it).
 - Writing UT / NTFS extra fields (interaction with the "extra fields: none,
   except Zip64" contract to be decided first)
 - A `runtimes` CI job (Bun, Deno, Workers smoke) promoted to blocking
+- The worker playground: a same-origin Blob shim that imports the
+  CDN-served `zipnative/worker/zip-worker.js` (the script is cross-origin
+  for a same-origin `Worker` today — the 0.9 deferral)
 - Satellite follow-ups: `--url` / remote resources, `merge` / `split` /
   `canonicalize` commands and tools, `--name-encoding`, `--timeout`,
   `dosTimeMode: 'utc'` instead of re-composed dates

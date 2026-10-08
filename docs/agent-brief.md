@@ -60,8 +60,9 @@ const canonical = canonicalizeZip(bytes);   // 1.1: any archive → reproducible
   `sanitizeEntryPath()`.
 - **Extraction is safe by default** — zip-slip, symlinks, duplicates,
   bombs and Windows device names are refused unless explicitly configured.
-  A POSIX archive containing `aux.h` throws by default; opt out with
-  `rejectTraversal: false`.
+  A POSIX archive containing `aux.h` throws by default;
+  `rejectTraversal: false` makes extraction SKIP such entries silently
+  (never emitted, no diagnostic) rather than extract them.
 - **Determinism is opt-in per contract** — `deterministic: true` pins the
   pure-TS encoder (identical SHA-256 on every runtime); the default tier
   is byte-stable per environment only.

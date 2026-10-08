@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -117,4 +118,26 @@ describe('canonicalizeZip', () => {
             }
         }
     });
+});
+
+// The frozen canonical bytes (determinism guide, "Canonical compaction"):
+// the SHA-256 of canonicalizeZip() over a committed foreign fixture, pinned
+// like the encoder goldens in tests/core/zip-determinism.test.ts. The input
+// is foreign (not our writer's), the transform copies payloads bit for bit,
+// so this hash is a pure function of the fixture and the canonical rules.
+// Changing it is a semver-major release.
+describe('canonicalizeZip — the frozen canonical bytes', () => {
+    const GOLDEN: Readonly<Record<string, string>> = {
+        'bsdtar-basic.zip': 'b2e6189e25d8a99cb39c6167f033f4db8859657a37f0cd78f28eadcfa18cb31e',
+        'powershell-compress-archive-basic.zip': 'f333be4f3002b3a37bbb1baca2e0aa9b7649fda1d7c0fdd664bb7c44ccaa9590',
+    };
+    for (const [file, expected] of Object.entries(GOLDEN)) {
+        it(`${file}: canonical bytes hash to the golden SHA-256`, () => {
+            const bytes = new Uint8Array(readFileSync(resolve(FIXTURES, file)));
+            const canonical = canonicalizeZip(bytes);
+            const digest = createHash('sha256').update(canonical).digest('hex');
+            expect(digest, `canonical bytes of ${file} changed — a semver-major event`).toBe(expected);
+            expect(createHash('sha256').update(canonicalizeZip(canonical)).digest('hex')).toBe(expected);
+        });
+    }
 });

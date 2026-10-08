@@ -22,9 +22,9 @@
  * @module parser/zip-determinism
  */
 
-import type { ZipEntry, ZipLimits } from '../types/zip-types.js';
+import type { DosTimeMode, ZipEntry, ZipLimits } from '../types/zip-types.js';
 import { EXTRA_ZIP64, FLAG_UTF8 } from '../core/zip-constants.js';
-import { DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from '../core/zip-dos-time.js';
+import { DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME, dateToDosDateTime } from '../core/zip-dos-time.js';
 import { compareNames } from '../core/zip-encoding.js';
 import { openZip } from './zip-reader.js';
 
@@ -35,6 +35,15 @@ const CANONICAL_VERSION_MADE_BY = 0x032d;
 export interface AnalyzeDeterminismOptions {
     /** Security bounds, identical semantics to every other entry point. */
     readonly limits?: Partial<ZipLimits>;
+    /**
+     * The one timestamp every entry must carry instead of the DOS epoch —
+     * the `date` an archive was canonicalised with (`canonicalizeZip`,
+     * `saveCompact({ canonical: { date } })`). Compared as DOS fields under
+     * `dosTimeMode` ('local' by default, like the writer).
+     */
+    readonly date?: Date;
+    /** How `date` is converted to DOS fields; must match the writer's. */
+    readonly dosTimeMode?: DosTimeMode;
 }
 
 /** One canonical-form rule an entry breaks. */
@@ -61,6 +70,7 @@ export interface DeterminismReport {
      */
     readonly deterministic: boolean;
     /** Every entry's DOS timestamp is the epoch (1980-01-01 00:00:00). */
+    /** Every entry carries the DOS epoch — or the pinned `date` passed in the options. */
     readonly epochTimestamps: boolean;
     /** Entries are sorted by raw name bytes, unsigned bytewise. */
     readonly canonicalOrder: boolean;
@@ -101,10 +111,13 @@ export function analyzeDeterminism(bytes: Uint8Array, options?: AnalyzeDetermini
     let noDataDescriptors = true;
     let previous: ZipEntry | null = null;
     let count = 0;
+    const pinned = options?.date === undefined
+        ? { dosDate: DETERMINISTIC_DOS_DATE, dosTime: DETERMINISTIC_DOS_TIME }
+        : dateToDosDateTime(options.date, options.dosTimeMode);
 
     for (const entry of reader.entries()) {
         count++;
-        if (entry.dosDate !== DETERMINISTIC_DOS_DATE || entry.dosTime !== DETERMINISTIC_DOS_TIME) {
+        if (entry.dosDate !== pinned.dosDate || entry.dosTime !== pinned.dosTime) {
             epochTimestamps = false;
             offenders.push({ name: entry.name, concern: 'timestamp' });
         }

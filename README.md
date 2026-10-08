@@ -117,8 +117,10 @@ modifier.removeEntry('word/obsolete.xml');
 // Append-only: untouched entries are never recompressed; the original
 // bytes are preserved verbatim (removed content stays recoverable!).
 const updated = modifier.save();
-// True deletion + compact canonical layout, still no recompression:
+// True deletion + compact layout, still no recompression:
 const compacted = modifier.saveCompact();
+// …or the reproducible form (name order, epoch timestamps, extras dropped) — v1.1:
+const canonical = modifier.saveCompact({ canonical: true });
 ```
 
 Parallel creation across worker threads (v0.5, `zipnative/worker`):
@@ -206,7 +208,9 @@ out.addRaw('pre.bin', deflatedBytes, { method: 8, crc32, uncompressedSize }); //
 Cancellation, progress, UTC timestamps, legacy names, Zip64 streaming (v1.1 — every one opt-in, nothing changes by default):
 
 ```ts
-await extractZipStream(bytes, { signal: controller.signal, onProgress: (p) => bar(p.bytesOut) }); // AbortSignal rejects with signal.reason
+for await (const file of extractZipStream(bytes, { signal: controller.signal, onProgress: (p) => bar(p.bytesOut) })) {
+    for await (const chunk of file.stream()) sink(file.path, chunk);   // { path, entry, stream() }; an abort rejects with signal.reason
+}
 createZip({ defaultDate: pinned, dosTimeMode: 'utc' });            // explicit dates independent of the process time zone
 openZip(bytes, { nameDecoder: (b) => new TextDecoder('shift_jis').decode(b) }); // applied only when bit 11 is clear; paths still sanitised
 getExtendedTimestamps(entry); getUnixIds(entry);                   // UT / NTFS / ux extra fields, read-only
@@ -273,7 +277,7 @@ npm run gate            # what CI runs: coverage, build, dist probes, samples, I
 npm run test:interop    # validate generated archives with unzip/7z/bsdtar/python/jar/Expand-Archive
 ```
 
-The suite is 740 tests across 61 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite is 749 tests across 61 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Origin
 

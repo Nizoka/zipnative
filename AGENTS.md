@@ -11,7 +11,7 @@ random access (in memory or over an injected byte-range source),
 secure-by-default extraction, streaming, deterministic output, incremental
 modification. Sibling of pdfnative — same doctrine, same shape.
 
-Quality bar: GAFAM-grade. 740 tests across 61 files (interop-producer skips
+Quality bar: GAFAM-grade. 749 tests across 61 files (interop-producer skips
 vary by machine), 93.9% statement coverage measured at v1.1.0, blocking ISO/IEC
 21320-1 + six-parser interop gates in CI, a byte-level sample baseline, SLSA Build L2 provenance on npm.
 
@@ -50,8 +50,7 @@ npm run verify:docs       # every count, version and page tied to docs/assets/ec
 - Every untrusted-input loop consults a named, CWE-tagged bound from
   `src/core/zip-limits.ts`. New loop ⇒ new named limit, documented in
   SECURITY.md in the same PR. Validate early — before any I/O or allocation.
-- Zero breaking changes inside a major: additive only, new behaviour opt-in,
-  `deterministic: true` bytes unchanged (the sample baseline proves it).
+- Zero breaking changes inside a major: additive only, opt-in behaviour, frozen bytes unchanged (baseline-proven).
 
 ## Architecture (dependency flow)
 
@@ -78,7 +77,8 @@ types/  ◄─ codecs/ ◄─ core/ ◄─ parser/ ◄─ worker/
 | Zip64 anything | `src/parser/zip-eocd.ts` header comment (sentinel/cross-check policy) |
 | Codecs, compression tiers | `src/codecs/inflate.ts` (tier order + memoization pattern) |
 | Tests / fixtures | `.github/instructions/testing.instructions.md`, `tests/fixtures/README.md` |
-| Determinism (M2+) | `docs/guides/determinism.md` — bytes under `deterministic: true` are a frozen contract |
+| Determinism (M2+) | `docs/guides/determinism.md` — bytes under `deterministic: true` AND the canonical bytes (`canonicalizeZip`) are a frozen contract |
+| Byte-range reader, per-entry checks | `src/parser/zip-range-reader.ts` header, `src/parser/zip-entry-checks.ts` (one implementation for both readers) |
 | Counts, versions, pages | `docs/assets/ecosystem.json` first, then the prose (`npx tsx scripts/verify-docs.ts --rules`) |
 
 ## Files to never touch without explicit instruction

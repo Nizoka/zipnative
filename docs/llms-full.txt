@@ -65,8 +65,9 @@ artefact.
 ## Parallel creation (v0.5, subpath zipnative/worker)
 
 - `createParallelZip(options?)` — same surface as createZip but
-  `toBytes(): Promise<Uint8Array>`; per-entry deflate runs across a
-  worker pool (Node worker_threads / Web Workers). Byte-identical to
+  `toBytes(): Promise<Uint8Array>` (reports `onProgress` per settled entry,
+  1.1); per-entry deflate runs across a worker pool (Node worker_threads /
+  Web Workers). Byte-identical to
   createZip per compression tier; unconditional with
   `compression: { deterministic: true }`. Worker failures degrade
   gracefully — archives never fail for infra reasons. `workers: 0`
@@ -116,10 +117,24 @@ artefact.
 
 ## Core reading API (v0.1)
 
-- `openZip(bytes, options?)` → `ZipReader` with `entries()`, `getEntry(name)`,
-  `readEntry(entryOrName)`, `readEntryStream(entryOrName)`,
-  `readEntryRaw(entryOrName)`, `verifyEntry(entryOrName)`.
-- `extractZip(bytes, options?)` → `ExtractedEntry[]` (in memory).
+- `openZip(bytes, options?)` → `ZipReader` with `entries()`, `getEntry(name)`
+  (`ZipEntry | null`), `readEntry(entryOrName)` (decompressed bytes),
+  `readEntryStream(entryOrName, { verifyCrc?, signal?, onProgress? })`,
+  `readEntryRaw(entryOrName)` (the COMPRESSED payload as a `Uint8Array`,
+  zero-copy), `verifyEntry(entryOrName)`. `ZipEntry` fields agents need:
+  `name`, `rawName`, `compressionMethod` (0 store, 8 deflate), `crc32`,
+  `compressedSize`, `uncompressedSize`, `lastModified`, `flags`,
+  `isDirectory`, `isEncrypted`, `localHeaderOffset`, `extraFields`,
+  `comment`. `reader.comment` and `entry.comment` are raw bytes
+  (`Uint8Array`, empty when absent — decode with `TextDecoder`), while
+  `setComment()` takes a string.
+- `extractZip(bytes, options?)` → `ExtractedEntry[]` (in memory:
+  `{ path, data, entry }`; directory entries are not returned — recreate
+  them from the file paths).
+- `extractZipStream(bytes, options?)` → an `async function*` of
+  `{ path, entry, stream() }` — iterate it with `for await` (never `await`
+  the call itself) and consume each `stream()` (an async iterable of
+  `Uint8Array` chunks) before advancing; there is no `data` field.
 - Options embed `ZipCommonOptions`: `strict` (throw on first diagnostic),
   `onDiagnostic` (handler), `limits` (Partial<ZipLimits>).
 - Entry-attribute helpers (v0.9): `isSymlinkEntry(entry)` and
@@ -158,12 +173,18 @@ artefact.
 ## Cancellation and progress (v1.1)
 
 - `signal?: AbortSignal` and `onProgress?: (p: ZipProgress) => void` on
-  every asynchronous call (extractZipStream, iterateZipEntries,
-  readEntryStream, stream(), createParallelZip, openZipRange). An abort
-  rejects with `signal.reason` (platform convention, no new ZIP code)
-  after resources are released — stream locks released without cancel,
-  worker pools closed. `ZipProgress { entriesDone, entriesTotal | null,
-  bytesIn, bytesOut }` is monotonic.
+  every asynchronous call. Where they go: the options of the call that
+  creates the operation — `extractZipStream(bytes, options)`,
+  `iterateZipEntries(source, options)`, `openZip` / `openZipRange`
+  options (every read of that reader), `createZip` / `createParallelZip`
+  options (every `stream()` / `toBytes()` of that writer) — or per call on
+  `readEntryStream(entry, options)` and `stream(options)`, overriding the
+  factory's for that call. An abort rejects with `signal.reason` (platform
+  convention, no new ZIP code) after resources are released — stream locks
+  released without cancel, worker pools closed. `ZipProgress
+  { entriesDone, entriesTotal | null, bytesIn, bytesOut }` is monotonic; a
+  skipped entry counts as done; the parallel `toBytes()` reports one step
+  per settled entry then the archive length.
 
 ## Raw transplant (v1.1)
 
@@ -177,16 +198,19 @@ artefact.
 
 ## Canonical form and determinism report (v1.1)
 
-- `analyzeDeterminism(bytes)` → `DeterminismReport { deterministic,
-  epochTimestamps, canonicalOrder, utf8Flags, canonicalExtras,
-  canonicalVersionMadeBy, noDataDescriptors, entryCount, offenders[] }`
-  — what the satellites re-derived in 1.0.0.
+- `analyzeDeterminism(bytes, { limits?, date?, dosTimeMode? })` →
+  `DeterminismReport { deterministic, epochTimestamps, canonicalOrder,
+  utf8Flags, canonicalExtras, canonicalVersionMadeBy, noDataDescriptors,
+  entryCount, offenders[] }` — what the satellites re-derived in 1.0.0.
+  Timestamps are checked against the DOS epoch, or against `date` when the
+  archive was canonicalised with a pinned date.
 - `canonicalizeZip(bytes, options?)` and `saveCompact({ canonical: true |
   { date?, keepComments?, keepExternalAttributes? } })` rewrite ANY
   archive into the canonical form without recompression: name order,
   epoch (or pinned) timestamps, UTF-8 flags, extras dropped except Zip64,
   comments dropped unless kept, payloads bit for bit. Idempotent; the
-  bytes are part of the frozen determinism contract (golden-tested).
+  bytes are part of the frozen determinism contract (golden SHA-256 hashes
+  over two committed foreign fixtures in tests/parser/zip-canonical.test.ts).
   Guide: docs/guides/reproducible-builds.md.
 
 ## Legacy names and extended metadata (v1.1)
@@ -414,8 +438,10 @@ modifier.removeEntry('word/obsolete.xml');
 // Append-only: untouched entries are never recompressed; the original
 // bytes are preserved verbatim (removed content stays recoverable!).
 const updated = modifier.save();
-// True deletion + compact canonical layout, still no recompression:
+// True deletion + compact layout, still no recompression:
 const compacted = modifier.saveCompact();
+// …or the reproducible form (name order, epoch timestamps, extras dropped) — v1.1:
+const canonical = modifier.saveCompact({ canonical: true });
 ```
 
 Parallel creation across worker threads (v0.5, `zipnative/worker`):
@@ -503,7 +529,9 @@ out.addRaw('pre.bin', deflatedBytes, { method: 8, crc32, uncompressedSize }); //
 Cancellation, progress, UTC timestamps, legacy names, Zip64 streaming (v1.1 — every one opt-in, nothing changes by default):
 
 ```ts
-await extractZipStream(bytes, { signal: controller.signal, onProgress: (p) => bar(p.bytesOut) }); // AbortSignal rejects with signal.reason
+for await (const file of extractZipStream(bytes, { signal: controller.signal, onProgress: (p) => bar(p.bytesOut) })) {
+    for await (const chunk of file.stream()) sink(file.path, chunk);   // { path, entry, stream() }; an abort rejects with signal.reason
+}
 createZip({ defaultDate: pinned, dosTimeMode: 'utc' });            // explicit dates independent of the process time zone
 openZip(bytes, { nameDecoder: (b) => new TextDecoder('shift_jis').decode(b) }); // applied only when bit 11 is clear; paths still sanitised
 getExtendedTimestamps(entry); getUnixIds(entry);                   // UT / NTFS / ux extra fields, read-only
@@ -570,7 +598,7 @@ npm run gate            # what CI runs: coverage, build, dist probes, samples, I
 npm run test:interop    # validate generated archives with unzip/7z/bsdtar/python/jar/Expand-Archive
 ```
 
-The suite is 740 tests across 61 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite is 749 tests across 61 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Origin
 
@@ -1751,9 +1779,10 @@ enforce it byte-for-byte.
 `canonicalizeZip(bytes)` and `saveCompact({ canonical: true })` rewrite
 *any* archive — whoever produced it — into the canonical form without
 decompressing a payload, and the resulting bytes are part of this
-contract: the golden hash in
+contract: the golden SHA-256 hashes in
 [tests/parser/zip-canonical.test.ts](https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts)
-pins them on a foreign archive, and changing them is semver-major.
+pin `canonicalizeZip()` over two committed foreign fixtures (a bsdtar and
+a PowerShell archive), and changing them is semver-major.
 
 | Aspect | Rule |
 |---|---|
@@ -1770,7 +1799,10 @@ pins them on a foreign archive, and changing them is semver-major.
 `analyzeDeterminism(bytes)` reports which of these rules an archive
 already satisfies (`epochTimestamps`, `canonicalOrder`, `utf8Flags`,
 `canonicalExtras`, `canonicalVersionMadeBy`, `noDataDescriptors` — the
-last informational) and names every offending entry. The
+last informational) and names every offending entry. It checks for the
+DOS epoch unless given the pinned date: `analyzeDeterminism(bytes, { date,
+dosTimeMode })` is the verdict for an archive canonicalised with that
+`date`. The
 [reproducible builds guide](reproducible-builds.html) walks through
 measure → canonicalise → prove.
 
@@ -2020,7 +2052,7 @@ What the reader fetches, and nothing else:
 
 | Step | Bytes requested |
 |---|---|
-| open | one tail window — the end-of-central-directory record, its Zip64 locator and record when present, bounded by the APPNOTE scan limit (`maxEocdScanBytes`) plus 64 KiB |
+| open | one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, about 195 KiB at most, or the whole archive when it is smaller |
 | `entries()` | the central directory, once — after `maxCentralDirectoryBytes` has been checked against the declared size, never before |
 | `readEntry` / `readEntryStream` | the entry's local header (30 bytes plus its name and extra fields), then its compressed payload — whole for `readEntry`, in 256 KiB ranges for `readEntryStream` |
 | `readEntryRaw` / `verifyEntry` | the local header and the whole compressed payload |
@@ -2080,10 +2112,14 @@ sources; `readEntryStream` never needs it.
 
 ## Cancellation and progress
 
-Every asynchronous call accepts `signal` and `onProgress` through the
-shared options (1.1): `extractZipStream`, `iterateZipEntries`,
-`readEntryStream`, `createZip().stream()`, `createParallelZip`, and the
-whole of `openZipRange`.
+Every asynchronous call takes `signal` and `onProgress` (1.1). They
+live on the options of the call that creates the operation —
+`extractZipStream(bytes, options)`, `iterateZipEntries(source, options)`,
+`openZip(bytes, options)` / `openZipRange(source, options)` for every read
+of that reader, `createZip(options)` / `createParallelZip(options)` for
+every `stream()` and `toBytes()` of that writer — and, per call, on
+`readEntryStream(entry, options)` and `stream(options)`, where they
+override the factory's for that call only.
 
 ```ts
 const controller = new AbortController();
@@ -2106,7 +2142,9 @@ is documented as such rather than silently accepted.
 
 `ZipProgress` is monotonic: `entriesDone` and `bytesOut` only grow,
 `entriesTotal` is `null` on the forward reader (the count is not known
-until the central directory) and exact everywhere else.
+until the central directory) and exact everywhere else. A skipped entry
+counts as done. The parallel writer's `toBytes()` reports one step per
+settled entry, then the archive length; `stream()` reports every chunk.
 
 ## Writing above 4 GiB: the Zip64 streaming opt-in
 
@@ -2896,7 +2934,15 @@ for (const file of files) {
 ```
 
 The engine never touches a filesystem; join `file.path` under your own
-root (see the [security guide](security.html)).
+root (see the [security guide](security.html)). Directory entries are not
+returned — recreate directories from the file paths. For large archives,
+`extractZipStream()` yields `{ path, entry, stream() }` entry by entry:
+
+```ts
+for await (const file of extractZipStream(bytes, { signal, onProgress })) {
+    for await (const chunk of file.stream()) { /* bounded memory; consume before advancing */ }
+}
+```
 
 ## Create — reproducibly
 
@@ -3020,6 +3066,10 @@ report.canonicalVersionMadeBy;
 report.noDataDescriptors;    // informational — a streamed layout never fails the verdict
 for (const { name, concern } of report.offenders) console.log(name, concern);
 // concern: 'timestamp' | 'order' | 'utf8-flag' | 'extra-field' | 'version-made-by' | 'data-descriptor'
+
+// Timestamps are checked against the DOS epoch; for an archive canonicalised
+// with a pinned date, pass that date (and the dosTimeMode it was written with):
+analyzeDeterminism(bytes, { date: pinned, dosTimeMode: 'utc' });
 ```
 
 The report is what the CLI's `inspect --check deterministic` and the MCP
@@ -3042,7 +3092,7 @@ The canonical form, applied to every entry of any archive:
 
 | Aspect | Rule |
 |---|---|
-| Entry order | sorted by raw name bytes, unsigned bytewise — the writer's `order: 'name'` |
+| Entry order | sorted by raw name bytes, unsigned bytewise — the writer's default `order: 'canonical'` |
 | Timestamps | the DOS epoch, or one pinned `date` (`dosTimeMode` applies) |
 | Name encoding | UTF-8 with flag bit 11 for every non-ASCII name; the raw bytes are never re-encoded |
 | version-made-by | the constant `0x032D` |
@@ -3058,10 +3108,11 @@ The same transformation is available on the modifier —
 edit and a canonical rewrite are one pass.
 
 **The canonical bytes are part of the frozen determinism contract.** The
-golden hash in
+golden SHA-256 hashes in
 [tests/parser/zip-canonical.test.ts](https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts)
-pins the output of `canonicalizeZip` on a foreign archive; changing it is a
-semver-major release, exactly like the pinned encoder's bytes.
+pin the output of `canonicalizeZip` over two committed foreign fixtures;
+changing them is a semver-major release, exactly like the pinned encoder's
+bytes.
 
 ## 3. Prove — the gate
 
@@ -3069,7 +3120,7 @@ semver-major release, exactly like the pinned encoder's bytes.
 import { createHash } from 'node:crypto';
 import { analyzeDeterminism, canonicalizeZip } from 'zipnative';
 
-const artefact = canonicalizeZip(await build());      // whatever produced it
+const artefact = canonicalizeZip(await build());      // whatever produced it (add { date } to pin one — then pass the same date below)
 if (!analyzeDeterminism(artefact).deterministic) throw new Error('canonical form broken');
 const digest = createHash('sha256').update(artefact).digest('hex');
 if (digest !== GOLDEN_SHA256) throw new Error(`artefact drifted: ${digest}`);
@@ -3100,7 +3151,14 @@ const resources = openZip(resourcesZip);
 
 for (const entry of classes.entries()) out.addFromReader(classes, entry);
 for (const entry of resources.entries()) out.addFromReader(resources, entry, { verify: false }); // trusted source
-out.addRaw('META-INF/MANIFEST.MF', deflatedManifest, { method: 8, crc32, uncompressedSize }); // pre-compressed bytes
+// A payload you compressed yourself, or lifted with readEntryRaw() (the
+// compressed bytes as a Uint8Array): the entry carries the metadata.
+const source = classes.getEntry('META-INF/MANIFEST.MF')!;
+out.addRaw('META-INF/MANIFEST.MF', classes.readEntryRaw(source), {
+    method: source.compressionMethod,       // 8 = deflate, 0 = store
+    crc32: source.crc32,
+    uncompressedSize: source.uncompressedSize,
+});
 
 const jar = out.toBytes();   // bytes are a function of the inputs and the call order under order: 'insertion'
 ```

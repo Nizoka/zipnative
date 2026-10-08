@@ -5,6 +5,8 @@ import {
     extractZipStream,
     iterateZipEntries,
     openZip,
+    openZipRange,
+    rangeSourceFromBytes,
     type ZipProgress,
 } from 'zipnative';
 import { createParallelZip } from 'zipnative/worker';
@@ -211,5 +213,82 @@ describe('onProgress — monotonic counters and exact totals', () => {
         const tracked = createZip({ onProgress: () => undefined });
         tracked.add('a.txt', BIG);
         expect(tracked.toBytes()).toEqual(plain);
+    });
+});
+
+// ── Audit fix loop, 1.1.0 (D-06, D-07, D-08, D-05): the options also travel
+// per call, and every asynchronous completion reports progress ──────────
+describe('per-call signal / onProgress — stream(options) and readEntryStream(entry, options)', () => {
+    it('stream({ signal }) rejects before the first chunk, stream({ onProgress }) reports — without touching createZip()', async () => {
+        const zip = createZip();
+        zip.add('a.txt', BIG);
+        zip.add('b.txt', te.encode('small'));
+        const aborted = new AbortController();
+        aborted.abort(new Error('per-call deadline'));
+        await expect(drain(zip.stream({ signal: aborted.signal }))).rejects.toThrow('per-call deadline');
+        const snaps: ZipProgress[] = [];
+        const length = await drain(zip.stream({ onProgress: (p) => snaps.push(p) }));
+        expect(snaps.length).toBeGreaterThan(0);
+        expect(snaps[snaps.length - 1].entriesDone).toBe(2);
+        expect(snaps[snaps.length - 1].bytesOut).toBe(length);
+    });
+
+    it('the per-call options win over the factory ones for that call only', async () => {
+        const factory: ZipProgress[] = [];
+        const zip = createZip({ onProgress: (p) => factory.push(p) });
+        zip.add('a.txt', BIG);
+        const perCall: ZipProgress[] = [];
+        await drain(zip.stream({ onProgress: (p) => perCall.push(p) }));
+        expect(perCall.length).toBeGreaterThan(0);
+        expect(factory).toHaveLength(0);
+        await drain(zip.stream());
+        expect(factory.length).toBeGreaterThan(0);
+    });
+
+    it('readEntryStream(entry, { signal, onProgress }) on the in-memory reader', async () => {
+        const reader = openZip(archive());
+        const aborted = new AbortController();
+        aborted.abort(new Error('read deadline'));
+        await expect(drain(reader.readEntryStream('a.txt', { signal: aborted.signal }))).rejects.toThrow('read deadline');
+        const snaps: ZipProgress[] = [];
+        const n = await drain(reader.readEntryStream('a.txt', { onProgress: (p) => snaps.push(p) }));
+        expect(n).toBe(BIG.length);
+        expect(snaps[snaps.length - 1]).toMatchObject({ entriesDone: 1, entriesTotal: 1, bytesOut: BIG.length });
+    });
+
+    it('readEntryStream(entry, { signal, onProgress }) on the byte-range reader', async () => {
+        const reader = await openZipRange(rangeSourceFromBytes(archive()));
+        const aborted = new AbortController();
+        aborted.abort(new Error('range read deadline'));
+        await expect(drain(reader.readEntryStream('a.txt', { signal: aborted.signal }))).rejects.toThrow('range read deadline');
+        const snaps: ZipProgress[] = [];
+        const n = await drain(reader.readEntryStream('a.txt', { onProgress: (p) => snaps.push(p) }));
+        expect(n).toBe(BIG.length);
+        expect(snaps[snaps.length - 1].entriesDone).toBe(1);
+    });
+
+    it('the parallel writer reports progress on toBytes(): one step per settled entry, then the archive length', async () => {
+        const snaps: ZipProgress[] = [];
+        const zip = createParallelZip({ workers: 0, onProgress: (p) => snaps.push(p) });
+        zip.add('a.txt', BIG);
+        zip.add('b.txt', te.encode('small'));
+        zip.add('c.bin', new Uint8Array(70_000), { compression: { method: 'store' } });
+        const bytes = await zip.toBytes();
+        expect(snaps.length).toBeGreaterThanOrEqual(4);
+        const perEntry = snaps.filter((p) => p.entriesTotal === 3);
+        expect(perEntry[perEntry.length - 1]).toMatchObject({ entriesDone: 3, bytesIn: BIG.length + 5 + 70_000 });
+        expect(snaps[snaps.length - 1].bytesOut).toBe(bytes.length);
+    });
+
+    it('the forward reader counts a skipped entry as completed', async () => {
+        const snaps: ZipProgress[] = [];
+        let n = 0;
+        for await (const entry of iterateZipEntries(chunked(archive()), { onProgress: (p) => snaps.push(p) })) {
+            n++;
+            await entry.skip();
+        }
+        expect(n).toBe(3);
+        expect(snaps[snaps.length - 1].entriesDone).toBe(3);
+        expect(snaps[snaps.length - 1].entriesTotal).toBeNull();
     });
 });

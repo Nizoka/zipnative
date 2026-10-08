@@ -164,9 +164,10 @@ signatures.</li>
 <p><code>canonicalizeZip(bytes)</code> and <code>saveCompact({ canonical: true })</code> rewrite
 <em>any</em> archive — whoever produced it — into the canonical form without
 decompressing a payload, and the resulting bytes are part of this
-contract: the golden hash in
+contract: the golden SHA-256 hashes in
 <a href="https://github.com/Nizoka/zipnative/blob/main/tests/parser/zip-canonical.test.ts" target="_blank" rel="noopener">tests/parser/zip-canonical.test.ts</a>
-pins them on a foreign archive, and changing them is semver-major.</p>
+pin <code>canonicalizeZip()</code> over two committed foreign fixtures (a bsdtar and
+a PowerShell archive), and changing them is semver-major.</p>
 <table>
 <thead>
 <tr>
@@ -214,7 +215,9 @@ pins them on a foreign archive, and changing them is semver-major.</p>
 <p><code>analyzeDeterminism(bytes)</code> reports which of these rules an archive
 already satisfies (<code>epochTimestamps</code>, <code>canonicalOrder</code>, <code>utf8Flags</code>,
 <code>canonicalExtras</code>, <code>canonicalVersionMadeBy</code>, <code>noDataDescriptors</code> — the
-last informational) and names every offending entry. The
+last informational) and names every offending entry. It checks for the
+DOS epoch unless given the pinned date: <code>analyzeDeterminism(bytes, { date, dosTimeMode })</code> is the verdict for an archive canonicalised with that
+<code>date</code>. The
 <a href="reproducible-builds.html">reproducible builds guide</a> walks through
 measure → canonicalise → prove.</p>
 <h2 id="the-frozen-encoder-contract-level-3">The frozen encoder contract (level 3)<a class="heading-anchor" href="#the-frozen-encoder-contract-level-3" aria-label="Link to this section">#</a></h2>

@@ -96,7 +96,7 @@
       "id": "cancel-progress",
       "label": "Cancellation and progress on asynchronous calls",
       "since": "1.1.0",
-      "library": { "supported": true, "call": "signal / onProgress on every asynchronous call (extractZipStream, iterateZipEntries, readEntryStream, stream, createParallelZip, openZipRange)", "notes": "AbortSignal rejects with signal.reason after releasing resources (stream locks released without cancel, worker pool closed); ZipProgress reports entries and bytes in / out." },
+      "library": { "supported": true, "call": "signal / onProgress on the options of extractZipStream(), iterateZipEntries(), openZip() / openZipRange() (every read), createZip() / createParallelZip() (every stream() and toBytes()) — or per call on readEntryStream() and stream()", "notes": "AbortSignal rejects with signal.reason after releasing resources (stream locks released without cancel, worker pool closed); ZipProgress reports entries and bytes in / out." },
       "cli": { "supported": false, "notes": "Not surfaced by zipnative-cli 1.0.0; a --timeout and a progress bar are candidates for its next minor." },
       "mcp": { "supported": false, "notes": "Not surfaced by zipnative-mcp 1.0.0; the host enforces timeouts at the transport." }
     },

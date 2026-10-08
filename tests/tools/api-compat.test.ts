@@ -33,6 +33,8 @@ const currentErrors = JSON.parse(readFileSync('docs/data/errors.json', 'utf8')) 
  */
 const SIGNATURE_LEDGER: Readonly<Record<string, string>> = {
     VERSION: 'the version constant itself',
+    // C6 — `extends StreamControl`: optional per-call `signal` / `onProgress` (1.1.0); every 1.0.0 call site compiles unchanged.
+    StreamOptions: 'C6',
 };
 
 const key = (e: ApiExport): string => `${e.subpath}:${e.name}`;

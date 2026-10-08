@@ -118,7 +118,7 @@ for await (const chunk of zip.readEntryStream(&#39;data/large.parquet&#39;)) {
 </thead>
 <tbody><tr>
 <td>open</td>
-<td>one tail window — the end-of-central-directory record, its Zip64 locator and record when present, bounded by the APPNOTE scan limit (<code>maxEocdScanBytes</code>) plus 64 KiB</td>
+<td>one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, about 195 KiB at most, or the whole archive when it is smaller</td>
 </tr>
 <tr>
 <td><code>entries()</code></td>
@@ -179,10 +179,14 @@ the in-memory reader does not need (its payloads are zero-copy views):
 deflate&#39;s worst-case expansion), CWE-770. Raise it explicitly for trusted
 sources; <code>readEntryStream</code> never needs it.</p>
 <h2 id="cancellation-and-progress">Cancellation and progress<a class="heading-anchor" href="#cancellation-and-progress" aria-label="Link to this section">#</a></h2>
-<p>Every asynchronous call accepts <code>signal</code> and <code>onProgress</code> through the
-shared options (1.1): <code>extractZipStream</code>, <code>iterateZipEntries</code>,
-<code>readEntryStream</code>, <code>createZip().stream()</code>, <code>createParallelZip</code>, and the
-whole of <code>openZipRange</code>.</p>
+<p>Every asynchronous call takes <code>signal</code> and <code>onProgress</code> (1.1). They
+live on the options of the call that creates the operation —
+<code>extractZipStream(bytes, options)</code>, <code>iterateZipEntries(source, options)</code>,
+<code>openZip(bytes, options)</code> / <code>openZipRange(source, options)</code> for every read
+of that reader, <code>createZip(options)</code> / <code>createParallelZip(options)</code> for
+every <code>stream()</code> and <code>toBytes()</code> of that writer — and, per call, on
+<code>readEntryStream(entry, options)</code> and <code>stream(options)</code>, where they
+override the factory&#39;s for that call only.</p>
 <pre><code class="language-ts">const controller = new AbortController();
 setTimeout(() =&gt; controller.abort(new Error(&#39;deadline&#39;)), 30_000);
 
@@ -201,7 +205,9 @@ rejects before the first byte is requested. Synchronous calls ignore
 is documented as such rather than silently accepted.</p>
 <p><code>ZipProgress</code> is monotonic: <code>entriesDone</code> and <code>bytesOut</code> only grow,
 <code>entriesTotal</code> is <code>null</code> on the forward reader (the count is not known
-until the central directory) and exact everywhere else.</p>
+until the central directory) and exact everywhere else. A skipped entry
+counts as done. The parallel writer&#39;s <code>toBytes()</code> reports one step per
+settled entry, then the archive length; <code>stream()</code> reports every chunk.</p>
 <h2 id="writing-above-4-gib-the-zip64-streaming-opt-in">Writing above 4 GiB: the Zip64 streaming opt-in<a class="heading-anchor" href="#writing-above-4-gib-the-zip64-streaming-opt-in" aria-label="Link to this section">#</a></h2>
 <p>Buffered entries (<code>add()</code>) promote to Zip64 automatically. A streamed entry
 (<code>addStream()</code>) cannot: its sizes are unknown when its local header is

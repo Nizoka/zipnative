@@ -88,9 +88,9 @@ export type ZipErrorCode =
 
 /**
  * The closed vocabulary of {@link ZipUnsupportedError.feature} values:
- * `'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`,
- * `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered
- * compression method.
+ * `'zipcrypto'`, `'aes'` (WinZip AES, 1.1.0), `'strong-encryption'`,
+ * `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or
+ * `` `method:${n}` `` for an unregistered compression method.
  */
 export type ZipUnsupportedFeature =
     | 'zipcrypto'

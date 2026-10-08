@@ -25,6 +25,7 @@ import {
     type EntryVerification,
     type ZipCommonOptions,
     type ZipEntry,
+    type ZipProgressHandler,
 } from '../types/zip-types.js';
 import {
     ZipDataError,
@@ -61,6 +62,14 @@ export interface OpenZipOptions extends ZipCommonOptions {
 export interface ReadEntryOptions {
     /** Verify the decompressed CRC-32 against the central directory. Default true. */
     readonly verifyCrc?: boolean;
+    /**
+     * Cancellation for this read (`readEntryStream`; the synchronous reads
+     * cannot be interrupted). Overrides the reader-wide `signal` given to
+     * `openZip()` / `openZipRange()` for this call. @since 1.1.0
+     */
+    readonly signal?: AbortSignal;
+    /** Progress for this read, overriding the reader-wide handler for this call. @since 1.1.0 */
+    readonly onProgress?: ZipProgressHandler;
 }
 
 /** Random-access, lazy, secure ZIP reader over an in-memory archive. */
@@ -68,7 +77,7 @@ export interface ZipReader {
     /** The original archive bytes — never mutated by any operation. */
     readonly bytes: Uint8Array;
     readonly entryCount: number;
-    /** Raw EOCD comment bytes (zero-copy). */
+    /** The archive comment as raw bytes (`Uint8Array`, zero-copy; decode with `TextDecoder`), empty when absent. */
     readonly comment: Uint8Array;
     readonly isZip64: boolean;
 
@@ -248,9 +257,9 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
                     `method:${entry.compressionMethod}`);
             }
             const verifyCrc = readOptions?.verifyCrc !== false;
-            const signal = options?.signal;
+            const signal = readOptions?.signal ?? options?.signal;
             throwIfAborted(signal);
-            const progress = createProgressTracker(options?.onProgress, 1);
+            const progress = createProgressTracker(readOptions?.onProgress ?? options?.onProgress, 1);
             progress.bytesIn(compressed.length);
             let produced = 0;
             let crc = 0;

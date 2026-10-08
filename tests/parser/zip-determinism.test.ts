@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeDeterminism, createZip, createZipModifier, openZip, ZipError, ZipFormatError } from 'zipnative';
+import { analyzeDeterminism, canonicalizeZip, createZip, createZipModifier, openZip, ZipError, ZipFormatError } from 'zipnative';
 import { buildRawZip } from '../helpers/raw-zip-builder.ts';
 
 /**
@@ -85,5 +85,22 @@ describe('analyzeDeterminism', () => {
         expect(analyzeDeterminism(createZip().toBytes())).toMatchObject({ deterministic: true, entryCount: 0 });
         expect(() => analyzeDeterminism(te.encode('not a zip'))).toThrow(ZipFormatError);
         expect(() => analyzeDeterminism(createZip().toBytes(), { limits: { maxEntries: -1 } })).toThrow(ZipError);
+    });
+});
+
+describe('analyzeDeterminism — a pinned date (D-12)', () => {
+    it('an archive canonicalised with a date is deterministic when the report is given the same date', () => {
+        const zip = createZip({ order: 'insertion' });
+        zip.add('zeta.txt', 'z');
+        zip.add('alpha.txt', 'a');
+        const date = new Date(Date.UTC(2024, 4, 6, 7, 8, 10));
+        const pinned = canonicalizeZip(zip.toBytes(), { date, dosTimeMode: 'utc' });
+        expect(analyzeDeterminism(pinned).deterministic).toBe(false);
+        expect(analyzeDeterminism(pinned).offenders.every((o) => o.concern === 'timestamp')).toBe(true);
+        const report = analyzeDeterminism(pinned, { date, dosTimeMode: 'utc' });
+        expect(report.deterministic).toBe(true);
+        expect(report.epochTimestamps).toBe(true);
+        // A different pinned date is not the archive's date.
+        expect(analyzeDeterminism(pinned, { date: new Date(Date.UTC(2025, 0, 1)), dosTimeMode: 'utc' }).deterministic).toBe(false);
     });
 });

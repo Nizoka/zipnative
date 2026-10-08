@@ -62,7 +62,15 @@ for (const file of files) {
 ```
 
 The engine never touches a filesystem; join `file.path` under your own
-root (see the [security guide](security.html)).
+root (see the [security guide](security.html)). Directory entries are not
+returned — recreate directories from the file paths. For large archives,
+`extractZipStream()` yields `{ path, entry, stream() }` entry by entry:
+
+```ts
+for await (const file of extractZipStream(bytes, { signal, onProgress })) {
+    for await (const chunk of file.stream()) { /* bounded memory; consume before advancing */ }
+}
+```
 
 ## Create — reproducibly
 

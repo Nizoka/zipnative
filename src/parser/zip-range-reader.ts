@@ -310,7 +310,9 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
             const { dataStart } = await locateData(entry);
             const codec = codecFor(entry);
             const verifyCrc = readOptions?.verifyCrc !== false;
-            const progress = createProgressTracker(options?.onProgress, 1);
+            const callSignal = readOptions?.signal ?? signal;
+            throwIfAborted(callSignal);
+            const progress = createProgressTracker(readOptions?.onProgress ?? options?.onProgress, 1);
             let produced = 0;
             let crc = 0;
             const account = (chunk: Uint8Array): void => {
@@ -326,6 +328,7 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
                 const decoder = factory.call(codec, entry.uncompressedSize);
                 try {
                     for (let pos = 0; pos < entry.compressedSize; pos += STREAM_CHUNK) {
+                        throwIfAborted(callSignal);
                         const length = Math.min(STREAM_CHUNK, entry.compressedSize - pos);
                         const piece = await readRange(dataStart + pos, length, `entry '${entry.name}' payload`);
                         progress.bytesIn(length);
@@ -352,7 +355,7 @@ export async function openZipRange(source: ByteRangeSource, options?: OpenZipOpt
                 progress.bytesIn(compressed.length);
                 try {
                     for await (const chunk of codec.decompressStream(compressed, entry.uncompressedSize)) {
-                        throwIfAborted(signal);
+                        throwIfAborted(callSignal);
                         account(chunk);
                         yield chunk;
                     }

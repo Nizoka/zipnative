@@ -155,6 +155,14 @@ export interface AddFromReaderOptions extends AddEntryOptions {
     readonly verify?: boolean;
 }
 
+/** The per-call `signal` / `onProgress` of a stream() or readEntryStream() call win over the factory's. */
+export function mergeControl(base: StreamControl, override: StreamControl | undefined): StreamControl {
+    return {
+        signal: override?.signal ?? base.signal,
+        onProgress: override?.onProgress ?? base.onProgress,
+    };
+}
+
 /** Archive writer — obtain via {@link createZip}. */
 export interface ZipWriter {
     /** Add one file from bytes (or a UTF-8 string). Duplicate names throw. */
@@ -193,7 +201,9 @@ export interface ZipWriter {
     toBytes(): Uint8Array;
     /**
      * Assemble the archive as fixed-size chunks with bounded memory —
-     * byte-identical to `toBytes()` for buffer-only content.
+     * byte-identical to `toBytes()` for buffer-only content. `signal` and
+     * `onProgress` may be given here for this call (1.1.0) or once to
+     * `createZip()` for every call.
      */
     stream(options?: StreamOptions): AsyncGenerator<Uint8Array, void, undefined>;
 }
@@ -478,7 +488,7 @@ export function createZip(options?: CreateZipOptions): ZipWriter {
         },
 
         stream(streamOptions?: StreamOptions): AsyncGenerator<Uint8Array, void, undefined> {
-            return streamArchive(plan, streamOptions, collector.control);
+            return streamArchive(plan, streamOptions, mergeControl(collector.control, streamOptions));
         },
     };
 }

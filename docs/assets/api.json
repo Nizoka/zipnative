@@ -181,7 +181,7 @@
       "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export interface ExtractedStreamEntry",
-      "summary": "One extracted file, streamed."
+      "summary": "One extracted file, streamed: `{ path, entry, stream() }` — `stream()` yields the content in chunks and must be consumed (or discarded) before the iterator advances; there is no `data` field."
     },
     {
       "name": "FLAG_DATA_DESCRIPTOR",
@@ -284,8 +284,8 @@
       "kind": "type",
       "subpath": ".",
       "module": "src/core/zip-stream-writer.ts",
-      "signature": "export interface StreamOptions",
-      "summary": "Options for `ZipWriter.stream()`."
+      "signature": "export interface StreamOptions extends StreamControl",
+      "summary": "Options for `ZipWriter.stream()`: the chunk size, and — per call — the cancellation signal and progress handler (1.1.0)."
     },
     {
       "name": "StreamedZipEntry",
@@ -517,7 +517,7 @@
       "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export type ZipNameDecoder = (bytes: Uint8Array) => string;",
-      "summary": "Decodes the raw name bytes of an entry whose UTF-8 flag (bit 11) is clear — a `TextDecoder` for the producer's code page, typically (`(b) => new TextDecoder('shift_jis').decode(b)`)."
+      "summary": "Decodes the raw name bytes of an entry whose UTF-8 flag (bit 11) is clear — a `TextDecoder` for the producer's code page, typically (`(b) => new TextDecoder('shift_jis').decode(b)`) — and, as the fallback, of a UTF-8-flagged name whose byte…"
     },
     {
       "name": "ZipNameEncoding",
@@ -597,7 +597,7 @@
       "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipUnsupportedFeature =",
-      "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compression method."
+      "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'aes'` (WinZip AES, 1.1.0), `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compress…"
     },
     {
       "name": "ZipVerificationReport",
@@ -693,7 +693,7 @@
       "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export async function* extractZipStream( bytes: Uint8Array, options?: ExtractOptions, )",
-      "summary": "Extract an archive entry-by-entry with streamed content — bounded memory for large entries."
+      "summary": "Extract an archive entry-by-entry with streamed content: an async iterable of `{ path, entry, stream() }` — consume (or discard) each `stream()` before advancing (it is an `async function*`: iterate it with `for await`, never `await` the ca…"
     },
     {
       "name": "getCodec",
@@ -844,8 +844,8 @@
       "kind": "type",
       "subpath": "./worker",
       "module": "src/core/zip-stream-writer.ts",
-      "signature": "export interface StreamOptions",
-      "summary": "Options for `ZipWriter.stream()`."
+      "signature": "export interface StreamOptions extends StreamControl",
+      "summary": "Options for `ZipWriter.stream()`: the chunk size, and — per call — the cancellation signal and progress handler (1.1.0)."
     },
     {
       "name": "createParallelZip",

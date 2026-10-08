@@ -43,6 +43,7 @@ import {
     type AddFromReaderOptions,
     type RawEntryMeta,
     type RawEntryReader,
+    mergeControl,
 } from '../core/zip-builder.js';
 import {
     assembleArchive,
@@ -50,14 +51,14 @@ import {
     type AsyncDeflate,
     type ZipCtx,
 } from '../core/zip-segments.js';
-import { streamArchive, type StreamOptions } from '../core/zip-stream-writer.js';
+import { streamArchive, type StreamControl, type StreamOptions } from '../core/zip-stream-writer.js';
 
 // Re-exported so subpath consumers can name the types `stream()` and
 // `addStream()` accept without importing from the main entry.
 export { type StreamOptions } from '../core/zip-stream-writer.js';
 export { type ByteSource } from '../core/zip-source.js';
 import { type ByteSource } from '../core/zip-source.js';
-import { throwIfAborted } from '../core/zip-control.js';
+import { createProgressTracker, throwIfAborted } from '../core/zip-control.js';
 import { detectConcurrency } from './worker-adapter.js';
 import { createDeflatePool, type WorkerSpawnSeam } from './worker-pool.js';
 
@@ -110,7 +111,7 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
     const minJobSize = options?.minWorkerJobSize ?? DEFAULT_MIN_JOB_SIZE;
     const jobTimeout = options?.jobTimeout ?? DEFAULT_JOB_TIMEOUT;
 
-    const planParallel = async (): Promise<ZipCtx> => {
+    const planParallel = async (control: StreamControl): Promise<ZipCtx> => {
         // Resolve the SAME compression tier on the main thread as the worker
         // script resolves at boot (memoized no-op after the first call, and
         // a no-op outside Node): main-thread jobs — small entries, worker
@@ -135,23 +136,36 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
             })
             : null;
 
-        const signal = collector.control.signal;
+        const signal = control.signal;
         throwIfAborted(signal);
+        // Progress on the planning side: one entry per settled deflate job,
+        // bytesIn = source bytes; bytesOut is reported by the assembler
+        // (toBytes) or the stream writer.
+        const progress = createProgressTracker(control.onProgress, specs.length);
         // An abort while jobs are in flight: close the pool (its jobs settle
         // on the main thread, nothing hangs) and let the planner's next
         // check surface the caller's reason.
         const onAbort = (): void => { pool?.close(); };
         signal?.addEventListener('abort', onAbort, { once: true });
         try {
-            const deflate: AsyncDeflate = (data, level, deterministic) => {
+            const deflate: AsyncDeflate = async (data, level, deterministic) => {
                 throwIfAborted(signal);
-                if (pool === null || pool.size === 0 || data.length < minJobSize) {
-                    return Promise.resolve({ compressed: deflateRawSync(data, level, deterministic), crc: crc32(data) });
-                }
-                return pool.deflate(data, level, deterministic);
+                const result = pool === null || pool.size === 0 || data.length < minJobSize
+                    ? { compressed: deflateRawSync(data, level, deterministic), crc: crc32(data) }
+                    : await pool.deflate(data, level, deterministic);
+                progress.bytesIn(data.length);
+                progress.entryDone();
+                return result;
             };
             const ctx = await planArchiveAsync(specs, collector.comment(), collector.limits, collector.emit, deflate);
             throwIfAborted(signal);
+            // Stored and directory entries never reach the deflate callback:
+            // they complete at plan time, so the plan ends with every entry done.
+            for (const spec of specs) {
+                if (spec.source !== null || spec.method === "deflate") continue;
+                progress.bytesIn(spec.data?.length ?? 0);
+            }
+            for (let done = progress.snapshot().entriesDone; done < specs.length; done++) progress.entryDone();
             return ctx;
         } finally {
             signal?.removeEventListener('abort', onAbort);
@@ -173,14 +187,21 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
                     'zipnative: toBytes() is incompatible with addStream() entries (their sizes are only '
                     + 'known after the source is consumed). Use stream(), or buffer the content via add().');
             }
-            return assembleArchive(await planParallel());
+            const bytes = assembleArchive(await planParallel(collector.control));
+            // The one snapshot the assembler can give: the finished archive.
+            if (collector.control.onProgress !== undefined) {
+                const tracker = createProgressTracker(collector.control.onProgress, null);
+                tracker.bytesOut(bytes.length);
+            }
+            return bytes;
         },
 
         stream(streamOptions?: StreamOptions): AsyncGenerator<Uint8Array, void, undefined> {
+            const control = mergeControl(collector.control, streamOptions);
             return (async function* (): AsyncGenerator<Uint8Array, void, undefined> {
                 // Plan (and validate) fully before the first chunk.
-                const ctx = await planParallel();
-                yield* streamArchive(() => ctx, streamOptions, collector.control);
+                const ctx = await planParallel(control);
+                yield* streamArchive(() => ctx, streamOptions, control);
             })();
         },
     };

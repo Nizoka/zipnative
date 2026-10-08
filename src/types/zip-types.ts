@@ -128,9 +128,10 @@ export type ZipNameEncoding = 'utf-8' | 'cp437' | 'custom';
 /**
  * Decodes the raw name bytes of an entry whose UTF-8 flag (bit 11) is
  * clear — a `TextDecoder` for the producer's code page, typically
- * (`(b) => new TextDecoder('shift_jis').decode(b)`). Never consulted for
- * UTF-8-flagged names; a decoder that throws aborts the parse with its own
- * error. The sanitisation of extraction paths runs on the DECODED string,
+ * (`(b) => new TextDecoder('shift_jis').decode(b)`) — and, as the
+ * fallback, of a UTF-8-flagged name whose bytes are not valid UTF-8 (where
+ * 1.0.0 fell back to CP437). A valid UTF-8-flagged name never reaches it;
+ * a decoder that throws aborts the parse with its own error. The sanitisation of extraction paths runs on the DECODED string,
  * so a decoder cannot smuggle a traversal past the guards.
  *
  * @since 1.1.0

@@ -38,7 +38,7 @@ What the reader fetches, and nothing else:
 
 | Step | Bytes requested |
 |---|---|
-| open | one tail window — the end-of-central-directory record, its Zip64 locator and record when present, bounded by the APPNOTE scan limit (`maxEocdScanBytes`) plus 64 KiB |
+| open | one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, about 195 KiB at most, or the whole archive when it is smaller |
 | `entries()` | the central directory, once — after `maxCentralDirectoryBytes` has been checked against the declared size, never before |
 | `readEntry` / `readEntryStream` | the entry's local header (30 bytes plus its name and extra fields), then its compressed payload — whole for `readEntry`, in 256 KiB ranges for `readEntryStream` |
 | `readEntryRaw` / `verifyEntry` | the local header and the whole compressed payload |
@@ -98,10 +98,14 @@ sources; `readEntryStream` never needs it.
 
 ## Cancellation and progress
 
-Every asynchronous call accepts `signal` and `onProgress` through the
-shared options (1.1): `extractZipStream`, `iterateZipEntries`,
-`readEntryStream`, `createZip().stream()`, `createParallelZip`, and the
-whole of `openZipRange`.
+Every asynchronous call takes `signal` and `onProgress` (1.1). They
+live on the options of the call that creates the operation —
+`extractZipStream(bytes, options)`, `iterateZipEntries(source, options)`,
+`openZip(bytes, options)` / `openZipRange(source, options)` for every read
+of that reader, `createZip(options)` / `createParallelZip(options)` for
+every `stream()` and `toBytes()` of that writer — and, per call, on
+`readEntryStream(entry, options)` and `stream(options)`, where they
+override the factory's for that call only.
 
 ```ts
 const controller = new AbortController();
@@ -124,7 +128,9 @@ is documented as such rather than silently accepted.
 
 `ZipProgress` is monotonic: `entriesDone` and `bytesOut` only grow,
 `entriesTotal` is `null` on the forward reader (the count is not known
-until the central directory) and exact everywhere else.
+until the central directory) and exact everywhere else. A skipped entry
+counts as done. The parallel writer's `toBytes()` reports one step per
+settled entry, then the archive length; `stream()` reports every chunk.
 
 ## Writing above 4 GiB: the Zip64 streaming opt-in
 

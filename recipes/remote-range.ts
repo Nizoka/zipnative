@@ -12,7 +12,8 @@ import { createZip, openZipRange, type ByteRangeSource } from 'zipnative';
 export default async function run(): Promise<Record<string, string>> {
     // The "remote" archive: ~480 KB of stored padding around the entry we
     // want — larger than the tail window the reader fetches to find the
-    // end-of-central-directory record (bounded by maxEocdScanBytes + 64 KiB).
+    // end-of-central-directory record (the APPNOTE scan window plus 64 KiB
+    // of slack, about 195 KiB at most).
     const zip = createZip({ compression: { deterministic: true } });
     zip.add('README.md', '# remote\n');
     zip.add('data/padding.txt', 'padding '.repeat(60_000), { compression: { method: 'store' } });
