@@ -14,7 +14,21 @@ const ROOT = process.cwd();
 const WORKFLOWS = join(ROOT, '.github', 'workflows');
 const workflowFiles = readdirSync(WORKFLOWS).filter((f) => f.endsWith('.yml')).sort();
 const readWorkflow = (f: string): string => readFileSync(join(WORKFLOWS, f), 'utf8');
-const readText = (...parts: string[]): string => readFileSync(join(ROOT, ...parts), 'utf8');
+// The Linux runners are case-sensitive while a Windows or macOS checkout is
+// not: a path that differs from the committed name only by case reads fine
+// here and ENOENTs on `ci (22)` / `ci (24)`. realpathSync.native yields the
+// on-disk spelling, so a case slip fails on every platform.
+const readText = (...parts: string[]): string => {
+    let dir = ROOT;
+    for (const part of parts) {
+        if (!readdirSync(dir).includes(part)) {
+            const actual = readdirSync(dir).find((f) => f.toLowerCase() === part.toLowerCase());
+            throw new Error(`${parts.join('/')}: "${part}" is spelled "${actual ?? '(absent)'}" on disk — Linux checkouts are case-sensitive`);
+        }
+        dir = join(dir, part);
+    }
+    return readFileSync(dir, 'utf8');
+};
 
 const HARDEN_RUNNER = 'step-security/harden-runner@';
 
@@ -406,7 +420,7 @@ describe('dependency review and audit', () => {
 
 describe('pull request template', () => {
     it('lists the gate and the same items as CONTRIBUTING.md, word for word', () => {
-        const template = readText('.github', 'PULL_REQUEST_TEMPLATE.md');
+        const template = readText('.github', 'pull_request_template.md');
         const contributing = readText('CONTRIBUTING.md');
         const section = /## Pull Request Checklist\s*\n([\s\S]*?)\n## /.exec(contributing);
         expect(section).not.toBeNull();
