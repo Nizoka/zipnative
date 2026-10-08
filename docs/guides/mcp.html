@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="MCP guide — zipnative-mcp">
+  <meta name="twitter:description" content="zipnative-mcp 1.0.0 for AI assistants: client configuration (Claude Desktop, Claude Code, Cursor, VS Code, Streamable HTTP), the thirteen tools with inputs and outputs, seven prompts, sandboxed resources, environment variables, the error model and the security model.">
   <meta property="og:url" content="https://zipnative.dev/guides/mcp.html">
   <meta property="og:title" content="MCP guide — zipnative-mcp">
   <meta property="og:description" content="zipnative-mcp 1.0.0 for AI assistants: client configuration, the thirteen tools, seven prompts, sandboxed resources, environment, errors and security.">
@@ -278,7 +280,7 @@ as base64, a <code>data:…;base64,</code> prefix tolerated, decoded ≤ 128 MiB
 only — <code>.zip .jar .war .ear .docx .xlsx .pptx .odt .ods .odp .epub .vsix .nupkg .whl .apk .ipa .xpi .crx .kmz</code>; ≤ 1 GiB).</p>
 <p>The shared inputs are not on every tool — the table below says which:</p>
 <ul>
-<li><code>limits</code> (the eight <code>ZipLimits</code> bounds — <code>maxEntries</code>,
+<li><code>limits</code> (eight of the nine <code>ZipLimits</code> bounds — <code>maxEntryCompressedSize</code> is engine 1.1 and the server pins <code>^1.0.0</code> — <code>maxEntries</code>,
 <code>maxEntryUncompressedSize</code>, <code>maxTotalUncompressedSize</code>,
 <code>maxCompressionRatio</code>, <code>maxNameBytes</code>, <code>maxExtraFieldBytes</code>,
 <code>maxCommentBytes</code>, <code>maxCentralDirectoryBytes</code>; above the operator

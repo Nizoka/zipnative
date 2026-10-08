@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-10-08
 
+_Nothing yet._
+
+## [1.1.0] - 2026-10-08
+
 **Zero breaking changes.** The public surface grew from 77 to 106 exports with none removed, the 39 error codes are unchanged, every new behaviour is opt-in, and the `deterministic: true` bytes are unchanged — proven by the byte baseline of the 33 pre-existing samples (`npm run verify:samples`), by `tests/tools/api-compat.test.ts` (every 1.0.0 export, code and signature still present) and by the `compat-previous` CI job (the 1.0.0 test suite run against these sources). The one deliberate output change — dates outside the DOS range, previously wrong — is entry C1 of the compatibility ledger in [release-notes/v1.1.0.md](release-notes/v1.1.0.md).
 
 ### Security
@@ -15,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **One error classification for corrupt deflate on every tier** — node:zlib, `DecompressionStream` and the pure-TS inflater all raise `ZipFormatError` `ZIP_DEFLATE_CORRUPT` / `ZIP_DEFLATE_TRUNCATED`; `ZIP_DECOMPRESSION_FAILED` is reserved for registered or injected codecs — CWE-703, [#10](https://github.com/Nizoka/zipnative/issues/10).
 - **Encrypted entries labelled by scheme** — `feature: 'aes'` for WinZip AES (method 99 or the 0x9901 extra), `'zipcrypto'`, `'strong-encryption'`; still never decrypted in 1.x.
 - **One new named bound, `maxEntryCompressedSize`** (1 GiB + 1 MiB, CWE-770), consulted only by the byte-range reader's whole-payload fetches; the in-memory reader never refuses a 1.0.0 archive on it. A `nameDecoder` runs before path sanitisation (CWE-22); a lying byte-range source is `ZIP_RECORD_TRUNCATED` (CWE-20).
-- **Supply chain** — harden-runner and `npm ci --ignore-scripts` on every job (`.npmrc` makes it the local default), `dependency-review.yml`, weekly `audit.yml`, `publish.yml` in the `npm-publish` environment with a pinned npm, the full gate re-run and OIDC provenance, a separate `attest` job (SLSA Build L2 provenance for the tarball and the CycloneDX SBOM), committed branch and tag rulesets, `CODEOWNERS`.
+- **Supply chain** — harden-runner and `npm ci --ignore-scripts` on every job (`.npmrc` makes it the local default), `dependency-review.yml`, weekly `audit.yml`, `publish.yml` in three jobs — `verify` (the full publish gate, one tarball packed with its SBOM) → `publish` (the `npm-publish` environment, a pinned npm, the handed-on tarball digest-checked and published through OIDC with provenance) → `attest` (the published tarball compared with the registry's, SLSA Build L2 provenance for it and the CycloneDX SBOM) — with a `workflow_dispatch` dry run; `npm audit --audit-level=high` green again (`adm-zip` 0.6.1, `brace-expansion`, `source-map-js` — dev dependencies only), committed branch and tag rulesets, `CODEOWNERS`.
 
 ### Added
 
@@ -30,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`EntryVerification.skipped`** (`EntrySkipReason`: `'encrypted' | 'stream-only-codec' | 'unsupported-method'`); `verifyZip()` delegates every entry to `verifyEntry()` — [#12](https://github.com/Nizoka/zipnative/issues/12).
 - **Samples and interop** — `zip64/zip64-streamed`, `incremental/merged-from-two`, `names-encoding/shift-jis-legacy` (an expected ISO non-conformant), `attributes/unix-ids`, `attributes/ntfs-timestamps` (38 samples, 33/5 in the ISO canary); write cases `zip64-streamed` and `transplanted` (19 validation cases: 6 producer reads + 13 write cases); `validate-zip` keys the descriptor width on the local header's Zip64 extra (`WF/DESCRIPTOR-WIDTH`).
 - **Tooling** — `scripts/gate.ts` (`gate`, `gate:fast`; profiles `--fast` / `--ci` / `--publish`, `--require-all`, `--only`, `--from`, `--json`, dist probes), `verify:samples` + `tests/regression/` (SHA-256 baseline with a `since` chain), `release:prepare`, `compat:previous` (`scripts/run-compat.ts` + `tests/compat/`), `agents:rules`, `hooks:install` / `hooks:uninstall` (opt-in `pre-commit` / `pre-push`), `scripts/lib/prose-language.ts`, `scripts/lib/agent-config.ts`; `tests/tools/` (workflows, gate, guard, agent-config, verify-issue, release-prepare, prose-language, api-compat); `vitest.config.ts` pins `TZ=UTC` and `pool: 'forks'`, and writes `test-output/.gate/vitest.json` under `GATE=1`.
-- **verify-docs** — 20 rules (47 in all, `--rules` lists them): `derived-counts`, `count-tokens`, `version-token`, `errors-verified-on`, `sample-regression`, `prose-language`, `claude-md-budget`, `governance-sources`, `node-pin-parity`, `ruleset-parity`, `agent-config-parity`, `claude-rules-sync`, `claude-rules-budget`, `pr-template-parity`, `eol-lf`, `skills-shape`, `sitemap-lastmod-vs-git`, `bench-parity`, `rules-list`, and a `since` check in `surfaces-shape`; `docs/assets/ecosystem.json` gains `derived.*` figures recomputed from the tree and `declared.tests` / coverage held to the last gate run; the duplicated `switcher-parity` block is gone.
+- **verify-docs** — 25 rules (52 in all, `--rules` lists them): `no-control-bytes`, `playground-syntax`, `export-named`, `limits-table`, `since-tags`, `derived-counts`, `count-tokens`, `version-token`, `errors-verified-on`, `sample-regression`, `prose-language`, `claude-md-budget`, `governance-sources`, `node-pin-parity`, `ruleset-parity`, `agent-config-parity`, `claude-rules-sync`, `claude-rules-budget`, `pr-template-parity`, `eol-lf`, `skills-shape`, `sitemap-lastmod-vs-git`, `bench-parity`, `rules-list`, and a `since` check in `surfaces-shape`; `docs/assets/ecosystem.json` gains `derived.*` figures recomputed from the tree and `declared.tests` / coverage held to the last gate run; the duplicated `switcher-parity` block is gone.
 - **Governance** — `CLAUDE.md`, `.claude/settings.json`, `.claude/hooks/guard.mjs`, `.claude/rules/` rendered from `.github/instructions/`, the `release-audit` skill; `AGENT_RULES.md` and `ai-governance.json` on the pdfnative schema; `ISSUE_TEMPLATE/maintenance.md`, `prompts/compliance-audit.prompt.md`, `release-notes/PR_TEMPLATE.md`; `.nvmrc`, `.node-version`, `.npmrc`.
 - **Docs and site** — two guides, the remote playground, four recipes (`remote-range`, `determinism-report`, `zip64-stream`, `utc-dates`), nine 1.1.0 capabilities in `docs/data/surfaces.json` and the choose guide; the inspector shows the determinism verdict and extended timestamps, the modifier offers canonical compaction, the streaming page demonstrates progress and cancellation, the toolkit pins dates with `dosTimeMode`; `docs/data/errors.json` re-audited for nine codes.
 
@@ -44,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Final audit, second pass: `canonicalizeZip()` / `analyzeDeterminism()` forward `nameDecoder`, `signal` and `onProgress` (a legacy name without bit 11 was frozen as mojibake); a pre-aborted `signal` no longer leaks a deflate worker pool; the parallel writer reports one monotonic `ZipProgress` series per call; every synchronous entry point taking `ZipCommonOptions` (`openZip` and `readEntry`, `createZipModifier` and its saves, `canonicalizeZip`, `analyzeDeterminism`) checks `signal` once on entry.
 - [#9](https://github.com/Nizoka/zipnative/issues/9) DOS timestamps depended on the process time zone and clamped only the year.
 - [#10](https://github.com/Nizoka/zipnative/issues/10) node:zlib and `DecompressionStream` errors leaked or carried a runtime-dependent class.
 - [#11](https://github.com/Nizoka/zipnative/issues/11) `iterateZipEntries()` ignored registered codecs.
@@ -108,6 +113,8 @@ The site and the repository docs aligned on the published ecosystem: `zipnative`
 - **Release-notes format** — `release-notes/TEMPLATE.md` adopts the pdfnative template (fixed section order, GitHub-Release-title convention, publication workflow) with `Known limitations` and `Downstream integration notes` as documented zipnative extensions; all nine historical notes reformatted in place, substance unchanged.
 - **Zip64-streaming decision record** ([ROADMAP.md](ROADMAP.md)) — per-entry `AddEntryOptions.zip64` opt-in design retained; implementation post-1.0 (the speculative LFH extra is the hard part); the typed refusal stays and is now regression-tested.
 - `docs/playgrounds/` hub, sitemap, JSON-LD and `llms.txt` cover the five playgrounds; documentation refreshed for the 0.9 surface (README status + `verifyZip` example, quickstart "Verify in one call", llms.txt sections).
+
+## [0.8.2] - 2026-09-01
 
 **Conformance pass on 0.8.1.** A follow-up forensic review of the 0.8.1 release (two investigation agents + manual verification) — navigation 404s root-caused and fixed, one spec-conformance fix, honest disclosures, and a documentation-wide factuality sweep. verify-docs stands at **21 named rules**.
 
@@ -273,3 +280,17 @@ Milestone **M1 — read + random access + secure extraction**. Tagged, not publi
 
 - Project scaffolding: build (tsup, ESM+CJS+types), strict TypeScript (3 configs), ESLint 9 flat config, vitest 4 with v8 coverage thresholds, CI (ubuntu Node 22/24 matrix + blocking Windows job), CodeQL, OpenSSF Scorecard, Dependabot, interop conformance workflow, docs integrity workflow, AI-agent governance policy.
 - **Read path**: `openZip()` with lazy central-directory parsing and random access, `readEntry()` / `readEntryStream()` / `readEntryRaw()` / `verifyEntry()`, secure-by-default `extractZip()` / `extractZipStream()` with `sanitizeEntryPath()`, Zip64 reading with anti-spoofing cross-checks, UTF-8/CP437 name decoding, CRC-32 (slice-by-8), 4-tier inflate facade (injection → node:zlib → DecompressionStream → pure TS), CWE-tagged configurable security limits, deduplicating diagnostics channel, typed error hierarchy, adversarial fuzzing suite, foreign-provenance interop fixtures.
+
+[Unreleased]: https://github.com/Nizoka/zipnative/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Nizoka/zipnative/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/Nizoka/zipnative/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/Nizoka/zipnative/compare/v0.8.2...v0.9.0
+[0.8.2]: https://github.com/Nizoka/zipnative/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/Nizoka/zipnative/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/Nizoka/zipnative/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Nizoka/zipnative/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/Nizoka/zipnative/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/Nizoka/zipnative/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/Nizoka/zipnative/compare/v0.2.0...v0.4.0
+[0.2.0]: https://github.com/Nizoka/zipnative/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Nizoka/zipnative/releases/tag/v0.1.0

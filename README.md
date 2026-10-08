@@ -11,14 +11,14 @@
 [![bundle size](https://img.shields.io/bundlephobia/minzip/zipnative)](https://bundlephobia.com/package/zipnative)
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
-![93.9 percent statement coverage](https://img.shields.io/badge/coverage-93.9%25-brightgreen)
+![95.2 percent statement coverage](https://img.shields.io/badge/coverage-95.2%25-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![npm provenance](https://img.shields.io/badge/provenance-signed-blueviolet)
 [![website](https://img.shields.io/badge/zipnative.dev-2563EB)](https://zipnative.dev)
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: 1.0 — stable.** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9); 1.1 adds range access over remote and huge archives, cancellation and progress, raw transplant, canonicalisation of any archive, legacy name decoding and the Zip64 streaming opt-in — every one additive and opt-in. The satellites are published too: [`zipnative-cli`](https://www.npmjs.com/package/zipnative-cli) (15 commands, agent-grade JSON contract) and [`zipnative-mcp`](https://www.npmjs.com/package/zipnative-mcp) (13 tools for AI assistants) — see [Ecosystem](#ecosystem). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
+> **Status: 1.x — stable (current: zipnative 1.1.0).** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9); 1.1 adds range access over remote and huge archives, cancellation and progress, raw transplant, canonicalisation of any archive, legacy name decoding and the Zip64 streaming opt-in — every one additive and opt-in. The satellites are published too: [`zipnative-cli`](https://www.npmjs.com/package/zipnative-cli) (15 commands, agent-grade JSON contract) and [`zipnative-mcp`](https://www.npmjs.com/package/zipnative-mcp) (13 tools for AI assistants) — see [Ecosystem](#ecosystem). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
 
 ## Why zipnative?
 
@@ -277,7 +277,7 @@ npm run gate            # what CI runs: coverage, build, dist probes, samples, I
 npm run test:interop    # validate generated archives with unzip/7z/bsdtar/python/jar/Expand-Archive
 ```
 
-The suite is 749 tests across 61 files with 93.9% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite is 757 tests across 61 files with 95.2% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Origin
 

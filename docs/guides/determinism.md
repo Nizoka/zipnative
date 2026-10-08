@@ -62,7 +62,7 @@ a PowerShell archive), and changing them is semver-major.
 | Timestamps | the DOS epoch, or the one `date` passed (`dosTimeMode` applies) |
 | Name encoding | flag bit 11 set on every non-ASCII name; raw bytes never re-encoded |
 | version-made-by | `0x032D` |
-| Extra fields | dropped except Zip64 (0x0001), recomputed |
+| Extra fields | dropped except Zip64 (0x0001), recomputed; encrypted entries keep theirs (their envelope) |
 | Comments | dropped unless `keepComments: true` |
 | External attributes | kept unless `keepExternalAttributes: false` |
 | Payloads, layout | compressed bytes copied bit for bit; the compact layout (no descriptors, no prefix, no dead bytes) |

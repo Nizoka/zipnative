@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="Security model — zipnative">
+  <meta name="twitter:description" content="zipnative treats every archive as untrusted input: the default path is the safe one, every parser loop runs under a named CWE-tagged bound, and ambiguity is refused rather than guessed at.">
   <meta property="og:url" content="https://zipnative.dev/guides/security.html">
   <meta property="og:title" content="Security model — zipnative">
   <meta property="og:description" content="zipnative treats every archive as untrusted input: the default path is the safe one, every parser loop runs under a named CWE-tagged bound, and ambiguity is refused rather than guessed at.">
@@ -146,6 +148,73 @@ exhaustion — both are addressed structurally here.</p>
 <td>Encrypted entries (ZipCrypto, WinZip AES, strong encryption)</td>
 <td>detected and refused with <code>ZIP_UNSUPPORTED_ENCRYPTION</code>; <code>feature</code> names the scheme (<code>&#39;aes&#39;</code> since 1.1); never decrypted in 1.x</td>
 <td>—</td>
+</tr>
+</tbody></table>
+<p>The bounds (<code>ZipLimits</code>; defaults in <code>DEFAULT_ZIP_LIMITS</code>; overridden per
+call with <code>limits: { … }</code>, a violation throws <code>ZipLimitError</code> naming the
+limit, the configured value and the observed one):</p>
+<table>
+<thead>
+<tr>
+<th>Limit</th>
+<th>Default</th>
+<th>Bounds</th>
+<th>CWE</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>maxEntries</code></td>
+<td>100 000</td>
+<td>entries in the central directory and in a forward walk</td>
+<td>CWE-400</td>
+</tr>
+<tr>
+<td><code>maxEntryUncompressedSize</code></td>
+<td>1 GiB</td>
+<td>decompressed bytes of one entry, counted during inflation on every tier</td>
+<td>CWE-400</td>
+</tr>
+<tr>
+<td><code>maxEntryCompressedSize</code></td>
+<td>1 GiB + 1 MiB</td>
+<td>one compressed payload fetched whole by <code>openZipRange()</code> (the in-memory reader uses zero-copy views and never consults it) — 1.1</td>
+<td>CWE-770</td>
+</tr>
+<tr>
+<td><code>maxTotalUncompressedSize</code></td>
+<td>8 GiB</td>
+<td>decompressed bytes of one extraction</td>
+<td>CWE-400</td>
+</tr>
+<tr>
+<td><code>maxCompressionRatio</code></td>
+<td>1024</td>
+<td>declared uncompressed ÷ compressed size, for entries of 1 KiB and more compressed</td>
+<td>CWE-409</td>
+</tr>
+<tr>
+<td><code>maxNameBytes</code></td>
+<td>4 096</td>
+<td>one entry name</td>
+<td>CWE-400</td>
+</tr>
+<tr>
+<td><code>maxExtraFieldBytes</code></td>
+<td>65 535</td>
+<td>one extra-field block</td>
+<td>CWE-400</td>
+</tr>
+<tr>
+<td><code>maxCommentBytes</code></td>
+<td>65 535</td>
+<td>the archive comment or one entry comment</td>
+<td>CWE-400</td>
+</tr>
+<tr>
+<td><code>maxCentralDirectoryBytes</code></td>
+<td>256 MiB</td>
+<td>the central directory, checked before it is read or fetched</td>
+<td>CWE-400</td>
 </tr>
 </tbody></table>
 <p>Every bound lives on <code>ZipLimits</code>, is documented, and is caller-configurable

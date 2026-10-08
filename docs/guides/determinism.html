@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="The determinism contract — zipnative">
+  <meta name="twitter:description" content="Reproducible output as a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what deterministic: true pins bit-for-bit on every runtime.">
   <meta property="og:url" content="https://zipnative.dev/guides/determinism.html">
   <meta property="og:title" content="The determinism contract — zipnative">
   <meta property="og:description" content="Reproducible output as a product feature with a written contract: what is guaranteed always, what is guaranteed per environment, and what deterministic: true pins bit-for-bit on every runtime.">
@@ -193,7 +195,7 @@ a PowerShell archive), and changing them is semver-major.</p>
 </tr>
 <tr>
 <td>Extra fields</td>
-<td>dropped except Zip64 (0x0001), recomputed</td>
+<td>dropped except Zip64 (0x0001), recomputed; encrypted entries keep theirs (their envelope)</td>
 </tr>
 <tr>
 <td>Comments</td>

@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="Reproducible builds — zipnative">
+  <meta name="twitter:description" content="Measure, canonicalise and prove: analyzeDeterminism, canonicalizeZip and raw transplant turn any archive — Gradle, Maven, zip, Explorer — into a reproducible artefact without recompression, under a frozen byte contract.">
   <meta property="og:url" content="https://zipnative.dev/guides/reproducible-builds.html">
   <meta property="og:title" content="Reproducible builds — zipnative">
   <meta property="og:description" content="Measure, canonicalise and prove: analyzeDeterminism, canonicalizeZip and raw transplant turn any archive — Gradle, Maven, zip, Explorer — into a reproducible artefact without recompression, under a frozen byte contract.">
@@ -142,7 +144,7 @@ canonicalizeZip(canonical);                        // byte-identical: idempotent
 </tr>
 <tr>
 <td>Name encoding</td>
-<td>UTF-8 with flag bit 11 for every non-ASCII name; the raw bytes are never re-encoded</td>
+<td>every name is decoded (CP437, UTF-8, or your <code>nameDecoder</code>) and re-encoded as UTF-8, with flag bit 11 set on every entry — ASCII included</td>
 </tr>
 <tr>
 <td>version-made-by</td>
@@ -150,7 +152,7 @@ canonicalizeZip(canonical);                        // byte-identical: idempotent
 </tr>
 <tr>
 <td>Extra fields</td>
-<td>dropped, except Zip64 (0x0001), which is recomputed</td>
+<td>dropped, except Zip64 (0x0001), which is recomputed — and except on encrypted entries, which keep theirs (the 0x9901 AES record is part of the ciphertext&#39;s envelope), so an archive holding encrypted entries never reports <code>deterministic: true</code></td>
 </tr>
 <tr>
 <td>Comments</td>

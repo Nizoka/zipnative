@@ -38,9 +38,8 @@ What the reader fetches, and nothing else:
 
 | Step | Bytes requested |
 |---|---|
-| open | one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, about 195 KiB at most, or the whole archive when it is smaller |
-| `entries()` | the central directory, once — after `maxCentralDirectoryBytes` has been checked against the declared size, never before |
-| `readEntry` / `readEntryStream` | the entry's local header (30 bytes plus its name and extra fields), then its compressed payload — whole for `readEntry`, in 256 KiB ranges for `readEntryStream` |
+| `openZipRange()` | one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, 131 169 bytes (about 128 KiB) at most, or the whole archive when it is smaller — then the central directory, after `maxCentralDirectoryBytes` has been checked against the declared size and only when it lies outside the cached window. `entries()` and `getEntry()` are synchronous: they read nothing |
+| `readEntry` / `readEntryStream` | the entry's local header (30 bytes plus 1 KiB of slack, so the name and extra fields come in the same read; a second read only when they are longer; nothing at all when the header lies inside the cached tail), then its compressed payload — whole for `readEntry`, in 256 KiB ranges for `readEntryStream` |
 | `readEntryRaw` / `verifyEntry` | the local header and the whole compressed payload |
 
 Every cross-check `openZip()` performs runs here on the same code: the
@@ -94,7 +93,9 @@ payload as one buffer from an untrusted length, so they consult a limit
 the in-memory reader does not need (its payloads are zero-copy views):
 `maxEntryCompressedSize`, default 1 GiB + 1 MiB (the uncompressed cap plus
 deflate's worst-case expansion), CWE-770. Raise it explicitly for trusted
-sources; `readEntryStream` never needs it.
+sources; `readEntryStream` never needs it for store and deflate (and for
+any codec exposing `createDecompressor()`) — a codec without one is
+fetched whole and bounded by it.
 
 ## Cancellation and progress
 

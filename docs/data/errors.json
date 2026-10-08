@@ -7,7 +7,7 @@
       "code": "ZIP_INVALID_OPTION",
       "class": "ZipError",
       "since": "0.8.0",
-      "raisedWhen": "An option value fails validation: compression.level outside 0-9, a non-positive chunkSize, zip64: true on a buffered entry (add(), addDirectory(), the modifier — only addStream() takes it), a malformed RawEntryMeta for addRaw(), or an argument shape the API forbids.",
+      "raisedWhen": "An option value fails validation: compression.level outside 0-9, a non-positive chunkSize, any zip64 value on a buffered entry (add(), addDirectory(), the modifier — only addStream() takes it), a malformed RawEntryMeta or a compression option for addRaw(), a directory entry carrying data, an extra-field block over 65 535 bytes, a Unix mode outside 0-0o177777, a ByteRangeSource whose size is not a non-negative integer, or an argument shape the API forbids.",
       "remedy": "Fix the option value at the call site — the message names the offending option and the accepted range."
     },
     {
@@ -21,7 +21,7 @@
       "code": "ZIP_ENTRY_NOT_FOUND",
       "class": "ZipError",
       "since": "0.8.0",
-      "raisedWhen": "A named entry does not exist where one is required (readEntry, replaceEntry, removeEntry, renameEntry).",
+      "raisedWhen": "A named entry does not exist where one is required (readEntry and the other per-entry reads of openZip and openZipRange, replaceEntry, removeEntry, renameEntry, addFromReader).",
       "remedy": "Names are case-sensitive — iterate entries() to list what the archive holds."
     },
     {
@@ -49,7 +49,7 @@
       "code": "ZIP_INTERNAL",
       "class": "ZipError",
       "since": "0.8.0",
-      "raisedWhen": "An internal invariant broke — this is a zipnative bug, not an input problem.",
+      "raisedWhen": "An internal invariant broke — this is a zipnative bug, not an input problem. verifyZip() also reports any non-ZipError thrown while verifying under this code in report.error.",
       "remedy": "Report it with a reproduction archive or generator script."
     },
     {
@@ -99,7 +99,7 @@
       "class": "ZipFormatError",
       "since": "0.8.0",
       "raisedWhen": "An expected PK signature is absent: no local file header at the offset the central directory declares, no EOCD signature at the resolved offset, or a forward stream that does not start with a local header.",
-      "remedy": "The archive is corrupt or the bytes are not a ZIP stream."
+      "remedy": "Check that the bytes are a ZIP archive (not a response body, an HTML error page or a different format) and re-obtain them; a truncated download shows the same way."
     },
     {
       "code": "ZIP_STREAM_TRUNCATED",
@@ -113,7 +113,7 @@
       "class": "ZipFormatError",
       "since": "0.8.0",
       "raisedWhen": "A 64-bit field exceeds Number.MAX_SAFE_INTEGER (2^53 - 1).",
-      "remedy": "Archives this large are not supported — the public API uses number, not bigint."
+      "remedy": "Split the content into archives under 2^53 bytes (about 9 PB); the public API uses number, not bigint, by design."
     },
     {
       "code": "ZIP_INVALID_ENTRY_NAME",
@@ -133,7 +133,7 @@
       "code": "ZIP_DEFLATE_TRUNCATED",
       "class": "ZipFormatError",
       "since": "0.8.0",
-      "raisedWhen": "A deflate stream ends mid-block: the data ran out before the final block completed. Raised on every tier since 1.1.0 — the pure-TS inflater, node:zlib (Z_BUF_ERROR) and DecompressionStream are normalised to this code.",
+      "raisedWhen": "A deflate stream ends mid-block: the data ran out before the final block completed. Raised on every tier since 1.1.0 — the pure-TS inflater and node:zlib (Z_BUF_ERROR) distinguish truncation; a DecompressionStream outside Node reports no cause, so its failures surface as ZIP_DEFLATE_CORRUPT.",
       "remedy": "The compressed payload is truncated — re-obtain the archive."
     },
     {
@@ -149,7 +149,7 @@
       "since": "0.8.0",
       "cwe": "CWE-405",
       "raisedWhen": "Two entries share bytes: duplicate local-header offsets, an entry extending into another, or an entry claiming to start inside the central directory.",
-      "remedy": "Overlapping-entry archives are a decompression-bomb/smuggling shape and are always rejected — there is no opt-out."
+      "remedy": "Rebuild the archive with a conformant tool (or saveCompact() from a trusted copy); overlapping-entry archives are a decompression-bomb/smuggling shape and are always rejected — there is no opt-out."
     },
     {
       "code": "ZIP_CD_LFH_MISMATCH",
@@ -196,14 +196,14 @@
       "class": "ZipDataError",
       "since": "0.8.0",
       "raisedWhen": "Decompressed bytes fail the declared CRC-32 (central directory, local header, or data descriptor).",
-      "remedy": "The data is corrupt; expectedCrc/actualCrc carry both values. Pass verifyCrc: false only if you accept corrupt output."
+      "remedy": "The data is corrupt; expectedCrc/actualCrc carry both values. Pass verifyCrc: false only if you accept corrupt output (addFromReader: verify: false copies the entry unchecked)."
     },
     {
       "code": "ZIP_SIZE_MISMATCH",
       "class": "ZipDataError",
       "since": "0.8.0",
       "raisedWhen": "Sizes contradict: the decompressed size differs from the declared size, or local-header sizes/CRC contradict the central directory.",
-      "remedy": "The archive metadata lies — treat the archive as corrupt or hostile."
+      "remedy": "The archive metadata lies — treat the archive as corrupt or hostile (addFromReader: verify: false copies the entry unchecked)."
     },
     {
       "code": "ZIP_INFLATE_OUTPUT_OVERFLOW",
@@ -280,7 +280,7 @@
       "class": "ZipUnsupportedError",
       "since": "0.8.0",
       "feature": "cd-less-descriptor",
-      "raisedWhen": "Forward reading met a data-descriptor (bit 3) entry whose payload cannot be delimited without the central directory: store+bit3, encrypted+bit3, or a custom codec without consumed-byte reporting.",
+      "raisedWhen": "Forward reading met a data-descriptor (bit 3) entry whose payload cannot be delimited without the central directory: any method other than deflate (store, a registered codec) or an encrypted entry — only the resumable deflate decoder reports exactly where the payload ends.",
       "remedy": "Use openZip() on the complete archive instead."
     },
     {
@@ -288,7 +288,7 @@
       "class": "ZipUnsupportedError",
       "since": "0.8.0",
       "feature": "method:<n>",
-      "raisedWhen": "A registered codec supports only the other access mode: stream-only codecs via readEntry(), codecs without a streaming decompressor via readEntryStream(); and, since 1.1.0, the forward reader (iterateZipEntries) refuses — before the first byte — a codec for a method other than store/deflate that does not expose createDecompressor(), as does the byte-range reader (openZipRange) for a codec with neither createDecompressor() nor the mode the call needs.",
+      "raisedWhen": "A registered codec supports only the other access mode: stream-only codecs via readEntry(), codecs without a streaming decompressor via readEntryStream(); and, since 1.1.0, the forward reader (iterateZipEntries) refuses — before the first byte — a codec for a method other than store/deflate that does not expose createDecompressor(), as does the byte-range reader (openZipRange): its readEntry() needs decompressSync, its readEntryStream() needs createDecompressor() or decompressSync.",
       "remedy": "The message names the compliant call (readEntryStream() or readEntry()); in the forward reader, skip() the entry or open the complete archive with openZip(); for your own codec, implement createDecompressor()."
     }
   ],

@@ -13,7 +13,8 @@
  * offending line or the line above it.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { buildApiJson } from './build-api-json.ts';
 import { diffClaudeRules, readRuleFiles } from './build-claude-rules.ts';
@@ -95,7 +96,7 @@ const RULES: ReadonlyArray<readonly [string, string]> = [
     ['llms-index-quality', 'every index entry has a non-empty description and plausible sizes'],
     ['verified-on-parity', 'llms.txt, the homepage footer and llms-index.json carry the manifest verifiedOn'],
     ['errors-verified-on', 'docs/data/errors.json verifiedOn equals the manifest verifiedOn'],
-    ['seo-head', 'every indexable page has title, description, canonical, og: and twitter: tags'],
+    ['seo-head', 'every indexable page has title, description, canonical + hreflang, the full og: set (title, description, url = canonical, type, site_name, image) and twitter: tags'],
     ['internal-links', 'every relative link and anchor in docs, README and release notes resolves'],
     ['guide-render-sync', 'every docs/guides/*.html equals a fresh render of its .md'],
     ['anchor-parity', 'every #fragment points at a real id'],
@@ -114,14 +115,19 @@ const RULES: ReadonlyArray<readonly [string, string]> = [
     ['claude-md-budget', 'CLAUDE.md imports AGENTS.md; both <= 120 lines; Copilot file <= 16 KiB; no line > 240 chars'],
     ['governance-sources', 'ai-governance.json sources/on_demand exist; always-loaded sources < 16 KiB'],
     ['node-pin-parity', '.nvmrc, .node-version, engines.node, the CI matrix and every setup-node step agree; packageManager is npm@'],
-    ['ruleset-parity', 'every required status check names a real job; sample-regression is required; tags.json protects v*'],
+    ['ruleset-parity', 'every required status check names a real job; sample-regression and compat-previous are required; squash-only merges; tags.json protects v*'],
     ['agent-config-parity', 'settings.json parses; every CLAUDE.md "Never Read" glob is denied; HITL Bash denies present; guard hook parses'],
     ['claude-rules-sync', '.claude/rules/ equals a fresh render of .github/instructions/ (npm run agents:rules)'],
     ['claude-rules-budget', 'CLAUDE.md + its @imports + unscoped rules <= 16 KiB; a scoped rule > 32 KiB warns'],
     ['pr-template-parity', 'every PR-template checklist item is verbatim in CONTRIBUTING.md; the template mentions npm run gate'],
-    ['eol-lf', '(git checkouts only) tracked text blobs are LF — warn until the renormalisation flips EOL_LF_MODE'],
+    ['eol-lf', '(git checkouts only) every tracked text blob is LF — a CRLF blob fails'],
     ['skills-shape', 'every .claude/skills/*/SKILL.md names its directory, has a description, and its templates exist'],
     ['bench-parity', 'the homepage benchmark bars equal bench/RESULTS.md within 10 %'],
+    ['no-control-bytes', 'no tracked text file carries a NUL byte (git would treat it as binary)'],
+    ['playground-syntax', 'every inline module script of a playground page parses (node --check)'],
+    ['export-named', 'every export of api.json is named in llms.txt'],
+    ['limits-table', 'every ZipLimits key is a row of the limits table in SECURITY.md and the security guide'],
+    ['since-tags', 'every export added since the previous release carries an @since tag'],
     ['npm-drift', '(online only) the npm registry latest equals package.json, warn otherwise'],
     ['rules-list', 'self-check: every reported rule is catalogued in RULES'],
 ];
@@ -742,6 +748,18 @@ for (const page of htmlPages) {
     if (description === null || description[1].trim().length === 0) {
         report(page, 1, 'seo-head', 'missing or empty meta description');
     }
+    // The full Open Graph set: a share card without og:title/og:description
+    // falls back to whatever the crawler guesses, and og:url must be the
+    // canonical so shares of ?query / #fragment variants collapse to one.
+    for (const prop of ['og:title', 'og:description', 'og:type', 'og:site_name', 'og:image']) {
+        if (!new RegExp(`<meta property="${prop}" content="[^"]+"`).test(html)) report(page, 1, 'seo-head', `missing ${prop}`);
+    }
+    const ogUrl = html.match(/<meta property="og:url" content="([^"]+)"/);
+    if (ogUrl === null) report(page, 1, 'seo-head', 'missing og:url');
+    else if (canonicals.length === 1 && ogUrl[1] !== canonicals[0][1]) report(page, 1, 'seo-head', `og:url ${ogUrl[1]} must equal the canonical ${canonicals[0][1]}`);
+    for (const name of ['twitter:card', 'twitter:title', 'twitter:description']) {
+        if (!new RegExp(`<meta name="${name}" content="[^"]+"`).test(html)) report(page, 1, 'seo-head', `missing ${name}`);
+    }
 }
 
 // ── Rule: internal-links ─────────────────────────────────────────────
@@ -1277,7 +1295,7 @@ const COMPANION_DOC = /^docs\/(?:guides|playgrounds)\/(?:cli|mcp)\.(?:md|html)$/
 // packages …, X.Y.Z" are claims about the satellites and must hold for
 // every package they cover.
 {
-    const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\// ── Rule: npm-drift (online only) ────────────────────────────────────');
+    const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const check = (file: string, text: string, pattern: RegExp, name: string, version: string): void => {
         pattern.lastIndex = 0;
         let m: RegExpExecArray | null;
@@ -1535,7 +1553,7 @@ const COMPANION_DOC = /^docs\/(?:guides|playgrounds)\/(?:cli|mcp)\.(?:md|html)$/
 {
     const RULESET = '.github/rulesets/main.json';
     if (existsSync(resolve(ROOT, RULESET))) {
-        let ruleset: { rules?: Array<{ type?: string; parameters?: { required_status_checks?: Array<{ context?: string }> } }> } = {};
+        let ruleset: { rules?: Array<{ type?: string; parameters?: { required_status_checks?: Array<{ context?: string }>; allowed_merge_methods?: unknown } }> } = {};
         let parsed = true;
         try {
             ruleset = JSON.parse(read(RULESET)) as typeof ruleset;
@@ -1582,6 +1600,14 @@ const COMPANION_DOC = /^docs\/(?:guides|playgrounds)\/(?:cli|mcp)\.(?:md|html)$/
             }
             if (!contexts.includes('sample-regression')) {
                 report(RULESET, 1, 'ruleset-parity', '"sample-regression" is not a required status check — the byte baseline must block merges');
+            }
+            if (!contexts.includes('compat-previous')) {
+                report(RULESET, 1, 'ruleset-parity', '"compat-previous" is not a required status check — the previous release\'s suite must block merges');
+            }
+            // CONTRIBUTING § Release says squash-merge: the committed ruleset must say the same.
+            const methods = (ruleset.rules ?? []).find((r) => r.type === 'pull_request')?.parameters?.allowed_merge_methods;
+            if (!Array.isArray(methods) || methods.length !== 1 || methods[0] !== 'squash') {
+                report(RULESET, 1, 'ruleset-parity', `allowed_merge_methods must be ["squash"] (got ${JSON.stringify(methods ?? null)}) — CONTRIBUTING promises a linear squash history`);
             }
         }
     }
@@ -1741,6 +1767,113 @@ if (existsSync(resolve(ROOT, 'bench/RESULTS.md'))) {
         }
     }
     if (checked === 0 && recorded.size > 0) report('docs/index.html', 1, 'bench-parity', 'no .bench-value rows matched — has the markup changed?');
+}
+
+// ── Rule: no-control-bytes ───────────────────────────────────────────
+// A NUL byte in a tracked text file makes git treat the file as binary:
+// no diff in a pull request, no blame, no merge. One slipped into
+// scripts/build-api-json.ts in 1.1.0 (a template literal holding U+0000)
+// and reviewers saw "Binary file changed" for a release-critical script.
+{
+    const corpus = [
+        ...walk('src').filter((p) => /\.(ts|mts|cts|js|mjs|cjs|json|md)$/.test(p)),
+        ...walk('scripts').filter((p) => /\.(ts|mts|cts|js|mjs|cjs|json|md)$/.test(p)),
+        ...walk('tests').filter((p) => /\.(ts|mts|cts|js|mjs|cjs|json|md)$/.test(p) && !p.includes('/fixtures/')),
+        ...walk('docs').filter((p) => /\.(md|txt|html|js|json|xml|svg|css)$/.test(p) && !p.endsWith('llms-full.txt')),
+        ...walk('recipes').filter((p) => p.endsWith('.ts')),
+        ...walk('.github').filter((p) => /\.(yml|yaml|md|json)$/.test(p)),
+        ...['README.md', 'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'ROADMAP.md', 'SUPPORT.md', 'CODE_OF_CONDUCT.md', 'llms.txt', 'package.json']
+            .filter((p) => existsSync(resolve(ROOT, p))),
+    ];
+    for (const file of corpus) {
+        const bytes = readFileSync(resolve(ROOT, file));
+        const at = bytes.indexOf(0);
+        if (at >= 0) {
+            const line = bytes.subarray(0, at).toString('utf8').split('\n').length;
+            report(file, line, 'no-control-bytes', 'contains a NUL byte (U+0000) — git treats the file as binary; write it as the \\u0000 escape');
+        }
+    }
+}
+
+// ── Rule: playground-syntax ──────────────────────────────────────────
+// Every playground page carries its logic in an inline module script that
+// nothing compiles: a syntax error ships a dead page that looks fine in a
+// diff. node --check parses each extracted module (pdfnative rule, ported).
+{
+    const tmp = mkdtempSync(join(tmpdir(), 'zipnative-playground-'));
+    try {
+        for (const page of walk('docs/playgrounds').filter((p) => p.endsWith('.html'))) {
+            const html = read(page);
+            let n = 0;
+            for (const m of html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)) {
+                n++;
+                const file = join(tmp, `${page.split('/').pop()?.replace(/\.html$/, '') ?? 'page'}-${n}.mjs`);
+                writeFileSync(file, m[1]);
+                const r = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8', windowsHide: true });
+                if (r.status !== 0) {
+                    const detail = (r.stderr ?? '').split('\n').find((l) => /SyntaxError|Error/.test(l)) ?? 'node --check failed';
+                    report(page, lineOf(html, m.index ?? 0), 'playground-syntax', `inline module script ${n} does not parse — ${detail.trim()}`);
+                }
+            }
+        }
+    } finally {
+        rmSync(tmp, { recursive: true, force: true });
+    }
+}
+
+// ── Rule: export-named ───────────────────────────────────────────────
+// llms.txt is the one document an agent is sure to read: every public
+// export must be named there at least once. The 1.1.0 audit found 66 of
+// 104 names absent — option types, constants, the codec tiers.
+{
+    const names = new Set((JSON.parse(read('docs/assets/api.json')) as { exports?: ReadonlyArray<{ name?: string }> }).exports?.map((e) => e.name ?? '') ?? []);
+    const llms = read('llms.txt');
+    const missing = [...names].filter((n) => n !== '' && !new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(llms)).sort();
+    for (const n of missing) report('llms.txt', 1, 'export-named', `export ${n} is named nowhere in llms.txt — add it to the section of the surface it belongs to`);
+}
+
+// ── Rule: limits-table ───────────────────────────────────────────────
+// src/core/zip-limits.ts promises its table is mirrored in SECURITY.md;
+// every key of DEFAULT_ZIP_LIMITS must be a row of the limits table in
+// SECURITY.md and in the security guide, with the default beside it.
+{
+    const source = read('src/core/zip-limits.ts');
+    const block = /export const DEFAULT_ZIP_LIMITS[^{]*\{([\s\S]*?)\n\};/.exec(source)?.[1] ?? '';
+    const keys = [...block.matchAll(/^\s*([A-Za-z]+):/gm)].map((m) => m[1]);
+    if (keys.length === 0) report('src/core/zip-limits.ts', 1, 'limits-table', 'DEFAULT_ZIP_LIMITS not found');
+    for (const file of ['SECURITY.md', 'docs/guides/security.md']) {
+        const text = read(file);
+        for (const key of keys) {
+            if (!new RegExp(`^\\| \`${key}\` \\|`, 'm').test(text)) {
+                report(file, 1, 'limits-table', `no table row for the limit \`${key}\` — every ZipLimits key is documented with its default and CWE in both tables`);
+            }
+        }
+    }
+}
+
+// ── Rule: since-tags ─────────────────────────────────────────────────
+// Every export added after the previous release carries an @since tag in
+// the TSDoc block above its declaration — the only machine-checkable
+// record of which release a symbol needs (api.json carries the summary).
+{
+    const previous = existsSync(resolve(ROOT, 'tests/compat'))
+        ? readdirSync(resolve(ROOT, 'tests/compat')).filter((f) => /^api-\d+\.\d+\.\d+\.json$/.test(f)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop()
+        : undefined;
+    if (previous !== undefined) {
+        const old = new Set((JSON.parse(read(`tests/compat/${previous}`)) as { exports: ReadonlyArray<{ name: string; subpath: string }> }).exports.map((e) => `${e.subpath}:${e.name}`));
+        const current = (JSON.parse(read('docs/assets/api.json')) as { exports: ReadonlyArray<{ name: string; subpath: string; module: string }> }).exports;
+        for (const e of current) {
+            if (old.has(`${e.subpath}:${e.name}`) || old.has(`.:${e.name}`)) continue;
+            const text = read(e.module);
+            const decl = new RegExp(`^export\\s+(?:declare\\s+)?(?:async\\s+)?(?:interface|type|function|const|class)\\s+${e.name}\\b`, 'm').exec(text);
+            if (decl === null) continue; // re-exported under another declaration shape; api-json-sync covers existence
+            const before = text.slice(0, decl.index);
+            const doc = /\/\*\*((?:[^*]|\*(?!\/))*)\*\/\s*$/.exec(before);
+            if (doc === null || !/@since\s+\d+\.\d+\.\d+/.test(doc[1])) {
+                report(e.module, lineOf(text, decl.index), 'since-tags', `${e.name} was added after ${previous.replace(/^api-|\.json$/g, '')} but its TSDoc carries no @since tag`);
+            }
+        }
+    }
 }
 
 // ── Rule: npm-drift (online only) ────────────────────────────────────

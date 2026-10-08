@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 17506,
-      "approxTokens": 4377
+      "bytes": 23169,
+      "approxTokens": 5792
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 199002,
-      "approxTokens": 49751
+      "bytes": 206648,
+      "approxTokens": 51662
     },
     {
       "url": "llms-recipes.txt",
@@ -36,8 +36,8 @@
     {
       "url": "data/errors.json",
       "description": "The frozen error-code and diagnostic registry — code, class, cause, remedy.",
-      "bytes": 20475,
-      "approxTokens": 5119
+      "bytes": 21363,
+      "approxTokens": 5341
     },
     {
       "url": "assets/ecosystem.json",
@@ -126,8 +126,8 @@
         "documented-determinism-losses",
         "verifying-reproducibility"
       ],
-      "bytes": 8388,
-      "approxTokens": 2097
+      "bytes": 8436,
+      "approxTokens": 2109
     },
     {
       "title": "Errors and error codes",
@@ -156,8 +156,8 @@
         "reading-what-you-wrote",
         "see-also"
       ],
-      "bytes": 8756,
-      "approxTokens": 2189
+      "bytes": 9140,
+      "approxTokens": 2285
     },
     {
       "title": "zipnative-mcp — AI client integration",
@@ -177,8 +177,8 @@
         "security-model",
         "further-reading"
       ],
-      "bytes": 34766,
-      "approxTokens": 8692
+      "bytes": 34846,
+      "approxTokens": 8712
     },
     {
       "title": "Quickstart",
@@ -213,8 +213,8 @@
         "timestamps-and-time-zones",
         "see-also"
       ],
-      "bytes": 8383,
-      "approxTokens": 2096
+      "bytes": 8632,
+      "approxTokens": 2158
     },
     {
       "title": "Security model",
@@ -229,8 +229,8 @@
         "what-the-engine-never-does",
         "reporting"
       ],
-      "bytes": 4026,
-      "approxTokens": 1007
+      "bytes": 5221,
+      "approxTokens": 1305
     },
     {
       "title": "Use cases",

@@ -162,7 +162,10 @@ maintainer; an agent prepares everything and stops before pushing
    guide renders and the llms files; every count in prose must equal the
    manifest.
 4. `npx tsx scripts/gate.ts --publish --require-all` — the exact gate
-   `publish.yml` runs, foreign tools included.
+   `publish.yml` runs, foreign tools included. Then, once the branch is
+   pushed, dispatch Publish by hand with `dry-run` ticked: `verify` runs the
+   same gate on a runner, `publish` stops at `npm publish --dry-run`, `attest`
+   is skipped. A green dry run is the precondition of the tag.
 5. Run the pre-release audit (`/release-audit` in Claude Code, or the
    procedure in `.claude/skills/release-audit/SKILL.md`): two auditors, an
    adversarial verifier, a docs-autonomy pass, a GO/NO-GO ledger. Fix every
@@ -174,7 +177,8 @@ maintainer; an agent prepares everything and stops before pushing
 7. Maintainer: squash-merge, tag `vX.Y.Z`, publish the GitHub Release with the
    release note as body → `publish.yml` → approve the `npm-publish`
    environment → npm Trusted Publishing with provenance; the `attest` job
-   attaches the tarball and the CycloneDX SBOM. Verify with
+   compares the published tarball with the registry's, then attaches it and
+   the CycloneDX SBOM with their provenance. Verify with
    `npm audit signatures`.
 
 ## Honesty rules

@@ -182,12 +182,17 @@ pre-existing samples proves it).
   `npm-publish` environment with SLSA Build L2 provenance and SBOM
   attestation, dependency review, weekly audit, rulesets, the sample byte
   baseline (`verify:samples`), the Claude Code governance layer,
-  `release-prepare`, and 20 new verify-docs rules
+  `release-prepare`, and 25 new verify-docs rules
 - Two new guides (large and remote archives; reproducible builds), the
   remote playground, four new recipes, five new samples
 
 ## 1.2 candidates
 
+- The standards backlog deferred by the 1.1.0 final audit (minor findings only:
+  a verify-docs test harness, `api-exists`, members and `since` in `api.json`,
+  `verify:bundle`, harden-runner `block`, CodeQL `security-extended`, issue
+  forms, `security.txt`, signed commits) — filed from
+  `.github/drafts/zipnative-1.2-standards-backlog.md`
 - Pure-TS *streaming* deflate under `deterministic: true` (lifts the 2 GiB
   per-entry cap and makes the Zip64 opt-in deterministic)
 - `createZipModifier` over a `ZipRangeReader` (streaming `save()`:

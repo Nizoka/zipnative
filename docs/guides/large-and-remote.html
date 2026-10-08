@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="Large and remote archives — zipnative">
+  <meta name="twitter:description" content="Open an archive of any size from HTTP ranges, a Blob, a file handle or object storage with the memory of its central directory: the injected byte-range source, cancellation, progress, and the Zip64 streaming opt-in.">
   <meta property="og:url" content="https://zipnative.dev/guides/large-and-remote.html">
   <meta property="og:title" content="Large and remote archives — zipnative">
   <meta property="og:description" content="Open an archive of any size from HTTP ranges, a Blob, a file handle or object storage with the memory of its central directory: the injected byte-range source, cancellation, progress, and the Zip64 streaming opt-in.">
@@ -117,16 +119,12 @@ for await (const chunk of zip.readEntryStream(&#39;data/large.parquet&#39;)) {
 </tr>
 </thead>
 <tbody><tr>
-<td>open</td>
-<td>one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, about 195 KiB at most, or the whole archive when it is smaller</td>
-</tr>
-<tr>
-<td><code>entries()</code></td>
-<td>the central directory, once — after <code>maxCentralDirectoryBytes</code> has been checked against the declared size, never before</td>
+<td><code>openZipRange()</code></td>
+<td>one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, 131 169 bytes (about 128 KiB) at most, or the whole archive when it is smaller — then the central directory, after <code>maxCentralDirectoryBytes</code> has been checked against the declared size and only when it lies outside the cached window. <code>entries()</code> and <code>getEntry()</code> are synchronous: they read nothing</td>
 </tr>
 <tr>
 <td><code>readEntry</code> / <code>readEntryStream</code></td>
-<td>the entry&#39;s local header (30 bytes plus its name and extra fields), then its compressed payload — whole for <code>readEntry</code>, in 256 KiB ranges for <code>readEntryStream</code></td>
+<td>the entry&#39;s local header (30 bytes plus 1 KiB of slack, so the name and extra fields come in the same read; a second read only when they are longer; nothing at all when the header lies inside the cached tail), then its compressed payload — whole for <code>readEntry</code>, in 256 KiB ranges for <code>readEntryStream</code></td>
 </tr>
 <tr>
 <td><code>readEntryRaw</code> / <code>verifyEntry</code></td>
@@ -177,7 +175,9 @@ payload as one buffer from an untrusted length, so they consult a limit
 the in-memory reader does not need (its payloads are zero-copy views):
 <code>maxEntryCompressedSize</code>, default 1 GiB + 1 MiB (the uncompressed cap plus
 deflate&#39;s worst-case expansion), CWE-770. Raise it explicitly for trusted
-sources; <code>readEntryStream</code> never needs it.</p>
+sources; <code>readEntryStream</code> never needs it for store and deflate (and for
+any codec exposing <code>createDecompressor()</code>) — a codec without one is
+fetched whole and bounded by it.</p>
 <h2 id="cancellation-and-progress">Cancellation and progress<a class="heading-anchor" href="#cancellation-and-progress" aria-label="Link to this section">#</a></h2>
 <p>Every asynchronous call takes <code>signal</code> and <code>onProgress</code> (1.1). They
 live on the options of the call that creates the operation —

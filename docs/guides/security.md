@@ -27,6 +27,22 @@ exhaustion — both are addressed structurally here.
 | Unbounded fetch of a compressed payload from a byte-range source (1.1) | `maxEntryCompressedSize` (1 GiB + 1 MiB) on `openZipRange()`'s whole-payload reads; the in-memory reader uses zero-copy views and never consults it | CWE-770 |
 | Encrypted entries (ZipCrypto, WinZip AES, strong encryption) | detected and refused with `ZIP_UNSUPPORTED_ENCRYPTION`; `feature` names the scheme (`'aes'` since 1.1); never decrypted in 1.x | — |
 
+The bounds (`ZipLimits`; defaults in `DEFAULT_ZIP_LIMITS`; overridden per
+call with `limits: { … }`, a violation throws `ZipLimitError` naming the
+limit, the configured value and the observed one):
+
+| Limit | Default | Bounds | CWE |
+|---|---|---|---|
+| `maxEntries` | 100 000 | entries in the central directory and in a forward walk | CWE-400 |
+| `maxEntryUncompressedSize` | 1 GiB | decompressed bytes of one entry, counted during inflation on every tier | CWE-400 |
+| `maxEntryCompressedSize` | 1 GiB + 1 MiB | one compressed payload fetched whole by `openZipRange()` (the in-memory reader uses zero-copy views and never consults it) — 1.1 | CWE-770 |
+| `maxTotalUncompressedSize` | 8 GiB | decompressed bytes of one extraction | CWE-400 |
+| `maxCompressionRatio` | 1024 | declared uncompressed ÷ compressed size, for entries of 1 KiB and more compressed | CWE-409 |
+| `maxNameBytes` | 4 096 | one entry name | CWE-400 |
+| `maxExtraFieldBytes` | 65 535 | one extra-field block | CWE-400 |
+| `maxCommentBytes` | 65 535 | the archive comment or one entry comment | CWE-400 |
+| `maxCentralDirectoryBytes` | 256 MiB | the central directory, checked before it is read or fetched | CWE-400 |
+
 Every bound lives on `ZipLimits`, is documented, and is caller-configurable
 — raising one is an explicit decision, never a silent default.
 

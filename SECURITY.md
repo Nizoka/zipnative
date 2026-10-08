@@ -2,9 +2,13 @@
 
 ## Reporting a vulnerability
 
-Please report suspected vulnerabilities privately via GitHub Security Advisories
-(**Security → Report a vulnerability** on the repository). Do not open a public
-issue for security reports. You should receive an initial response within 7 days.
+Please report suspected vulnerabilities privately via GitHub Security Advisories:
+<https://github.com/Nizoka/zipnative/security/advisories/new> (**Security →
+Report a vulnerability** on the repository). Do not open a public issue for
+security reports. You should receive an acknowledgement within 48 hours and a
+fix or a documented mitigation within 7 days for a critical issue, 14 days
+otherwise; the advisory is published with the fix release and credits the
+reporter unless they prefer otherwise.
 
 ## Supported versions
 
@@ -14,7 +18,9 @@ issue for security reports. You should receive an initial response within 7 days
 | 1.0.x | ✅ (security fixes) |
 | < 1.0 (git tags, never published to npm) | ❌ |
 
-Only the latest published minor version receives security fixes.
+The latest published minor receives every fix; the previous minor (1.0.x)
+receives security fixes for six months after 1.1.0's publication, until
+2027-04-08.
 
 ## Release integrity
 
@@ -29,14 +35,21 @@ Every workflow runs under `step-security/harden-runner` (egress audited),
 every action is pinned to a commit SHA (Dependabot owns the bumps),
 dependencies install with `npm ci --ignore-scripts` (`.npmrc` makes it the
 default locally too), pull requests pass dependency review with a
-licence allow-list, and a weekly `npm audit` runs on the lockfile. The
-publish job runs in the `npm-publish` environment behind a required
-reviewer, re-runs the full gate, and publishes with a pinned npm through
-OIDC; a separate `attest` job generates SLSA Build L2 provenance for the
-tarball and the CycloneDX SBOM (`actions/attest-build-provenance`) and
-attaches both to the GitHub Release. Branch and tag rulesets are
-committed under `.github/rulesets/`. The engine itself has no runtime
-dependencies, so the published artefact's transitive closure is empty.
+licence allow-list, and a weekly `npm audit` runs on the lockfile.
+Publishing is three jobs with one artifact between them. `verify` holds no
+publishing token: it fetches the previous release tag, runs the full
+publish gate, packs the tarball once with its CycloneDX SBOM and a
+`SHA256SUMS` file, and hands them on. `publish` runs in the `npm-publish`
+environment behind a required reviewer, checks out `.nvmrc` and nothing
+else, verifies the tarball's digest against the job outputs, and publishes
+that file with a pinned npm through OIDC with provenance. `attest` downloads
+the same artifact, compares it byte for byte with what the registry serves,
+then generates SLSA Build L2 provenance for the published tarball and the
+SBOM (`actions/attest-build-provenance`) and attaches both to the GitHub
+Release. No release job restores a dependency cache; a `workflow_dispatch`
+dry run exercises everything up to `npm publish --dry-run`. Branch and tag
+rulesets are committed under `.github/rulesets/`. The engine itself has no
+runtime dependencies, so the published artefact's transitive closure is empty.
 
 ## Compatibility promise (semver, 1.0+)
 
@@ -83,6 +96,21 @@ headers), and mixes 16/32/64-bit size fields. zipnative defends against:
 | Lying byte-range source (understated `size`, short reads) | every record cross-checked as under `openZip()`; short reads and size lies are `ZIP_RECORD_TRUNCATED`; the central directory is fetched only after `maxCentralDirectoryBytes` is checked | CWE-20 |
 | Traversal smuggled through an injected name decoder (1.1) | path sanitisation runs on the decoded string; a decoder cannot bypass `sanitizeEntryPath()` | CWE-22 |
 
+The bounds themselves (`ZipLimits`, defaults in `DEFAULT_ZIP_LIMITS`,
+overridden per call with `limits: { … }`):
+
+| Limit | Default | Bounds | CWE |
+|---|---|---|---|
+| `maxEntries` | 100 000 | entries in the central directory and in a forward walk | CWE-400 |
+| `maxEntryUncompressedSize` | 1 GiB | decompressed bytes of one entry, counted during inflation on every tier | CWE-400 |
+| `maxEntryCompressedSize` | 1 GiB + 1 MiB | one compressed payload fetched whole by `openZipRange()` (the in-memory reader uses zero-copy views and never consults it) — 1.1 | CWE-770 |
+| `maxTotalUncompressedSize` | 8 GiB | decompressed bytes of one extraction | CWE-400 |
+| `maxCompressionRatio` | 1024 | declared uncompressed ÷ compressed size, for entries of 1 KiB and more compressed | CWE-409 |
+| `maxNameBytes` | 4 096 | one entry name | CWE-400 |
+| `maxExtraFieldBytes` | 65 535 | one extra-field block | CWE-400 |
+| `maxCommentBytes` | 65 535 | the archive comment or one entry comment | CWE-400 |
+| `maxCentralDirectoryBytes` | 256 MiB | the central directory, checked before it is read or fetched | CWE-400 |
+
 Every bound is named, documented on `ZipLimits`, and caller-configurable —
 raising a limit is always an explicit decision, never a silent default.
 
@@ -100,7 +128,7 @@ Every refusal above is thrown with a **stable machine-readable error code**
 - No module-level side effects; all state lives in closure factories.
 - CI runs CodeQL, OpenSSF Scorecard, `npm audit`, and an adversarial fuzzing
   suite (truncation, corruption, bombs, encoding tricks) on every push,
-  on Linux and Windows.
+  on Linux, Windows and macOS.
 - Every archive zipnative writes is validated clause by clause against
   ISO/IEC 21320-1:2015 by an engine-independent validator
   (`npm run validate:zip`), blocking in CI and before every publish — see

@@ -28,11 +28,28 @@ Examples of unacceptable behavior:
 - Other conduct which could reasonably be considered inappropriate in a
   professional setting
 
+## Scope
+
+This Code of Conduct applies within all community spaces of the project —
+the repository, its issues, pull requests and discussions — and when an
+individual is officially representing the project in public spaces.
+
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the maintainers via the contact listed in [SUPPORT.md](SUPPORT.md).
-All complaints will be reviewed and investigated promptly and fairly.
+reported privately to the maintainers through GitHub: use **Report content**
+on the offending issue, pull request or comment (it reaches the maintainers
+and GitHub, never the reported person), or open a private report at
+<https://github.com/Nizoka/zipnative/security/advisories/new> when the
+report must stay confidential. All complaints will be reviewed and
+investigated promptly and fairly; the privacy and security of the reporter
+are respected.
+
+Community leaders will follow these guidelines in determining the
+consequences: a private written warning for a single unprofessional act; a
+temporary ban from interaction for a pattern of violations; a permanent ban
+for sustained inappropriate behavior, harassment of an individual, or
+aggression toward or disparagement of groups.
 
 ## Attribution
 

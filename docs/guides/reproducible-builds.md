@@ -61,9 +61,9 @@ The canonical form, applied to every entry of any archive:
 |---|---|
 | Entry order | sorted by raw name bytes, unsigned bytewise — the writer's default `order: 'canonical'` |
 | Timestamps | the DOS epoch, or one pinned `date` (`dosTimeMode` applies) |
-| Name encoding | UTF-8 with flag bit 11 for every non-ASCII name; the raw bytes are never re-encoded |
+| Name encoding | every name is decoded (CP437, UTF-8, or your `nameDecoder`) and re-encoded as UTF-8, with flag bit 11 set on every entry — ASCII included |
 | version-made-by | the constant `0x032D` |
-| Extra fields | dropped, except Zip64 (0x0001), which is recomputed |
+| Extra fields | dropped, except Zip64 (0x0001), which is recomputed — and except on encrypted entries, which keep theirs (the 0x9901 AES record is part of the ciphertext's envelope), so an archive holding encrypted entries never reports `deterministic: true` |
 | Comments | dropped unless `keepComments: true` (archive and entry comments alike) |
 | External attributes | kept — Unix modes are content — unless `keepExternalAttributes: false` resets them to the writer's defaults |
 | Payloads | copied bit for bit: no decompression, no recompression, no dependency on the codec that produced them |
