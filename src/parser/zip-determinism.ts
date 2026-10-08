@@ -22,7 +22,8 @@
  * @module parser/zip-determinism
  */
 
-import type { DosTimeMode, ZipEntry, ZipLimits } from '../types/zip-types.js';
+import type { DosTimeMode, ZipEntry, ZipLimits, ZipNameDecoder } from '../types/zip-types.js';
+import { throwIfAborted } from '../core/zip-control.js';
 import { EXTRA_ZIP64, FLAG_UTF8 } from '../core/zip-constants.js';
 import { DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME, dateToDosDateTime } from '../core/zip-dos-time.js';
 import { compareNames } from '../core/zip-encoding.js';
@@ -31,7 +32,7 @@ import { openZip } from './zip-reader.js';
 /** The version-made-by zipnative writes (Unix host, spec 4.5) — the determinism contract. */
 const CANONICAL_VERSION_MADE_BY = 0x032d;
 
-/** Options for {@link analyzeDeterminism}. */
+/** Options for {@link analyzeDeterminism}. @since 1.1.0 */
 export interface AnalyzeDeterminismOptions {
     /** Security bounds, identical semantics to every other entry point. */
     readonly limits?: Partial<ZipLimits>;
@@ -44,9 +45,13 @@ export interface AnalyzeDeterminismOptions {
     readonly date?: Date;
     /** How `date` is converted to DOS fields; must match the writer's. */
     readonly dosTimeMode?: DosTimeMode;
+    /** Decoder for names without the UTF-8 flag, as on `openZip()`; the order check runs on the raw bytes either way. */
+    readonly nameDecoder?: ZipNameDecoder;
+    /** Checked once on entry (the analysis is synchronous). */
+    readonly signal?: AbortSignal;
 }
 
-/** One canonical-form rule an entry breaks. */
+/** One canonical-form rule an entry breaks. @since 1.1.0 */
 export type DeterminismConcern =
     | 'timestamp'        // not the DOS epoch
     | 'order'            // raw name bytes sort before the previous entry's
@@ -55,13 +60,13 @@ export type DeterminismConcern =
     | 'version-made-by'  // not the constant 0x032D
     | 'data-descriptor'; // streamed layout (informational, never fails the verdict)
 
-/** One entry and the rule it breaks. */
+/** One entry and the rule it breaks. @since 1.1.0 */
 export interface DeterminismOffender {
     readonly name: string;
     readonly concern: DeterminismConcern;
 }
 
-/** The machine-readable result of {@link analyzeDeterminism}. */
+/** The machine-readable result of {@link analyzeDeterminism}. @since 1.1.0 */
 export interface DeterminismReport {
     /**
      * Every entry is in the canonical form: epoch timestamps, canonical
@@ -101,7 +106,8 @@ function isAscii(bytes: Uint8Array): boolean {
  * @since 1.1.0
  */
 export function analyzeDeterminism(bytes: Uint8Array, options?: AnalyzeDeterminismOptions): DeterminismReport {
-    const reader = openZip(bytes, { limits: options?.limits, onDiagnostic: () => undefined });
+    throwIfAborted(options?.signal);
+    const reader = openZip(bytes, { limits: options?.limits, nameDecoder: options?.nameDecoder, onDiagnostic: () => undefined });
     const offenders: DeterminismOffender[] = [];
     let epochTimestamps = true;
     let canonicalOrder = true;

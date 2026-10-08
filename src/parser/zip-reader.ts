@@ -121,6 +121,7 @@ function wrapDecompressError(err: unknown, entryName: string): Error {
  */
 export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader {
     // Validate early, before any parsing.
+    throwIfAborted(options?.signal);
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
 
@@ -223,6 +224,7 @@ export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader 
         },
 
         readEntry(entryOrName: ZipEntry | string, readOptions?: ReadEntryOptions): Uint8Array {
+            throwIfAborted(readOptions?.signal ?? options?.signal);
             const entry = resolveEntry(entryOrName);
             const compressed = prepareRead(entry);
             const codec = codecFor(entry);

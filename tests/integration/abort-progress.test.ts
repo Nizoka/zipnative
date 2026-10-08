@@ -7,9 +7,13 @@ import {
     openZip,
     openZipRange,
     rangeSourceFromBytes,
+    analyzeDeterminism,
+    canonicalizeZip,
+    createZipModifier,
     type ZipProgress,
 } from 'zipnative';
 import { createParallelZip } from 'zipnative/worker';
+import { createFakeSpawn } from '../helpers/fake-worker.ts';
 
 /**
  * Cancellation (`signal`) and progress (`onProgress`) on every asynchronous
@@ -290,5 +294,77 @@ describe('per-call signal / onProgress — stream(options) and readEntryStream(e
         expect(n).toBe(3);
         expect(snaps[snaps.length - 1].entriesDone).toBe(3);
         expect(snaps[snaps.length - 1].entriesTotal).toBeNull();
+    });
+});
+
+// ── Final audit (C1, C2, C4): no worker left behind on a pre-aborted signal,
+// one monotonic series per parallel call, every synchronous entry point ──
+describe('final audit — pool lifetime, one series per call, synchronous entry points', () => {
+    it('an already-aborted signal spawns no worker and closes nothing it did not open', async () => {
+        const fake = createFakeSpawn();
+        const aborted = AbortSignal.abort(new Error('before the pool'));
+        const zip = createParallelZip({ signal: aborted, workers: 2, _spawn: fake.spawn } as never);
+        zip.add('a.bin', BIG);
+        zip.add('b.bin', new Uint8Array(BIG.length).map((_, i) => i & 0xff));
+        await rejectsWith(() => zip.toBytes(), aborted.reason as Error);
+        expect(fake.spawned()).toBe(0);
+        expect(fake.terminated()).toBe(0);
+    });
+
+    it('an abort while jobs are in flight terminates every spawned worker', async () => {
+        const fake = createFakeSpawn({ delayMs: 30 });
+        const controller = new AbortController();
+        const zip = createParallelZip({ signal: controller.signal, workers: 2, _spawn: fake.spawn } as never);
+        zip.add('a.bin', BIG);
+        zip.add('b.bin', new Uint8Array(BIG.length).map((_, i) => (i * 7) & 0xff));
+        const pending = zip.toBytes();
+        const reason = new Error('mid-flight');
+        setTimeout(() => controller.abort(reason), 5);
+        await rejectsWith(() => pending, reason);
+        expect(fake.spawned()).toBeGreaterThan(0);
+        expect(fake.terminated()).toBe(fake.spawned());
+    });
+
+    it('parallel toBytes() and stream() each report one monotonic series with the exact totals', async () => {
+        const build = (): ReturnType<typeof createParallelZip> => {
+            const zip = createParallelZip({ workers: 0, onProgress: (p) => snaps.push(p) });
+            zip.add('a.txt', BIG);
+            zip.add('b.txt', te.encode('small'));
+            zip.add('c.bin', new Uint8Array(70_000), { compression: { method: 'store' } });
+            return zip;
+        };
+        let snaps: ZipProgress[] = [];
+        const bytes = await build().toBytes();
+        monotonic(snaps);
+        expect(snaps.every((p) => p.entriesTotal === 3)).toBe(true);
+        expect(snaps[snaps.length - 1]).toMatchObject({ entriesDone: 3, entriesTotal: 3, bytesIn: BIG.length + 5 + 70_000, bytesOut: bytes.length });
+
+        snaps = [];
+        const streamed = await drain(build().stream());
+        monotonic(snaps);
+        expect(snaps.every((p) => p.entriesTotal === 3)).toBe(true);
+        expect(snaps[snaps.length - 1]).toMatchObject({ entriesDone: 3, bytesIn: BIG.length + 5 + 70_000, bytesOut: streamed });
+    });
+
+    it('every synchronous entry point throws the reason on entry when already aborted', () => {
+        const reason = new Error('sync entry');
+        const aborted = AbortSignal.abort(reason);
+        const bytes = archive();
+        expect(() => openZip(bytes, { signal: aborted })).toThrow(reason);
+        expect(() => canonicalizeZip(bytes, { signal: aborted })).toThrow(reason);
+        expect(() => analyzeDeterminism(bytes, { signal: aborted })).toThrow(reason);
+        // readEntry: the per-call signal, then the reader-wide one.
+        const reader = openZip(bytes);
+        const first = [...reader.entries()][0];
+        expect(() => reader.readEntry(first, { signal: aborted })).toThrow(reason);
+        expect(() => openZip(bytes, { signal: aborted })).toThrow(reason);
+        // The modifier: the factory, then each synchronous save.
+        expect(() => createZipModifier(reader, { signal: aborted })).toThrow(reason);
+        const controller = new AbortController();
+        const modifier = createZipModifier(reader, { signal: controller.signal });
+        modifier.addEntry('late.txt', new TextEncoder().encode('late'));
+        controller.abort(reason);
+        expect(() => modifier.save()).toThrow(reason);
+        expect(() => modifier.saveCompact()).toThrow(reason);
     });
 });

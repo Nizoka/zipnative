@@ -141,3 +141,22 @@ describe('canonicalizeZip — the frozen canonical bytes', () => {
         });
     }
 });
+
+describe('canonicalizeZip — the shared options travel (final audit C3)', () => {
+    it('a nameDecoder decodes the legacy name before it is re-encoded as UTF-8', () => {
+        const te2 = new TextEncoder();
+        // A Shift-JIS name without bit 11: the decoder gives the real name,
+        // which the canonical form writes as UTF-8 with bit 11 set.
+        const archive = buildRawZip([{ name: new Uint8Array([0x83, 0x65, 0x83, 0x58, 0x83, 0x67, 0x2e, 0x74, 0x78, 0x74]), data: te2.encode('payload') }]);
+        const decoder = (b: Uint8Array): string => new TextDecoder('shift_jis').decode(b);
+        const canonical = canonicalizeZip(archive, { nameDecoder: decoder });
+        const entry = [...openZip(canonical).entries()][0];
+        expect(entry.name).toBe('テスト.txt');
+        expect(entry.nameEncoding).toBe('utf-8');
+        // Without the decoder the CP437 reading would have been frozen in.
+        const mojibake = [...openZip(canonicalizeZip(archive)).entries()][0].name;
+        expect(mojibake).not.toBe('テスト.txt');
+        // analyzeDeterminism takes the decoder too; the verdict does not depend on it.
+        expect(analyzeDeterminism(canonical, { nameDecoder: decoder }).deterministic).toBe(true);
+    });
+});

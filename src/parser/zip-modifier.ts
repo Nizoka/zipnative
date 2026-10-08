@@ -67,6 +67,7 @@ import {
     timestampNotPinnedDiagnostic,
 } from '../core/zip-diagnostics.js';
 import { bytesEqual, compareNames, validateEntryName } from '../core/zip-encoding.js';
+import { throwIfAborted } from '../core/zip-control.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from '../core/zip-dos-time.js';
 import { buildZip64Extra, lfhZip64Fields, serializeExtraFields } from '../core/zip-extra-fields.js';
 import {
@@ -206,7 +207,9 @@ export { lfhZip64Fields } from '../core/zip-extra-fields.js';
  * editing would be ambiguous; extract and rebuild with createZip instead.
  */
 export function createZipModifier(reader: ZipReader, options?: ZipModifierOptions): ZipModifier {
-    // Validate early.
+    // Validate early. The signal is checked once here and once on entry of
+    // each synchronous save; nothing in between can be interrupted.
+    throwIfAborted(options?.signal);
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
 
@@ -543,6 +546,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         },
 
         save(): Uint8Array {
+            throwIfAborted(options?.signal);
             // No-op fast path: the identical buffer, zero copy.
             if (edits.size === 0
                 && (pendingComment === null || bytesEqual(pendingComment, layout.comment))) {
@@ -677,6 +681,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         },
 
         saveCompact(compactOptions?: CompactOptions): Uint8Array {
+            throwIfAborted(options?.signal);
             const canonical = resolveCanonical(compactOptions?.canonical);
             const writeSpecs: EntrySpec[] = [];
             const plans: PlannedEntry[] = [];

@@ -8,7 +8,7 @@
  * need: the end-of-central-directory tail, the central directory, then per
  * entry its local header and its payload (chunk by chunk when streaming).
  * Round trips are what a remote source pays for, so the bounded tail
- * window (at most ~195 KiB) stays cached for the reader's lifetime and
+ * window (at most ~128 KiB) stays cached for the reader's lifetime and
  * serves every range that falls inside it — the central directory of
  * most archives, and whole small archives — without a read; the local
  * header is prefetched with 1 KiB of slack so a typical entry costs one

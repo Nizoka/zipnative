@@ -31,6 +31,12 @@ import type { ZipProgressHandler } from '../types/zip-types.js';
 export interface StreamControl {
     readonly signal?: AbortSignal;
     readonly onProgress?: ZipProgressHandler;
+    /**
+     * @internal A tracker the caller already reports through (the parallel
+     * writer's planning phase); the stream writer continues it instead of
+     * starting a second one, so one operation is one monotonic series.
+     */
+    readonly tracker?: ProgressTracker;
 }
 
 /**
@@ -79,7 +85,7 @@ export async function* streamArchive(
     const signal = control?.signal;
     throwIfAborted(signal);
     const ctx = planCtx(); // validation completes before the first byte
-    const progress = createProgressTracker(control?.onProgress, ctx.plans.length);
+    const progress = control?.tracker ?? createProgressTracker(control?.onProgress, ctx.plans.length);
 
     // Re-chunker: one buffer held at a time; a full chunk is yielded and
     // REALLOCATED (consumers may retain it); the tail is a subarray view.

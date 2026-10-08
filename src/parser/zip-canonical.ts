@@ -13,6 +13,7 @@
  */
 
 import type { ZipCommonOptions } from '../types/zip-types.js';
+import { throwIfAborted } from '../core/zip-control.js';
 import { createZipModifier, type CanonicalOptions } from './zip-modifier.js';
 import { openZip } from './zip-reader.js';
 
@@ -29,11 +30,15 @@ export interface CanonicalizeOptions extends CanonicalOptions, ZipCommonOptions 
  * @since 1.1.0
  */
 export function canonicalizeZip(bytes: Uint8Array, options?: CanonicalizeOptions): Uint8Array {
+    throwIfAborted(options?.signal);
     const common: ZipCommonOptions = {
         strict: options?.strict,
         onDiagnostic: options?.onDiagnostic,
         limits: options?.limits,
         dosTimeMode: options?.dosTimeMode,
+        nameDecoder: options?.nameDecoder,
+        signal: options?.signal,
+        onProgress: options?.onProgress,
     };
     const reader = openZip(bytes, common);
     const modifier = createZipModifier(reader, common);

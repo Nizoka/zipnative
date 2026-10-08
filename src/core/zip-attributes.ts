@@ -67,7 +67,7 @@ const HOST_UNIX = 3;
 const UNIX_TYPE_REGULAR = 0o100000;
 const UNIX_TYPE_DIRECTORY = 0o040000;
 
-/** Options for {@link externalAttributesFromUnixMode}. */
+/** Options for {@link externalAttributesFromUnixMode}. @since 1.1.0 */
 export interface UnixModeOptions {
     /** Author a directory entry: `S_IFDIR` type bits plus the DOS directory attribute. Default false. */
     readonly directory?: boolean;

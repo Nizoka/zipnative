@@ -183,6 +183,7 @@ export interface ZipWriter {
      * metadata; `addFromReader()` is the checked form. Payloads of 4 GiB
      * and more take the Zip64 local-header form automatically.
      * `compression` and `zip64` are meaningless here and refused.
+     * @since 1.1.0
      */
     addRaw(name: string, payload: Uint8Array, meta: RawEntryMeta, options?: AddEntryOptions): void;
     /**
@@ -193,6 +194,7 @@ export interface ZipWriter {
      * verified first unless `verify: false`. Encrypted entries are refused
      * like `readEntryRaw` refuses them. The merge/split/repack primitive:
      * ten archives into one in O(bytes copied).
+     * @since 1.1.0
      */
     addFromReader(reader: RawEntryReader, entry: ZipEntry | string, options?: AddFromReaderOptions): void;
     setComment(comment: string | Uint8Array): void;

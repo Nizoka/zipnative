@@ -156,8 +156,12 @@ export interface ZipCommonOptions {
      * Cancel the operation: checked before the first byte and between
      * chunks on every asynchronous path (`readEntryStream`,
      * `extractZipStream`, `iterateZipEntries`, `stream()`, the parallel
-     * writer), once on entry for synchronous ones. An abort rejects with
-     * the signal's own `reason` after releasing what the operation held.
+     * writer), and once on entry of every synchronous call that takes
+     * these options (`openZip` and `readEntry`, `extractZip`, `toBytes`,
+     * `createZipModifier` and its `save()` / `saveCompact()`,
+     * `canonicalizeZip`, `analyzeDeterminism`): an already-aborted signal
+     * throws its `reason` before any work. An abort rejects with the
+     * signal's own `reason` after releasing what the operation held.
      * @since 1.1.0
      */
     readonly signal?: AbortSignal;
