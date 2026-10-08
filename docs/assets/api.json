@@ -5,7 +5,7 @@
     "src/index.ts",
     "src/worker/index.ts"
   ],
-  "exportCount": 77,
+  "exportCount": 106,
   "exports": [
     {
       "name": "AddEntryOptions",
@@ -16,6 +16,30 @@
       "summary": "Per-entry options for `add`/`addDirectory`/`addStream`."
     },
     {
+      "name": "AddFromReaderOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-builder.ts",
+      "signature": "export interface AddFromReaderOptions extends AddEntryOptions",
+      "summary": "Options for ZipWriter.addFromReader."
+    },
+    {
+      "name": "AnalyzeDeterminismOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-determinism.ts",
+      "signature": "export interface AnalyzeDeterminismOptions",
+      "summary": "Options for analyzeDeterminism."
+    },
+    {
+      "name": "ByteRangeSource",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-range-reader.ts",
+      "signature": "export interface ByteRangeSource",
+      "summary": "An archive served by ranges."
+    },
+    {
       "name": "ByteSource",
       "kind": "type",
       "subpath": ".",
@@ -24,12 +48,36 @@
       "summary": "Any byte producer zipnative's streaming entry points accept."
     },
     {
+      "name": "CanonicalOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-modifier.ts",
+      "signature": "export interface CanonicalOptions",
+      "summary": "The canonical form `saveCompact({ canonical: true })` rewrites an archive into — zipnative's own deterministic layout (docs/guides/determinism.md, level 1), applied to content from ANY producer without recompression: timestamps pinned, entr…"
+    },
+    {
+      "name": "CanonicalizeOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-canonical.ts",
+      "signature": "export interface CanonicalizeOptions extends CanonicalOptions, ZipCommonOptions {}",
+      "summary": "Options for canonicalizeZip: the canonical rules plus the shared fragment."
+    },
+    {
       "name": "CodecCompressOptions",
       "kind": "type",
       "subpath": ".",
       "module": "src/codecs/codec-registry.ts",
       "signature": "export interface CodecCompressOptions",
       "summary": "Options passed to `ZipCodec.compressSync` (M2+)."
+    },
+    {
+      "name": "CompactOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-modifier.ts",
+      "signature": "export interface CompactOptions",
+      "summary": "Options for ZipModifier.saveCompact."
     },
     {
       "name": "CreateZipOptions",
@@ -56,12 +104,60 @@
       "summary": "The four compression tiers activeDeflateTier can report."
     },
     {
+      "name": "DeterminismConcern",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-determinism.ts",
+      "signature": "export type DeterminismConcern =",
+      "summary": "One canonical-form rule an entry breaks."
+    },
+    {
+      "name": "DeterminismOffender",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-determinism.ts",
+      "signature": "export interface DeterminismOffender",
+      "summary": "One entry and the rule it breaks."
+    },
+    {
+      "name": "DeterminismReport",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-determinism.ts",
+      "signature": "export interface DeterminismReport",
+      "summary": "The machine-readable result of analyzeDeterminism."
+    },
+    {
+      "name": "DosTimeMode",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/types/zip-types.ts",
+      "signature": "export type DosTimeMode = 'local' | 'utc';",
+      "summary": "Which wall-clock a `Date` is converted to and from the DOS timestamp fields with."
+    },
+    {
+      "name": "EntrySkipReason",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/types/zip-types.ts",
+      "signature": "export type EntrySkipReason = 'encrypted' | 'stream-only-codec' | 'unsupported-method';",
+      "summary": "Why an entry's content could not be verified (its local header WAS still cross-checked): `'encrypted'` (payload undecryptable by design), `'stream-only-codec'` (a registered codec without `decompressSync`) or `'unsupported-method'` (no code…"
+    },
+    {
       "name": "EntryVerification",
       "kind": "type",
       "subpath": ".",
       "module": "src/types/zip-types.ts",
       "signature": "export interface EntryVerification",
       "summary": "Result of `ZipReader.verifyEntry()`."
+    },
+    {
+      "name": "ExtendedTimestamps",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export interface ExtendedTimestamps",
+      "summary": "An entry's timestamps at the best precision its metadata offers."
     },
     {
       "name": "ExtractOptions",
@@ -85,7 +181,7 @@
       "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export interface ExtractedStreamEntry",
-      "summary": "One extracted file, streamed."
+      "summary": "One extracted file, streamed: `{ path, entry, stream() }` — `stream()` yields the content in chunks and must be consumed (or discarded) before the iterator advances; there is no `data` field."
     },
     {
       "name": "FLAG_DATA_DESCRIPTOR",
@@ -160,6 +256,22 @@
       "summary": "Options for openZip."
     },
     {
+      "name": "RawEntryMeta",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-builder.ts",
+      "signature": "export interface RawEntryMeta",
+      "summary": "What `addRaw()` must know about a pre-compressed payload: the method that produced it, the CRC-32 and size of the ORIGINAL content, and optionally the general-purpose bits to preserve (only the encryption bits are kept) and the version-need…"
+    },
+    {
+      "name": "RawEntryReader",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-builder.ts",
+      "signature": "export interface RawEntryReader",
+      "summary": "The read side `addFromReader()` transplants from — `ZipReader` satisfies it; declared structurally here so the writer never imports the parser."
+    },
+    {
       "name": "ReadEntryOptions",
       "kind": "type",
       "subpath": ".",
@@ -172,8 +284,8 @@
       "kind": "type",
       "subpath": ".",
       "module": "src/core/zip-stream-writer.ts",
-      "signature": "export interface StreamOptions",
-      "summary": "Options for `ZipWriter.stream()`."
+      "signature": "export interface StreamOptions extends StreamControl",
+      "summary": "Options for `ZipWriter.stream()`: the chunk size, and — per call — the cancellation signal and progress handler (1.1.0)."
     },
     {
       "name": "StreamedZipEntry",
@@ -192,11 +304,27 @@
       "summary": "LFH-derived metadata only — a SUBSET of `ZipEntry`."
     },
     {
+      "name": "UnixIds",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export interface UnixIds",
+      "summary": "Unix owner ids of an entry (the Info-ZIP \"ux\" 0x7875 extra)."
+    },
+    {
+      "name": "UnixModeOptions",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export interface UnixModeOptions",
+      "summary": "Options for externalAttributesFromUnixMode."
+    },
+    {
       "name": "VERSION",
       "kind": "value",
       "subpath": ".",
       "module": "src/index.ts",
-      "signature": "export const VERSION = '1.0.0';",
+      "signature": "export const VERSION = '1.1.0';",
       "summary": "Library version — kept in sync with package.json by verify:docs."
     },
     {
@@ -205,7 +333,7 @@
       "subpath": ".",
       "module": "src/parser/zip-verify.ts",
       "signature": "export interface VerifiedEntry extends EntryVerification",
-      "summary": "One entry's verification outcome inside a ZipVerificationReport."
+      "summary": "One entry's verification outcome inside a ZipVerificationReport: exactly what `ZipReader.verifyEntry()` returns for it, plus its name."
     },
     {
       "name": "VerifyZipOptions",
@@ -262,6 +390,14 @@
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipDataErrorCode =",
       "summary": "Codes carried by ZipDataError."
+    },
+    {
+      "name": "ZipDecompressor",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/codecs/codec-registry.ts",
+      "signature": "export interface ZipDecompressor",
+      "summary": "An incremental decoder a codec hands out for the forward reader (`iterateZipEntries`): compressed bytes are pushed as they arrive off the stream and decoded pieces come back at once, so memory stays O(chunk) whatever the entry's size — the …"
     },
     {
       "name": "ZipDiagnostic",
@@ -376,6 +512,46 @@
       "summary": "Options for createZipModifier."
     },
     {
+      "name": "ZipNameDecoder",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/types/zip-types.ts",
+      "signature": "export type ZipNameDecoder = (bytes: Uint8Array) => string;",
+      "summary": "Decodes the raw name bytes of an entry whose UTF-8 flag (bit 11) is clear — a `TextDecoder` for the producer's code page, typically (`(b) => new TextDecoder('shift_jis').decode(b)`) — and, as the fallback, of a UTF-8-flagged name whose byte…"
+    },
+    {
+      "name": "ZipNameEncoding",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/types/zip-types.ts",
+      "signature": "export type ZipNameEncoding = 'utf-8' | 'cp437' | 'custom';",
+      "summary": "How an entry's name bytes were decoded: `'utf-8'` (flag bit 11 set and valid), `'cp437'` (the DOS default), or `'custom'` (the caller's `nameDecoder`, for a legacy encoding such as Shift-JIS or CP866)."
+    },
+    {
+      "name": "ZipProgress",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/types/zip-types.ts",
+      "signature": "export interface ZipProgress",
+      "summary": "A progress snapshot: monotonic counters, reported after every chunk and every completed entry."
+    },
+    {
+      "name": "ZipProgressHandler",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/types/zip-types.ts",
+      "signature": "export type ZipProgressHandler = (progress: ZipProgress) => void;",
+      "summary": "Receives every ZipProgress snapshot."
+    },
+    {
+      "name": "ZipRangeReader",
+      "kind": "type",
+      "subpath": ".",
+      "module": "src/parser/zip-range-reader.ts",
+      "signature": "export interface ZipRangeReader",
+      "summary": "Random-access reader over a ByteRangeSource: the `ZipReader` surface with asynchronous reads and no `bytes` (there is no buffer to expose)."
+    },
+    {
       "name": "ZipReader",
       "kind": "type",
       "subpath": ".",
@@ -421,7 +597,7 @@
       "subpath": ".",
       "module": "src/types/zip-errors.ts",
       "signature": "export type ZipUnsupportedFeature =",
-      "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compression method."
+      "summary": "The closed vocabulary of ZipUnsupportedError.feature values: `'zipcrypto'`, `'aes'` (WinZip AES, 1.1.0), `'strong-encryption'`, `'multi-disk'`, `'zip64-streaming'`, `'cd-less-descriptor'`, or `` `method:${n}` `` for an unregistered compress…"
     },
     {
       "name": "ZipVerificationReport",
@@ -446,6 +622,22 @@
       "module": "src/codecs/deflate.ts",
       "signature": "export function activeDeflateTier(deterministic = false): DeflateTier",
       "summary": "The compression tier `deflateRawSync` would use right now."
+    },
+    {
+      "name": "analyzeDeterminism",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/parser/zip-determinism.ts",
+      "signature": "export function analyzeDeterminism(bytes: Uint8Array, options?: AnalyzeDeterminismOptions): DeterminismReport",
+      "summary": "Analyse an archive against the canonical deterministic form."
+    },
+    {
+      "name": "canonicalizeZip",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/parser/zip-canonical.ts",
+      "signature": "export function canonicalizeZip(bytes: Uint8Array, options?: CanonicalizeOptions): Uint8Array",
+      "summary": "Rewrite an archive into the canonical deterministic form (see `CanonicalOptions` for the rules and `docs/guides/determinism.md` for the contract)."
     },
     {
       "name": "crc32",
@@ -480,6 +672,14 @@
       "summary": "Wrap an opened archive in an incremental modifier."
     },
     {
+      "name": "externalAttributesFromUnixMode",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export function externalAttributesFromUnixMode(mode: number, options?: UnixModeOptions): number",
+      "summary": "The `externalAttributes` word for a Unix mode — the write-side mirror of getUnixMode, for `AddEntryOptions.externalAttributes`."
+    },
+    {
       "name": "extractZip",
       "kind": "value",
       "subpath": ".",
@@ -493,7 +693,7 @@
       "subpath": ".",
       "module": "src/parser/zip-extract.ts",
       "signature": "export async function* extractZipStream( bytes: Uint8Array, options?: ExtractOptions, )",
-      "summary": "Extract an archive entry-by-entry with streamed content — bounded memory for large entries."
+      "summary": "Extract an archive entry-by-entry with streamed content: an async iterable of `{ path, entry, stream() }` — consume (or discard) each `stream()` before advancing (it is an `async function*`: iterate it with `for await`, never `await` the ca…"
     },
     {
       "name": "getCodec",
@@ -502,6 +702,22 @@
       "module": "src/codecs/codec-registry.ts",
       "signature": "export function getCodec(method: number): ZipCodec | null",
       "summary": "Look up the codec for a compression-method id, or `null` if unregistered."
+    },
+    {
+      "name": "getExtendedTimestamps",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export function getExtendedTimestamps(entry: ZipEntry): ExtendedTimestamps",
+      "summary": "The entry's modification, access and creation times — UT first, then NTFS, then the DOS fields (Info-ZIP's precedence)."
+    },
+    {
+      "name": "getUnixIds",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/core/zip-attributes.ts",
+      "signature": "export function getUnixIds(entry: ZipEntry): UnixIds | null",
+      "summary": "The entry's Unix uid/gid from the Info-ZIP 0x7875 extra, or null when the archive carries none (DOS/Windows producers, or a Unix one that omitted it)."
     },
     {
       "name": "getUnixMode",
@@ -542,6 +758,22 @@
       "module": "src/parser/zip-reader.ts",
       "signature": "export function openZip(bytes: Uint8Array, options?: OpenZipOptions): ZipReader",
       "summary": "Open a ZIP archive held in memory."
+    },
+    {
+      "name": "openZipRange",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/parser/zip-range-reader.ts",
+      "signature": "export async function openZipRange(source: ByteRangeSource, options?: OpenZipOptions): Promise<ZipRangeReader>",
+      "summary": "Open an archive served by ranges."
+    },
+    {
+      "name": "rangeSourceFromBytes",
+      "kind": "value",
+      "subpath": ".",
+      "module": "src/parser/zip-range-reader.ts",
+      "signature": "export function rangeSourceFromBytes(bytes: Uint8Array): ByteRangeSource",
+      "summary": "A ByteRangeSource over bytes already in memory — for tests, for parity with `openZip`, and for callers that mix the two readers."
     },
     {
       "name": "registerCodec",
@@ -612,8 +844,8 @@
       "kind": "type",
       "subpath": "./worker",
       "module": "src/core/zip-stream-writer.ts",
-      "signature": "export interface StreamOptions",
-      "summary": "Options for `ZipWriter.stream()`."
+      "signature": "export interface StreamOptions extends StreamControl",
+      "summary": "Options for `ZipWriter.stream()`: the chunk size, and — per call — the cancellation signal and progress handler (1.1.0)."
     },
     {
       "name": "createParallelZip",

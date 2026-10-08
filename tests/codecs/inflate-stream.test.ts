@@ -1,5 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { expectSameBytes } from '../helpers/bytes.js';
 import { ZipDataError, ZipFormatError } from 'zipnative';
 import { createInflator } from '../../src/codecs/inflate-stream.ts';
 import { seededRandom } from '../helpers/raw-zip-builder.ts';
@@ -57,7 +58,7 @@ describe('createInflator: differential vs zlib across hostile chunkings', () => 
                 const compressed = new Uint8Array(deflateRawSync(data, { level }));
                 for (const chunkSize of CHUNK_SIZES) {
                     const { output, consumed, leftover } = run(compressed, chunkSize);
-                    expect(output, `${name} L${level} chunk ${chunkSize}`).toEqual(data);
+                    expectSameBytes(output, data, `${name} L${level} chunk ${chunkSize}`);
                     // The whole buffer IS the stream: consumed must be exact.
                     expect(consumed, `${name} L${level} chunk ${chunkSize} consumed`).toBe(compressed.length);
                     expect(leftover.length).toBe(0);

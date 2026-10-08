@@ -52,11 +52,20 @@ export interface ArchiveLayout {
     readonly comment: Uint8Array;
 }
 
-/** Locate and fully resolve the end-of-central-directory structures. */
+/**
+ * Locate and fully resolve the end-of-central-directory structures.
+ *
+ * `bytes` is the whole archive, or — for the byte-range reader — its TAIL
+ * window starting at absolute offset `windowStart` (0 for a whole
+ * archive). Every offset in the returned layout is absolute; the Zip64
+ * record must lie inside the window (APPNOTE 4.3.15 places it right before
+ * its locator, and the range reader sizes its window for that).
+ */
 export function locateEocd(
     bytes: Uint8Array,
     limits: ZipLimits,
     emit: ZipDiagnosticEmitter,
+    windowStart = 0,
 ): ArchiveLayout {
     if (bytes.length < EOCD_SIZE) {
         throw new ZipFormatError('ZIP_EOCD_NOT_FOUND', 'zipnative: input too small to be a ZIP archive (< 22 bytes)');
@@ -128,8 +137,9 @@ export function locateEocd(
         // prepended data it is stale. Try it first, then the position a
         // minimal zip64 EOCD would occupy immediately before the locator.
         let z64Pos = -1;
-        if (hasZip64EocdSignature(bytes, locator.eocd64Offset)) {
-            z64Pos = locator.eocd64Offset;
+        const pointed = locator.eocd64Offset - windowStart;
+        if (pointed >= 0 && hasZip64EocdSignature(bytes, pointed)) {
+            z64Pos = pointed;
         } else if (hasZip64EocdSignature(bytes, locatorPos - ZIP64_EOCD_MIN_SIZE)) {
             z64Pos = locatorPos - ZIP64_EOCD_MIN_SIZE;
         }
@@ -172,8 +182,8 @@ export function locateEocd(
     enforceLimit(limits, 'maxEntries', totalEntries, 'central-directory entry count');
     enforceLimit(limits, 'maxCentralDirectoryBytes', cdSize, 'central-directory size');
 
-    // ── Prepended-data shift ─────────────────────────────────────────
-    const base = cdEnd - (cdOffset + cdSize);
+    // ── Prepended-data shift (cdEnd is window-relative; the archive is not) ──
+    const base = (cdEnd + windowStart) - (cdOffset + cdSize);
     if (base < 0) {
         throw new ZipFormatError('ZIP_EOCD_INCONSISTENT',
             'zipnative: the central directory overlaps the end-of-central-directory record '

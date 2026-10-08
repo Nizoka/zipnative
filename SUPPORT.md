@@ -7,4 +7,9 @@
   vice versa): use the dedicated interop issue template and name the tool and
   its exact version.
 - **Questions / ideas**: open a discussion or a feature-request issue.
-- **Security vulnerabilities**: never a public issue — see [SECURITY.md](SECURITY.md).
+- **Security vulnerabilities**: never a public issue — see [SECURITY.md](SECURITY.md)
+  (private report: <https://github.com/Nizoka/zipnative/security/advisories/new>).
+- **Conduct**: use **Report content** on the offending issue, pull request or
+  comment, or the private advisory link above when confidentiality matters —
+  see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). There is no public e-mail
+  address by design; GitHub's private channels reach the maintainers.

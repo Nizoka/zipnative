@@ -17,6 +17,11 @@ beforeAll(() => initNodeZipCodecs());
 
 const WORKER_SCRIPT = resolve('dist/worker/zip-worker.js');
 const hasDist = existsSync(WORKER_SCRIPT);
+// Under the gate (scripts/gate.ts, GATE_REQUIRE_ARTIFACTS=1) build runs
+// first, so a missing bundle is a broken pipeline, never a reason to skip.
+if (!hasDist && process.env.GATE_REQUIRE_ARTIFACTS === '1') {
+    throw new Error('dist/worker/zip-worker.js is missing but GATE_REQUIRE_ARTIFACTS=1 — the gate builds before testing');
+}
 const workerUrl = pathToFileURL(WORKER_SCRIPT);
 
 const te = new TextEncoder();

@@ -32,6 +32,7 @@
  * @module worker
  */
 
+import type { ZipEntry } from '../types/zip-types.js';
 import { ZipError } from '../types/zip-errors.js';
 import { crc32 } from '../codecs/crc32.js';
 import { deflateRawSync, initNodeDeflate } from '../codecs/deflate.js';
@@ -39,6 +40,10 @@ import {
     createSpecCollector,
     type AddEntryOptions,
     type CreateZipOptions,
+    type AddFromReaderOptions,
+    type RawEntryMeta,
+    type RawEntryReader,
+    mergeControl,
 } from '../core/zip-builder.js';
 import {
     assembleArchive,
@@ -46,13 +51,14 @@ import {
     type AsyncDeflate,
     type ZipCtx,
 } from '../core/zip-segments.js';
-import { streamArchive, type StreamOptions } from '../core/zip-stream-writer.js';
+import { streamArchive, type StreamControl, type StreamOptions } from '../core/zip-stream-writer.js';
 
 // Re-exported so subpath consumers can name the types `stream()` and
 // `addStream()` accept without importing from the main entry.
 export { type StreamOptions } from '../core/zip-stream-writer.js';
 export { type ByteSource } from '../core/zip-source.js';
 import { type ByteSource } from '../core/zip-source.js';
+import { createProgressTracker, throwIfAborted, type ProgressTracker } from '../core/zip-control.js';
 import { detectConcurrency } from './worker-adapter.js';
 import { createDeflatePool, type WorkerSpawnSeam } from './worker-pool.js';
 
@@ -84,6 +90,10 @@ export interface ParallelZipWriter {
     add(name: string, data: Uint8Array | string, options?: AddEntryOptions): void;
     addDirectory(name: string, options?: AddEntryOptions): void;
     addStream(name: string, source: ByteSource, options?: AddEntryOptions): void;
+    /** Pre-compressed payload, copied verbatim (1.1.0) — see `ZipWriter.addRaw`. */
+    addRaw(name: string, payload: Uint8Array, meta: RawEntryMeta, options?: AddEntryOptions): void;
+    /** Transplant from an open archive without recompression (1.1.0) — see `ZipWriter.addFromReader`. */
+    addFromReader(reader: RawEntryReader, entry: ZipEntry | string, options?: AddFromReaderOptions): void;
     setComment(comment: string | Uint8Array): void;
 
     /** Assemble the archive (async — workers). Throws if addStream() was used. */
@@ -101,7 +111,12 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
     const minJobSize = options?.minWorkerJobSize ?? DEFAULT_MIN_JOB_SIZE;
     const jobTimeout = options?.jobTimeout ?? DEFAULT_JOB_TIMEOUT;
 
-    const planParallel = async (): Promise<ZipCtx> => {
+    /**
+     * Plan with the pool. `report` is the tracker `toBytes()` reports
+     * through (one entry per settled deflate job, then the archive length);
+     * `stream()` passes null and lets the stream writer own the series.
+     */
+    const planParallel = async (control: StreamControl, report: ProgressTracker | null): Promise<ZipCtx> => {
         // Resolve the SAME compression tier on the main thread as the worker
         // script resolves at boot (memoized no-op after the first call, and
         // a no-op outside Node): main-thread jobs — small entries, worker
@@ -116,6 +131,10 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
             spec.source === null
             && spec.method === 'deflate'
             && (spec.data?.length ?? 0) >= minJobSize).length;
+        const signal = control.signal;
+        // Before the pool exists: an already-aborted signal must leave no
+        // worker behind, and the pool is closed in the finally below.
+        throwIfAborted(signal);
         const workerCount = options?.workers ?? await detectConcurrency();
         const pool = workerCount > 0 && dispatchable >= 2
             ? await createDeflatePool({
@@ -125,16 +144,38 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
                 _spawn: (options as (ParallelZipOptions & WorkerSpawnSeam) | undefined)?._spawn,
             })
             : null;
-
+        // An abort while jobs are in flight: close the pool (its jobs settle
+        // on the main thread, nothing hangs) and let the planner's next
+        // check surface the caller's reason.
+        const onAbort = (): void => { pool?.close(); };
+        signal?.addEventListener('abort', onAbort, { once: true });
         try {
-            const deflate: AsyncDeflate = (data, level, deterministic) => {
-                if (pool === null || pool.size === 0 || data.length < minJobSize) {
-                    return Promise.resolve({ compressed: deflateRawSync(data, level, deterministic), crc: crc32(data) });
+            throwIfAborted(signal);
+            const deflate: AsyncDeflate = async (data, level, deterministic) => {
+                throwIfAborted(signal);
+                const result = pool === null || pool.size === 0 || data.length < minJobSize
+                    ? { compressed: deflateRawSync(data, level, deterministic), crc: crc32(data) }
+                    : await pool.deflate(data, level, deterministic);
+                if (report !== null) {
+                    report.bytesIn(data.length);
+                    report.entryDone();
                 }
-                return pool.deflate(data, level, deterministic);
+                return result;
             };
-            return await planArchiveAsync(specs, collector.comment(), collector.limits, collector.emit, deflate);
+            const ctx = await planArchiveAsync(specs, collector.comment(), collector.limits, collector.emit, deflate);
+            throwIfAborted(signal);
+            // Stored and directory entries never reach the deflate callback:
+            // they complete at plan time, so the plan ends with every entry done.
+            if (report !== null) {
+                for (const spec of specs) {
+                    if (spec.source !== null || spec.method === 'deflate') continue;
+                    report.bytesIn(spec.data?.length ?? 0);
+                }
+                for (let done = report.snapshot().entriesDone; done < specs.length; done++) report.entryDone();
+            }
+            return ctx;
         } finally {
+            signal?.removeEventListener('abort', onAbort);
             pool?.close();
         }
     };
@@ -143,6 +184,8 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
         add: collector.add,
         addDirectory: collector.addDirectory,
         addStream: collector.addStream,
+        addRaw: collector.addRaw,
+        addFromReader: collector.addFromReader,
         setComment: collector.setComment,
 
         async toBytes(): Promise<Uint8Array> {
@@ -151,14 +194,22 @@ export function createParallelZip(options?: ParallelZipOptions): ParallelZipWrit
                     'zipnative: toBytes() is incompatible with addStream() entries (their sizes are only '
                     + 'known after the source is consumed). Use stream(), or buffer the content via add().');
             }
-            return assembleArchive(await planParallel());
+            // One tracker for the whole call: entries as their jobs settle,
+            // then the archive length — never a second series.
+            const report = createProgressTracker(collector.control.onProgress, collector.orderedSpecs().length);
+            const bytes = assembleArchive(await planParallel(collector.control, report));
+            report.bytesOut(bytes.length);
+            return bytes;
         },
 
         stream(streamOptions?: StreamOptions): AsyncGenerator<Uint8Array, void, undefined> {
+            const control = mergeControl(collector.control, streamOptions);
             return (async function* (): AsyncGenerator<Uint8Array, void, undefined> {
                 // Plan (and validate) fully before the first chunk.
-                const ctx = await planParallel();
-                yield* streamArchive(() => ctx, streamOptions);
+                // The stream writer owns the series: entries as they are
+                // emitted, bytes as they leave — nothing counted twice.
+                const ctx = await planParallel(control, null);
+                yield* streamArchive(() => ctx, streamOptions, control);
             })();
         },
     };

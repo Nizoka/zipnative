@@ -2,9 +2,11 @@
 
 > Zero-dependency native ZIP engine in pure TypeScript: random-access reads,
 > secure-by-default extraction, streaming, deterministic archives (v0.2+) and
-> incremental modification (v0.4+). Node ≥22, browsers, Deno, Bun, Workers.
+> incremental modification (v0.4+); range access over remote and huge
+> archives, canonicalisation and raw transplant (v1.1+). Node ≥22,
+> browsers, Deno, Bun, Workers.
 
-Verified on: 2026-09-07
+Verified on: 2026-10-08
 
 Machine-readable artefacts: docs/agent-brief.md (a compact briefing for
 coding agents — paste it into your context), docs/assets/api.json (the
@@ -14,15 +16,18 @@ code, class, cause, remedy), docs/llms-full.txt (concatenated
 documentation), docs/llms-index.json (artefact/guide index with byte and
 approximate token sizes, so you can decide what to fetch before spending
 the tokens). Interactive playgrounds (toolkit,
-inspector, secure-extraction demo, incremental modify, forward streaming)
+inspector, secure-extraction demo, incremental modify, forward streaming,
+remote range access)
 run the real engine in the browser at docs/playgrounds/ — the published
 package imported from a version-pinned CDN, byte for byte the npm
 artefact.
 
 ## Essentials
 
-- Single entry point: `import { openZip, extractZip } from 'zipnative'` —
-  everything public is exported there; nothing else is API.
+- Two entry points: `import { … } from 'zipnative'` and
+  `import { createParallelZip } from 'zipnative/worker'` — everything
+  public is exported there (106 exports, listed in docs/assets/api.json);
+  nothing else is API.
 - No classes: factories return interfaces (`openZip(bytes) → ZipReader`).
 - Every error message starts `zipnative: ` and contains the remedy, and
   every thrown error carries a STABLE machine-readable `err.code` (v0.8+,
@@ -33,7 +38,8 @@ artefact.
   are rejected unless explicitly configured otherwise via `limits` /
   `rejectTraversal` / `rejectSymlinks` / `onDuplicate`.
 - Encrypted entries: detected (`entry.isEncrypted`), reads throw
-  `ZipUnsupportedError`. No encryption support in 1.x.
+  `ZipUnsupportedError` with `feature: 'zipcrypto' | 'aes' |
+  'strong-encryption'`. No encryption support in 1.x.
 - The engine never touches the filesystem — `extractZip` returns
   `{ path, data, entry }[]`; writing to disk is the caller's job, or
   `zipnative extract`'s (the CLI is the filesystem trust boundary).
@@ -41,12 +47,28 @@ artefact.
 
 ## Core writing API (v0.2)
 
-- `createZip(options?)` → `ZipWriter` with `add(name, data, opts?)`,
-  `addDirectory(name)`, `addStream(name, source)` (a `ByteSource` — any
+- `createZip(options?: CreateZipOptions)` → `ZipWriter` with
+  `add(name, data, opts?: AddEntryOptions)`, `addDirectory(name, opts?)`,
+  `addStream(name, source, opts?)` (a `ByteSource` — any
   `AsyncIterable<Uint8Array>` or a Web `ReadableStream<Uint8Array>`
-  since 0.9; data-descriptor layout; ≤ 4 GiB), `setComment`,
-  `toBytes()` (sync) and `stream({ chunkSize? })` (async,
+  since 0.9; data-descriptor layout; ≤ 4 GiB unless `{ zip64: true }`,
+  1.1), `addRaw(name, payload, meta: RawEntryMeta, opts?)` and
+  `addFromReader(reader: RawEntryReader, entry, opts?: AddFromReaderOptions)`
+  (`entry` is a `ZipEntry` of that reader, matched by its local-header
+  offset, or an entry name — an unknown name is `ZIP_ENTRY_NOT_FOUND`)
+  (1.1, no recompression), `setComment(string | Uint8Array)`,
+  `toBytes()` (sync) and `stream(opts?: StreamOptions)` (async,
   byte-identical to toBytes).
+- `CreateZipOptions` = `ZipCommonOptions` + `order: 'canonical' |
+  'insertion'` (default canonical), `defaultDate: Date | 'now'` (default
+  the DOS epoch), `compression: ZipCompressionOptions`, `comment`.
+  `ZipCompressionOptions { method: 'store' | 'deflate' (default deflate),
+  level: 0–9 (default 6), deterministic: boolean }`. `AddEntryOptions {
+  compression, date, comment, externalAttributes (the number
+  `externalAttributesFromUnixMode()` returns), extraFields:
+  ZipExtraField[] (`{ id, data }`), zip64 }`. `StreamOptions { chunkSize
+  (64 KiB default, 1 KiB–16 MiB), signal, onProgress }`.
+  `ZipModifierOptions` = `ZipCommonOptions` + `compression`, `defaultDate`.
 - Reproducible archives: `createZip({ compression: { deterministic: true } })`
   → identical inputs give identical SHA-256 on every runtime (contract:
   docs/guides/determinism.md). Default timestamps are the DOS epoch — already
@@ -58,9 +80,14 @@ artefact.
 
 ## Parallel creation (v0.5, subpath zipnative/worker)
 
-- `createParallelZip(options?)` — same surface as createZip but
-  `toBytes(): Promise<Uint8Array>`; per-entry deflate runs across a
-  worker pool (Node worker_threads / Web Workers). Byte-identical to
+- `createParallelZip(options?: ParallelZipOptions)` → `ParallelZipWriter`
+  — same surface as createZip but `toBytes(): Promise<Uint8Array>`
+  (reports `onProgress` per settled entry, 1.1); per-entry deflate runs
+  across a worker pool (Node worker_threads / Web Workers).
+  `ParallelZipOptions` = `CreateZipOptions` + `workers` (default
+  max(1, min(cores − 1, 8)); 0 = main thread), `minWorkerJobSize` (32 KiB
+  — smaller entries deflate on the main thread), `jobTimeout` (60 000 ms),
+  `workerUrl` (explicit worker-script URL for bundlers). Byte-identical to
   createZip per compression tier; unconditional with
   `compression: { deterministic: true }`. Worker failures degrade
   gracefully — archives never fail for infra reasons. `workers: 0`
@@ -68,11 +95,17 @@ artefact.
 
 ## Forward streaming read (v0.5)
 
-- `iterateZipEntries(source)` — read a ZIP off an UNSEEKABLE stream
+- `iterateZipEntries(source, options?: IterateZipOptions)` (=
+  `ZipCommonOptions`) — read a ZIP off an UNSEEKABLE stream
   (`ByteSource`: an `AsyncIterable<Uint8Array>` or, since 0.9, a Web
   `ReadableStream<Uint8Array>` — a `fetch` body, `File.stream()`, …):
-  yields `{ header, data(), skip() }` per local entry; consume or skip
-  each before advancing. Bounded memory; CRC verified; stops cleanly at
+  yields `StreamedZipEntry { header: StreamedZipHeader, data(), skip() }`
+  per local entry; consume or skip each before advancing.
+  `StreamedZipHeader` is the local header's view of `ZipEntry`: `name`,
+  `rawName`, `nameEncoding`, `isDirectory`, `compressionMethod`,
+  `compressedSize`, `uncompressedSize`, `crc32`, `flags`,
+  `versionNeeded`, `dosDate`, `dosTime`, `lastModified`, `isEncrypted`,
+  `extraFields` — no `localHeaderOffset`, no comment. Bounded memory; CRC verified; stops cleanly at
   the central directory.
 - TRUST CAVEAT for agents: forward iteration reads local headers ALONE
   (no central-directory cross-check) — prefer openZip() whenever the
@@ -83,11 +116,14 @@ artefact.
   trailing descriptor is validated against the measured CRC/sizes).
   Still refused: store+bit3 (not self-delimiting), encrypted+bit3,
   custom codecs+bit3. skip() on a bit-3 entry costs a full
-  decompress-and-discard.
+  decompress-and-discard. Custom codecs (1.1): a codec exposing
+  `createDecompressor()` is streamed in O(chunk); one that does not is
+  refused BEFORE the first byte with `ZIP_UNSUPPORTED_CODEC_MODE` —
+  skip() it, or openZip() the complete archive.
 
 ## Incremental modification API (v0.4)
 
-- `createZipModifier(openZip(bytes))` → `ZipModifier` with
+- `createZipModifier(openZip(bytes), options?: ZipModifierOptions)` → `ZipModifier` with
   `addEntry`/`replaceEntry`/`removeEntry`/`renameEntry`/`setComment` and
   two save paths: `save()` (append-only — untouched entries never
   recompressed, original bytes verbatim, no-op returns the same
@@ -107,19 +143,47 @@ artefact.
 
 ## Core reading API (v0.1)
 
-- `openZip(bytes, options?)` → `ZipReader` with `entries()`, `getEntry(name)`,
-  `readEntry(entryOrName)`, `readEntryStream(entryOrName)`,
-  `readEntryRaw(entryOrName)`, `verifyEntry(entryOrName)`.
-- `extractZip(bytes, options?)` → `ExtractedEntry[]` (in memory).
-- Options embed `ZipCommonOptions`: `strict` (throw on first diagnostic),
-  `onDiagnostic` (handler), `limits` (Partial<ZipLimits>).
+- `openZip(bytes, options?: OpenZipOptions)` → `ZipReader` with `entries()`, `getEntry(name)`
+  (`ZipEntry | null`), `readEntry(entryOrName, options?: ReadEntryOptions)` (decompressed bytes;
+  `{ verifyCrc?, signal?, onProgress? }`), `readEntryStream(entryOrName, options?: ReadEntryOptions)`,
+  `readEntryRaw(entryOrName)` (the COMPRESSED payload as a `Uint8Array`,
+  zero-copy), `verifyEntry(entryOrName)`. `ZipEntry` fields agents need:
+  `name`, `rawName`, `compressionMethod` (0 store, 8 deflate), `crc32`,
+  `compressedSize`, `uncompressedSize`, `lastModified`, `flags`,
+  `isDirectory`, `isEncrypted`, `localHeaderOffset`, `extraFields`,
+  `comment`. `reader.comment` and `entry.comment` are raw bytes
+  (`Uint8Array`, empty when absent — decode with `TextDecoder`), while
+  `setComment()` takes a string.
+- `extractZip(bytes, options?: ExtractOptions)` → `ExtractedEntry[]` (in memory:
+  `{ path, data, entry }`; directory entries are not returned — recreate
+  them from the file paths). `ExtractOptions` = `ZipCommonOptions` +
+  `rejectTraversal` (default true), `rejectSymlinks` (default true),
+  `onDuplicate: 'error' | 'first' | 'last'` (default error), `filter:
+  (entry: ZipEntry) => boolean` (runs before any decompression).
+- `extractZipStream(bytes, options?)` → an `async function*` of
+  `{ path, entry, stream() }` — iterate it with `for await` (never `await`
+  the call itself) and consume each `stream()` (an async iterable of
+  `Uint8Array` chunks) before advancing; there is no `data` field.
+- Options embed `ZipCommonOptions` (every options bag except
+  `VerifyZipOptions` and `AnalyzeDeterminismOptions`, which take
+  `limits` — and the latter `date`, `dosTimeMode`, `nameDecoder`,
+  `signal`): `strict` (throw on first diagnostic), `onDiagnostic`
+  (handler: `ZipDiagnostic { code: ZipDiagnosticCode, severity, message,
+  entryName? }`), `limits` (`Partial<ZipLimits>` — the nine bounds and
+  their defaults are tabled in SECURITY.md; `DEFAULT_ZIP_LIMITS` is the
+  table as a value), `dosTimeMode`, `signal`, `onProgress`,
+  `nameDecoder`. `OpenZipOptions` adds `validate: 'lazy' | 'eager'`
+  (eager parses every record and checks every extent at open).
 - Entry-attribute helpers (v0.9): `isSymlinkEntry(entry)` and
   `getUnixMode(entry)` (`number | null` — null when the entry was not
-  authored on a Unix host; 0 is a real mode, never a "no data" marker).
+  authored on a Unix host; 0 is a real mode, never a "no data" marker);
+  the write-side mirror `externalAttributesFromUnixMode(mode, { directory? })`
+  (1.1).
 
 ## One-call verification (v0.9)
 
-- `verifyZip(bytes, options?)` → `ZipVerificationReport` — the
+- `verifyZip(bytes, options?: VerifyZipOptions)` (`limits` only) →
+  `ZipVerificationReport` — the
   agent-facing archive inventory: `{ ok, error, entryCount, entries,
   diagnostics }`. NEVER throws for archive problems: a structural
   refusal lands in `report.error` (`{ code, message }` — the same
@@ -127,6 +191,174 @@ artefact.
   `crcMatch`/`sizeMatch`/`localHeaderMatch`, and encrypted or
   stream-only-codec entries are reported as `skipped` with a reason —
   never faked as corruption. Only caller bugs (invalid limits) throw.
+
+## Range access (v1.1)
+
+- `openZipRange(source, options?)` → `Promise<ZipRangeReader>` — random
+  access over an INJECTED `ByteRangeSource { size, read(offset, length) }`
+  (HTTP Range, Blob.slice, FileHandle.read, S3 GetObject — the engine
+  never fetches). Memory is O(central directory) + one chunk: one tail
+  window, the central directory after `maxCentralDirectoryBytes` is
+  checked, then per entry the local header and the payload (whole for
+  `readEntry`/`readEntryRaw`/`verifyEntry`, 256 KiB ranges for
+  `readEntryStream`). Same limits and cross-checks as `openZip`; a lying
+  source (short read, understated size) is `ZIP_RECORD_TRUNCATED`. New
+  limit `maxEntryCompressedSize` (1 GiB + 1 MiB, CWE-770) bounds the
+  whole-payload fetches; the in-memory reader does not consult it.
+  `rangeSourceFromBytes(bytes)` wraps a buffer for tests. Guide:
+  docs/guides/large-and-remote.md.
+
+## Cancellation and progress (v1.1)
+
+- `signal?: AbortSignal` and `onProgress?: (p: ZipProgress) => void` on
+  every asynchronous call. Where they go: the options of the call that
+  creates the operation — `extractZipStream(bytes, options)`,
+  `iterateZipEntries(source, options)`, `openZip` / `openZipRange`
+  options (every read of that reader), `createZip` / `createParallelZip`
+  options (every `stream()` / `toBytes()` of that writer) — or per call on
+  `readEntryStream(entry, options)` and `stream(options)`, overriding the
+  factory's for that call. An abort rejects with `signal.reason` (platform
+  convention, no new ZIP code) after resources are released — stream locks
+  released without cancel, worker pools closed. `ZipProgress
+  { entriesDone, entriesTotal | null, bytesIn, bytesOut }` is monotonic; a
+  skipped entry counts as done; the parallel `toBytes()` reports one step
+  per settled entry then the archive length.
+
+## Raw transplant (v1.1)
+
+- `ZipWriter.addRaw(name, payload, meta: RawEntryMeta { method, crc32,
+  uncompressedSize, flags?, versionNeeded? }, options?)` copies an
+  already-compressed payload verbatim; `addFromReader(reader, entry,
+  options?)` transplants from an `openZip()` reader with method, CRC,
+  sizes, date, attributes, comment and extras (Zip64 recomputed), and
+  VERIFIES the source entry first unless `verify: false`. Merge, split,
+  repack in O(bytes copied); worker pools never dispatch raw entries.
+
+## Canonical form and determinism report (v1.1)
+
+- `analyzeDeterminism(bytes, { limits?, date?, dosTimeMode?, nameDecoder?, signal? })` →
+  `DeterminismReport { deterministic, epochTimestamps, canonicalOrder,
+  utf8Flags, canonicalExtras, canonicalVersionMadeBy, noDataDescriptors,
+  entryCount, offenders[] }` — what the satellites re-derived in 1.0.0.
+  Timestamps are checked against the DOS epoch, or against `date` when the
+  archive was canonicalised with a pinned date.
+- `canonicalizeZip(bytes, options?)` and `saveCompact({ canonical: true |
+  { date?, keepComments?, keepExternalAttributes? } })` rewrite ANY
+  archive into the canonical form without recompression: name order,
+  epoch (or pinned) timestamps, every name re-encoded as UTF-8 with bit 11
+  set (pass `nameDecoder` for legacy code pages — it travels, 1.1.0),
+  extras dropped except Zip64 (encrypted entries keep theirs, so such an
+  archive is never `deterministic: true`), comments dropped unless kept,
+  payloads bit for bit. Idempotent; the
+  bytes are part of the frozen determinism contract (golden SHA-256 hashes
+  over two committed foreign fixtures in tests/parser/zip-canonical.test.ts).
+  Guide: docs/guides/reproducible-builds.md.
+
+## Legacy names and extended metadata (v1.1)
+
+- `nameDecoder?: (bytes: Uint8Array) => string` on the read-side options
+  (openZip, openZipRange, iterateZipEntries, extractZip*) decodes names
+  whose flag bit 11 is clear — pass `(b) => new TextDecoder('shift_jis')
+  .decode(b)`; no code-page table ships. `entry.nameEncoding` becomes
+  `'custom'`. Path sanitisation runs on the DECODED string, so a decoder
+  cannot smuggle traversal.
+- `getExtendedTimestamps(entry)` → `{ mtime, atime, ctime, source: 'ut'
+  | 'ntfs' | 'dos' }` (UT 0x5455, NTFS 0x000a, DOS fallback) and
+  `getUnixIds(entry)` → `{ uid, gid } | null` (ux 0x7875). Read-only;
+  truncated extras are ignored, never thrown.
+
+## Timestamps (v1.1)
+
+- `dosTimeMode: 'local' | 'utc'` on every option bag that writes or
+  reads `lastModified`. `'local'` is the byte-compatible default (the
+  Info-ZIP / 7-Zip convention); `'utc'` makes explicit dates independent
+  of the process time zone on both sides. Out-of-range or invalid dates
+  clamp (epoch / 2107-12-31 23:59:58) with the `ZIP_TIMESTAMP_CLAMPED`
+  diagnostic — before 1.1 they produced a wrong date silently.
+
+## Zip64 streaming opt-in (v1.1)
+
+- `addStream(name, source, { zip64: true })` for entries that MAY exceed
+  4 GiB: Zip64 local header (version 45, sentinel sizes, (0, 0) Zip64
+  extra), 24-byte data descriptor, central record with both sizes —
+  APPNOTE 4.3.9.2. Every random-access extractor of the interop matrix
+  reads it; streaming readers that size the descriptor from measured
+  lengths (Java ZipInputStream) cannot read an opted-in entry that stayed
+  small — hence per entry. Without the opt-in a stream crossing 4 GiB is
+  still `ZIP_UNSUPPORTED_ZIP64_STREAMING`; buffered entries promote
+  automatically and refuse the option (`ZIP_INVALID_OPTION`).
+
+## Verification skip reasons and codec contract (v1.1)
+
+- `verifyEntry()` / `verifyZip()` entries carry `skipped: 'encrypted' |
+  'stream-only-codec' | 'unsupported-method'` with a REAL
+  `localHeaderMatch` (the local header is cross-checked even when the
+  payload cannot be verified). A skipped entry is never `ok`; the archive
+  verdict treats encrypted and stream-only skips as non-fatal and an
+  unknown method as fatal, as in 1.0.0 — tightened by one case: an
+  encrypted entry whose local header contradicts the central directory
+  now fails the archive.
+- Codec contract: `ZipCodec.createDecompressor?(maxOutput)` →
+  `ZipDecompressor { push(chunk): Uint8Array[]; end(): Uint8Array[] }`.
+  The forward reader streams any codec exposing it in O(chunk) and
+  refuses the others BEFORE the first byte with
+  `ZIP_UNSUPPORTED_CODEC_MODE` (skip() the entry, or openZip()). The
+  built-in deflate tiers now raise `ZIP_DEFLATE_CORRUPT` /
+  `ZIP_DEFLATE_TRUNCATED` on every tier (node:zlib, DecompressionStream,
+  pure TS alike); `ZIP_DECOMPRESSION_FAILED` is reserved for registered
+  or injected codecs. Encrypted entries carry `feature: 'zipcrypto' |
+  'aes' | 'strong-encryption'` (AES labelled, never decrypted; 2.0
+  candidate).
+
+## Codecs and tiers
+
+- Deflate tiers, in the order the engine tries them: an injected
+  implementation (`setDeflateImpl(fn)` / `setInflateImpl(fn)`, `null` to
+  remove), `node:zlib` (Node only — in ESM call `await initNodeZipCodecs()`
+  once at startup, otherwise the pure tier runs; CommonJS resolves it on
+  first use), the platform's `CompressionStream`/`DecompressionStream`
+  for streaming, and the pure-TS encoder/decoder (always present; pinned
+  by `deterministic: true`). `activeDeflateTier(deterministic?)` →
+  `DeflateTier` (`'pure-pinned' | 'injected' | 'node-zlib' | 'pure'`)
+  says which one a call would use. The choice is memoised at the first
+  query or use for the life of the process: call `initNodeZipCodecs()`
+  before `activeDeflateTier()` or any compression, or the pure tier stays
+  selected and a later init is a no-op. Corrupt input raises
+  `ZIP_DEFLATE_CORRUPT` / `ZIP_DEFLATE_TRUNCATED` on every tier (1.1).
+- `registerCodec(codec: ZipCodec)` adds a compression method; `getCodec(method)`
+  → `ZipCodec | null`. `ZipCodec { method, name, compressSync?(data,
+  CodecCompressOptions { level, deterministic }), decompressSync?(data,
+  maxOutput), decompressStream?(data, maxOutput), createDecompressor?(maxOutput)
+  → ZipDecompressor }` — the last is what the forward and range readers
+  stream through (1.1). Methods 0 (`METHOD_STORE`) and 8 (`METHOD_DEFLATE`)
+  are built in; 99 is WinZip AES and is never a codec.
+- `createInflator(maxOutput)` → `Inflator { push(chunk): Uint8Array[],
+  end(), finished, leftover, bytesConsumed, bytesProduced }` — the resumable
+  raw-deflate decoder with exact consumed-byte accounting (what delimits
+  data-descriptor entries without a central directory).
+
+## Types, constants and errors
+
+- `VERSION` — the package version string. `METHOD_STORE` (0),
+  `METHOD_DEFLATE` (8); general-purpose flag bits `FLAG_ENCRYPTED` (bit 0),
+  `FLAG_DATA_DESCRIPTOR` (bit 3), `FLAG_STRONG_ENCRYPTION` (bit 6),
+  `FLAG_UTF8` (bit 11). `ZipExtraField { id, data }`; `ZipNameEncoding`
+  (`'utf-8' | 'cp437' | 'custom'`); `ZipNameDecoder`; `DosTimeMode`;
+  `ZipProgress` / `ZipProgressHandler`; `ZipDiagnostic` /
+  `ZipDiagnosticCode` / `ZipDiagnosticHandler`; `EntryVerification`
+  (per-entry result of `verifyEntry()`), `VerifiedEntry` (the same plus
+  `name`, in `verifyZip()`'s report), `EntrySkipReason`;
+  `ExtractedEntry` / `ExtractedStreamEntry`; `ExtendedTimestamps` /
+  `UnixIds` / `UnixModeOptions`; `DeterminismReport` /
+  `DeterminismOffender` / `DeterminismConcern`; `CanonicalOptions` /
+  `CompactOptions` / `CanonicalizeOptions` / `AnalyzeDeterminismOptions`.
+- Errors: `ZipError` (base; `code: ZipErrorCode`) and its subclasses
+  `ZipFormatError`, `ZipSecurityError`, `ZipDataError`, `ZipLimitError`
+  (`limit`, `configured`, `observed`), `ZipUnsupportedError` (`feature:
+  ZipUnsupportedFeature`); the per-class code unions `ZipBaseErrorCode`,
+  `ZipFormatErrorCode`, `ZipSecurityErrorCode`, `ZipDataErrorCode`,
+  `ZipLimitErrorCode`, `ZipUnsupportedErrorCode`. Registry:
+  docs/data/errors.json; guide: docs/guides/errors.md.
 
 ## Conformance (v1.0)
 
@@ -139,7 +371,7 @@ artefact.
   docs/guides/conformance.md. Note: spec-valid ≠ safe — zip-slip is
   ISO-conformant, which is why the extraction guards exist on top.
 
-## Ecosystem (all three packages published, 1.0.0)
+## Ecosystem (core 1.1.0; zipnative-cli and zipnative-mcp 1.0.0, both pinning ^1.0.0)
 
 - `zipnative-cli` — `npx zipnative-cli <command>` (binary `zipnative`),
   15 commands: create, modify, list, inspect, cat, extract, stream,
@@ -168,5 +400,9 @@ artefact.
 - SECURITY.md: threat model and every bound with CWE tags
 - ROADMAP.md: 0.1 read → 0.2 deterministic write → 0.4 incremental modify →
   0.5 workers → 0.9 RC → 1.0 (frozen API, npm + provenance) → satellites
-  (cli + mcp, both 1.0.0)
+  (cli + mcp, both 1.0.0) → 1.1 (issues #9–#12, Zip64 streaming opt-in,
+  range access, cancellation, transplant, canonical form, legacy names,
+  supply-chain parity with pdfnative)
+- docs/guides/large-and-remote.md and docs/guides/reproducible-builds.md:
+  the two 1.1 guides
 - AGENTS.md: conventions and architecture for contributors and agents

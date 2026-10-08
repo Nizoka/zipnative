@@ -192,7 +192,7 @@ only — `.zip .jar .war .ear .docx .xlsx .pptx .odt .ods .odp .epub .vsix
 
 The shared inputs are not on every tool — the table below says which:
 
-- `limits` (the eight `ZipLimits` bounds — `maxEntries`,
+- `limits` (eight of the nine `ZipLimits` bounds — `maxEntryCompressedSize` is engine 1.1 and the server pins `^1.0.0` — `maxEntries`,
   `maxEntryUncompressedSize`, `maxTotalUncompressedSize`,
   `maxCompressionRatio`, `maxNameBytes`, `maxExtraFieldBytes`,
   `maxCommentBytes`, `maxCentralDirectoryBytes`; above the operator

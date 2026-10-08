@@ -14,7 +14,27 @@
  */
 
 import { inflateRawStream, inflateRawSync } from './inflate.js';
+import { createInflator } from './inflate-stream.js';
 import { deflateRawSync } from './deflate.js';
+
+/**
+ * An incremental decoder a codec hands out for the forward reader
+ * (`iterateZipEntries`): compressed bytes are pushed as they arrive off the
+ * stream and decoded pieces come back at once, so memory stays O(chunk)
+ * whatever the entry's size — the built-in deflate codec is backed by
+ * `createInflator`. `maxOutput` was given to the factory; the decoder
+ * throws `ZipDataError` (`ZIP_INFLATE_OUTPUT_OVERFLOW`) when the total
+ * output would exceed it and `ZipFormatError` when the input is corrupt or
+ * truncated at `end()`.
+ *
+ * @since 1.1.0
+ */
+export interface ZipDecompressor {
+    /** Feed one compressed chunk; returns the decoded pieces it produced (possibly none). */
+    push(chunk: Uint8Array): Uint8Array[];
+    /** Signal end of input; returns the final pieces. Throws when the stream is incomplete. */
+    end(): Uint8Array[];
+}
 
 /** One compression codec, keyed by its CFH compression-method id. */
 export interface ZipCodec {
@@ -31,6 +51,17 @@ export interface ZipCodec {
     decompressSync?(data: Uint8Array, maxOutput: number): Uint8Array;
     /** Decompress as an async chunk iterable, `maxOutput`-bounded. */
     decompressStream?(data: Uint8Array, maxOutput: number): AsyncIterable<Uint8Array>;
+    /**
+     * Create an incremental decoder (push/end). The ONLY form the forward
+     * reader `iterateZipEntries` can drive for a method other than store
+     * and deflate: `decompressSync` and `decompressStream` both need the
+     * whole compressed payload, which a bounded-memory stream reader never
+     * holds. A codec without it is refused there before the first byte
+     * (`ZIP_UNSUPPORTED_CODEC_MODE`) and still works with `openZip`.
+     *
+     * @since 1.1.0
+     */
+    createDecompressor?(maxOutput: number): ZipDecompressor;
 }
 
 /** Options passed to `ZipCodec.compressSync` (M2+). */
@@ -62,6 +93,10 @@ function registry(): Map<number, ZipCodec> {
                     yield data.subarray(i, Math.min(i + chunkSize, data.length));
                 }
             },
+            createDecompressor: (): ZipDecompressor => ({
+                push: (chunk: Uint8Array): Uint8Array[] => [chunk],
+                end: (): Uint8Array[] => [],
+            }),
         });
         _registry.set(METHOD_DEFLATE, {
             method: METHOD_DEFLATE,
@@ -70,6 +105,16 @@ function registry(): Map<number, ZipCodec> {
                 deflateRawSync(data, options.level, options.deterministic),
             decompressSync: inflateRawSync,
             decompressStream: inflateRawStream,
+            createDecompressor: (maxOutput: number): ZipDecompressor => {
+                const inflator = createInflator(maxOutput);
+                return {
+                    push: (chunk: Uint8Array): Uint8Array[] => inflator.push(chunk),
+                    end: (): Uint8Array[] => {
+                        inflator.end();
+                        return [];
+                    },
+                };
+            },
         });
     }
     return _registry;

@@ -21,9 +21,26 @@
  * @module codecs/deflate
  */
 
+import { ZipError } from '../types/zip-errors.js';
 import { deflateRawJS } from './deflate-pure.js';
 
 type DeflateFn = (data: Uint8Array, level: number) => Uint8Array;
+
+/**
+ * node:zlib rejects an out-of-range level with a RangeError; the pure tier
+ * throws `ZIP_INVALID_OPTION` for the same call (issue #10: one code on
+ * every tier).
+ */
+function wrapNodeDeflate(
+    fn: (buf: Uint8Array, opts?: { level?: number }) => Uint8Array,
+    data: Uint8Array,
+    level: number,
+): Uint8Array {
+    if (!Number.isInteger(level) || level < 0 || level > 9) {
+        throw new ZipError('ZIP_INVALID_OPTION', `zipnative: deflate level must be an integer 0-9 (got ${String(level)})`);
+    }
+    return new Uint8Array(fn(data, { level }));
+}
 
 let _injected: DeflateFn | null = null;
 let _nodeDeflateRaw: DeflateFn | null | undefined;
@@ -53,7 +70,7 @@ function getNodeDeflateRaw(): DeflateFn | null {
             const zlib = req('node:zlib');
             const fn = zlib['deflateRawSync'] as ((buf: Uint8Array, opts?: { level?: number }) => Uint8Array) | undefined;
             if (typeof fn === 'function') {
-                _nodeDeflateRaw = (data, level) => new Uint8Array(fn(data, { level }));
+                _nodeDeflateRaw = (data, level) => wrapNodeDeflate(fn, data, level);
                 return _nodeDeflateRaw;
             }
         }
@@ -85,7 +102,7 @@ export async function initNodeDeflate(): Promise<void> {
         const zlib = await (import(modName) as Promise<Record<string, unknown>>);
         const fn = zlib['deflateRawSync'] as ((buf: Uint8Array, opts?: { level?: number }) => Uint8Array) | undefined;
         _nodeDeflateRaw = typeof fn === 'function'
-            ? (data, level) => new Uint8Array(fn(data, { level }))
+            ? (data, level) => wrapNodeDeflate(fn, data, level)
             : null;
     } catch {
         _nodeDeflateRaw = null;

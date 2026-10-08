@@ -131,7 +131,14 @@ zipnative's own suite; changing the emitted bytes is semver-major.
 Honest limits: the byte guarantee is scoped to `deterministic: true` —
 the default tier uses the platform's zlib and is byte-stable per
 environment only. `defaultDate: 'now'` opts out of reproducibility and
-says so with a diagnostic.
+says so with a diagnostic; an explicit `Date` is a local-time field unless
+`dosTimeMode: 'utc'` is set.
+
+For an artefact you did not build — a Gradle JAR, a Maven archive, an
+Explorer ZIP — `canonicalizeZip()` (1.1) rewrites it into the same
+canonical form without recompression and `analyzeDeterminism()` reports
+what would otherwise drift: the
+[reproducible builds guide](reproducible-builds.html).
 
 ## Case 4 — Streaming intake at the edge
 
@@ -182,7 +189,9 @@ every surface, read or write. ZipCrypto, the format's legacy cipher, is
 cryptographically broken (Biham–Kocher, a known-plaintext attack that
 recovers the keys from a few kilobytes), so shipping it would be harm
 dressed as a feature; AES-in-ZIP is a vendor extension, not part of the
-ISO/IEC 21320-1 profile the engine writes, and is not in 1.x. Yet
+ISO/IEC 21320-1 profile the engine writes, and is not in 1.x (a 2.0
+candidate; since 1.1 such entries are at least labelled `feature: 'aes'`
+rather than `'zipcrypto'`). Yet
 confidentiality is a real requirement. The pattern that satisfies it is
 to **encrypt the documents, not the envelope** — with the tool that
 already owns the secret — and let zipnative package the ciphertext:

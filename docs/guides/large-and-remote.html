@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Large and remote archives — zipnative</title>
+  <meta name="description" content="Open an archive of any size from HTTP ranges, a Blob, a file handle or object storage with the memory of its central directory: the injected byte-range source, cancellation, progress, and the Zip64 streaming opt-in.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="Large and remote archives — zipnative">
+  <meta name="twitter:description" content="Open an archive of any size from HTTP ranges, a Blob, a file handle or object storage with the memory of its central directory: the injected byte-range source, cancellation, progress, and the Zip64 streaming opt-in.">
+  <meta property="og:url" content="https://zipnative.dev/guides/large-and-remote.html">
+  <meta property="og:title" content="Large and remote archives — zipnative">
+  <meta property="og:description" content="Open an archive of any size from HTTP ranges, a Blob, a file handle or object storage with the memory of its central directory: the injected byte-range source, cancellation, progress, and the Zip64 streaming opt-in.">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/guides/large-and-remote.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/guides/large-and-remote.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/guides/large-and-remote.html">
+  <link rel="alternate" type="text/markdown" href="large-and-remote.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://zipnative.dev/" },
+          { "@type": "ListItem", "position": 2, "name": "Guides", "item": "https://zipnative.dev/guides/" },
+          { "@type": "ListItem", "position": 3, "name": "Large and remote archives" }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Large and remote archives",
+        "inLanguage": "en",
+        "description": "Open an archive of any size from HTTP ranges, a Blob, a file handle or object storage with the memory of its central directory: the injected byte-range source, cancellation, progress, and the Zip64 streaming opt-in.",
+        "url": "https://zipnative.dev/guides/large-and-remote.html",
+        "author": { "@type": "Organization", "name": "Nizoka", "url": "https://zipnative.dev/" }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="./">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Large and remote archives</div>
+    <article id="guide-content" class="guide-content" data-md="large-and-remote.md" data-prerendered="true">
+<!-- guide:render:start -->
+<h1 id="large-and-remote-archives">Large and remote archives</h1>
+<blockquote>
+<p>Open an archive of any size — on S3, behind an HTTP <code>Range</code> server, in a
+browser <code>File</code>, on a local file handle — with the memory of its central
+directory. The engine never fetches: you inject a byte-range source, it
+asks for exactly the bytes a read needs, and every security check of the
+in-memory reader applies unchanged. Cancellation and progress ride on
+every asynchronous call; the Zip64 streaming opt-in covers the writing
+side above 4 GiB.</p>
+</blockquote>
+<h2 id="the-byte-range-source">The byte-range source<a class="heading-anchor" href="#the-byte-range-source" aria-label="Link to this section">#</a></h2>
+<p><code>openZipRange()</code> (1.1) takes a <code>ByteRangeSource</code> instead of bytes:</p>
+<pre><code class="language-ts">import { openZipRange, type ByteRangeSource } from &#39;zipnative&#39;;
+
+const source: ByteRangeSource = {
+    size: contentLength,                       // the archive&#39;s total size, known up front
+    async read(offset, length) {               // exactly these bytes, as a Uint8Array
+        const res = await fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
+        if (res.status !== 206) throw new Error(`range request refused: ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+    },
+};
+
+const zip = await openZipRange(source);
+console.log(zip.entryCount, zip.isZip64);
+for (const entry of zip.entries()) console.log(entry.name, entry.uncompressedSize);
+
+const manifest = await zip.readEntry(&#39;META-INF/manifest.json&#39;);   // CRC-verified
+for await (const chunk of zip.readEntryStream(&#39;data/large.parquet&#39;)) {
+    // 256 KiB ranged reads, decoded chunk by chunk — memory stays O(chunk)
+}
+</code></pre>
+<p>What the reader fetches, and nothing else:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Bytes requested</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>openZipRange()</code></td>
+<td>one tail window — the end-of-central-directory record, its Zip64 locator and record when present: the APPNOTE scan window (a 64 KiB comment plus the records) plus 64 KiB of slack, 131 169 bytes (about 128 KiB) at most, or the whole archive when it is smaller — then the central directory, after <code>maxCentralDirectoryBytes</code> has been checked against the declared size and only when it lies outside the cached window. <code>entries()</code> and <code>getEntry()</code> are synchronous: they read nothing</td>
+</tr>
+<tr>
+<td><code>readEntry</code> / <code>readEntryStream</code></td>
+<td>the entry&#39;s local header (30 bytes plus 1 KiB of slack, so the name and extra fields come in the same read; a second read only when they are longer; nothing at all when the header lies inside the cached tail), then its compressed payload — whole for <code>readEntry</code>, in 256 KiB ranges for <code>readEntryStream</code></td>
+</tr>
+<tr>
+<td><code>readEntryRaw</code> / <code>verifyEntry</code></td>
+<td>the local header and the whole compressed payload</td>
+</tr>
+</tbody></table>
+<p>Every cross-check <code>openZip()</code> performs runs here on the same code: the
+overlap defence over central-directory ranges, the local-header
+comparison (method divergence fatal, size and CRC divergence fatal without
+a data descriptor, name divergence diagnosed), the Zip64 sentinel rules,
+the declared-size and compression-ratio limits, and the output counting
+during inflation. A source that lies — a <code>size</code> smaller than the records
+imply, a <code>read()</code> that returns fewer bytes than asked — is reported as
+<code>ZIP_RECORD_TRUNCATED</code>, never papered over.</p>
+<h3 id="adapters">Adapters<a class="heading-anchor" href="#adapters" aria-label="Link to this section">#</a></h3>
+<p>The engine ships no transport, by doctrine (no sockets, no filesystem).
+Each adapter is a few lines in your code:</p>
+<pre><code class="language-ts">// Browser File / Blob
+const fromBlob = (blob: Blob): ByteRangeSource =&gt; ({
+    size: blob.size,
+    read: async (offset, length) =&gt; new Uint8Array(await blob.slice(offset, offset + length).arrayBuffer()),
+});
+
+// Node file handle
+import { open } from &#39;node:fs/promises&#39;;
+const handle = await open(&#39;archive.zip&#39;, &#39;r&#39;);
+const fromHandle: ByteRangeSource = {
+    size: (await handle.stat()).size,
+    async read(offset, length) {
+        const buf = new Uint8Array(length);
+        const { bytesRead } = await handle.read(buf, 0, length, offset);
+        return buf.subarray(0, bytesRead);
+    },
+};
+
+// S3-style object storage
+const fromObject = (client: { getRange(o: number, l: number): Promise&lt;Uint8Array&gt; }, size: number): ByteRangeSource =&gt; ({
+    size,
+    read: (offset, length) =&gt; client.getRange(offset, length),
+});
+</code></pre>
+<p><code>rangeSourceFromBytes(bytes)</code> wraps an in-memory archive for tests and
+parity checks — the test suite opens the whole sample corpus through both
+readers and asserts identical entries, bytes, diagnostics and error codes.</p>
+<h3 id="one-new-limit">One new limit<a class="heading-anchor" href="#one-new-limit" aria-label="Link to this section">#</a></h3>
+<p><code>readEntry</code>, <code>readEntryRaw</code> and <code>verifyEntry</code> allocate the compressed
+payload as one buffer from an untrusted length, so they consult a limit
+the in-memory reader does not need (its payloads are zero-copy views):
+<code>maxEntryCompressedSize</code>, default 1 GiB + 1 MiB (the uncompressed cap plus
+deflate&#39;s worst-case expansion), CWE-770. Raise it explicitly for trusted
+sources; <code>readEntryStream</code> never needs it for store and deflate (and for
+any codec exposing <code>createDecompressor()</code>) — a codec without one is
+fetched whole and bounded by it.</p>
+<h2 id="cancellation-and-progress">Cancellation and progress<a class="heading-anchor" href="#cancellation-and-progress" aria-label="Link to this section">#</a></h2>
+<p>Every asynchronous call takes <code>signal</code> and <code>onProgress</code> (1.1). They
+live on the options of the call that creates the operation —
+<code>extractZipStream(bytes, options)</code>, <code>iterateZipEntries(source, options)</code>,
+<code>openZip(bytes, options)</code> / <code>openZipRange(source, options)</code> for every read
+of that reader, <code>createZip(options)</code> / <code>createParallelZip(options)</code> for
+every <code>stream()</code> and <code>toBytes()</code> of that writer — and, per call, on
+<code>readEntryStream(entry, options)</code> and <code>stream(options)</code>, where they
+override the factory&#39;s for that call only.</p>
+<pre><code class="language-ts">const controller = new AbortController();
+setTimeout(() =&gt; controller.abort(new Error(&#39;deadline&#39;)), 30_000);
+
+const zip = await openZipRange(source, {
+    signal: controller.signal,
+    onProgress: ({ entriesDone, entriesTotal, bytesIn, bytesOut }) =&gt; render(entriesDone, entriesTotal, bytesIn, bytesOut),
+});
+</code></pre>
+<p>An abort rejects with <code>signal.reason</code> — the platform convention, not a new
+ZIP error code — after the engine has released what it held: a
+<code>ReadableStream</code> lock is released without cancelling the stream (the
+0.9 contract, so the caller can resume or close it), worker pools are
+closed, no read is left in flight. A signal that is already aborted
+rejects before the first byte is requested. Synchronous calls cannot be
+interrupted, so they check the signal exactly once, on entry: <code>openZip</code>,
+<code>readEntry</code>, <code>createZipModifier</code> and its <code>save()</code> / <code>saveCompact()</code>,
+<code>canonicalizeZip</code> and <code>analyzeDeterminism</code> throw <code>signal.reason</code> when the
+signal is already aborted and never look at it again.</p>
+<p><code>ZipProgress</code> is monotonic: <code>entriesDone</code> and <code>bytesOut</code> only grow,
+<code>entriesTotal</code> is <code>null</code> on the forward reader (the count is not known
+until the central directory) and exact everywhere else. A skipped entry
+counts as done. The parallel writer&#39;s <code>toBytes()</code> reports one step per
+settled entry, then the archive length; <code>stream()</code> reports every chunk.</p>
+<h2 id="writing-above-4-gib-the-zip64-streaming-opt-in">Writing above 4 GiB: the Zip64 streaming opt-in<a class="heading-anchor" href="#writing-above-4-gib-the-zip64-streaming-opt-in" aria-label="Link to this section">#</a></h2>
+<p>Buffered entries (<code>add()</code>) promote to Zip64 automatically. A streamed entry
+(<code>addStream()</code>) cannot: its sizes are unknown when its local header is
+written, and the classic data-descriptor layout cannot represent 4 GiB.
+Since 1.1 an entry opts in:</p>
+<pre><code class="language-ts">const zip = createZip();
+zip.addStream(&#39;backup.tar&#39;, chunks, { zip64: true });   // only for entries that MAY exceed 4 GiB
+for await (const chunk of zip.stream()) sink.write(chunk);
+</code></pre>
+<p>The opted-in entry writes the APPNOTE 4.3.9.2 layout: version 45 in both
+records, sentinel sizes and a Zip64 extra field with both sizes zero in
+the local header, a 24-byte data descriptor, and a central record whose
+Zip64 extra carries both final sizes (the offset only when it overflows).
+Every random-access extractor of the interop matrix (unzip, 7-Zip, bsdtar,
+Python, <code>jar</code>, <code>Expand-Archive</code>) reads it; a <em>streaming</em> reader that
+sizes the descriptor from the measured lengths — Java&#39;s <code>ZipInputStream</code>
+is the known one — cannot read an opted-in entry that stayed below 4 GiB.
+That is inherent to any speculative Zip64 layout (Info-ZIP&#39;s <code>zip -fz</code>
+has the same property), which is why the option is per entry and the
+TSDoc says &quot;only for entries that may exceed 4 GiB&quot;.</p>
+<p>Without the opt-in, a stream that crosses 4 GiB is still refused with
+<code>ZIP_UNSUPPORTED_ZIP64_STREAMING</code>, before the crossing chunk is emitted.
+Under <code>deterministic: true</code> the pinned encoder buffers each stream entry
+and caps it at 2 GiB (<code>ZIP_INPUT_TOO_LARGE</code>): the opt-in is for <code>store</code> or
+the default tier.</p>
+<h2 id="reading-what-you-wrote">Reading what you wrote<a class="heading-anchor" href="#reading-what-you-wrote" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><code>openZip()</code> and <code>openZipRange()</code> read every Zip64 form, opted-in entries
+included; <code>verifyZip()</code> reports them <code>ok</code>.</li>
+<li><code>iterateZipEntries()</code> streams deflate entries with data descriptors —
+the opt-in layout included — and still refuses store + bit 3 (not
+self-delimiting) and encrypted entries.</li>
+<li>The <code>zip64/zip64-streamed.zip</code> sample is validated clause by clause by
+the ISO/IEC 21320-1 gate and extracted byte-for-byte by the interop
+matrix on every release.</li>
+</ul>
+<h2 id="see-also">See also<a class="heading-anchor" href="#see-also" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="security.html">Security model</a> — the limits table and the injected
+decoders and sources section.</li>
+<li><a href="determinism.html">The determinism contract</a> — what the opt-in changes in
+the emitted bytes.</li>
+<li>The <a href="https://github.com/Nizoka/zipnative/blob/main/recipes/remote-range.ts" target="_blank" rel="noopener"><code>remote-range</code> recipe</a>
+and the <a href="../playgrounds/remote.html">remote playground</a>, which counts the
+range reads live.</li>
+</ul>
+<!-- guide:render:end -->
+  </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CHANGELOG.md" rel="noopener" target="_blank">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/CONTRIBUTING.md" rel="noopener" target="_blank">Contributing</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/SECURITY.md" rel="noopener" target="_blank">Security policy</a></li>
+            <li><a href="https://pdfnative.dev" rel="noopener" target="_blank">Sibling: pdfnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="./">All guides</a></li>
+            <li><a href="quickstart.html">Quickstart</a></li>
+            <li><a href="choose.html">Choosing your surface</a></li>
+            <li><a href="cli.html">CLI guide</a></li>
+            <li><a href="mcp.html">MCP guide</a></li>
+            <li><a href="security.html">Security model</a></li>
+            <li><a href="determinism.html">Determinism contract</a></li>
+            <li><a href="errors.html">Errors and error codes</a></li>
+            <li><a href="use-cases.html">Use cases</a></li>
+            <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+            <li><a href="../data/errors.json">errors.json</a></li>
+            <li><a href="https://github.com/Nizoka/zipnative/blob/main/bench/RESULTS.md" rel="noopener" target="_blank">Benchmarks</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · zero runtime dependencies</span>
+        <span>⭐ <a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">Star on GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

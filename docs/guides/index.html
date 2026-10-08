@@ -7,6 +7,13 @@
   <meta name="description" content="zipnative guides: quickstart, choosing your surface, the CLI and MCP references, security model, determinism contract, error codes, conformance, and five production use cases.">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:locale" content="en_US">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:url" content="https://zipnative.dev/guides/">
+  <meta property="og:title" content="Guides — zipnative">
+  <meta property="og:description" content="zipnative guides: quickstart, choosing your surface, the CLI and MCP references, security model, determinism contract, error codes, conformance, and five production use cases.">
+  <meta name="twitter:title" content="Guides — zipnative">
+  <meta name="twitter:description" content="zipnative guides: quickstart, choosing your surface, the CLI and MCP references, security model, determinism contract, error codes, conformance, and five production use cases.">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -19,6 +26,16 @@
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Guides — zipnative",
+    "url": "https://zipnative.dev/guides/",
+    "inLanguage": "en",
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -109,6 +126,20 @@
           pass, and the six-parser differential extraction matrix — blocking in CI and before
           every publish.</span>
         </li>
+        <li>
+          <a href="large-and-remote.html">Large and remote archives →</a>
+          <span class="guide-toc-desc">Open an archive of any size from HTTP ranges, a Blob, a file
+          handle or object storage with the memory of its central directory — the injected
+          byte-range source (<code>openZipRange</code>), cancellation and progress on every
+          asynchronous call, and the Zip64 streaming opt-in (1.1).</span>
+        </li>
+        <li>
+          <a href="reproducible-builds.html">Reproducible builds →</a>
+          <span class="guide-toc-desc">Measure, canonicalise, prove: <code>analyzeDeterminism</code>,
+          <code>canonicalizeZip</code> and raw transplant turn any archive — Gradle, Maven,
+          <code>zip</code>, Explorer — into a reproducible artefact without recompression,
+          under the frozen byte contract (1.1).</span>
+        </li>
       </ul>
     </article>
   </main>
@@ -139,6 +170,8 @@
             <li><a href="errors.html">Errors and error codes</a></li>
             <li><a href="use-cases.html">Use cases</a></li>
             <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
           </ul>
         </div>
         <div class="footer-col">

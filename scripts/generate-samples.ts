@@ -10,6 +10,9 @@
  *
  * Adding a category: see scripts/README.md.
  */
+// Must be first: pins process.env.TZ before any generator can format a date.
+import './helpers/tz.ts';
+
 import { createContext, printSummary } from './helpers/io.ts';
 import { generate as generateBasicFormats } from './generators/basic-formats.ts';
 import { generate as generateNamesEncoding } from './generators/names-encoding.ts';

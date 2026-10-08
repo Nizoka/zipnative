@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote range access — zipnative playground</title>
+  <meta name="description" content="Open a ZIP of any size through a byte-range source — a dropped file read by ranges, or a URL served with HTTP Range — and watch how few bytes openZipRange() fetches: one tail window, the central directory, then only the entry you ask for. Runs zipnative's real engine in your browser.">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:url" content="https://zipnative.dev/playgrounds/remote.html">
+  <meta property="og:title" content="Remote range access — zipnative playground">
+  <meta property="og:description" content="Open a ZIP of any size through a byte-range source — a dropped file read by ranges, or a URL served with HTTP Range — and watch how few bytes openZipRange() fetches: one tail window, the central directory, then only the entry you ask for. Runs zipnative's real engine in your browser.">
+  <meta name="twitter:title" content="Remote range access — zipnative playground">
+  <meta name="twitter:description" content="Open a ZIP of any size through a byte-range source — a dropped file read by ranges, or a URL served with HTTP Range — and watch how few bytes openZipRange() fetches: one tail window, the central directory, then only the entry you ask for. Runs zipnative's real engine in your browser.">
+  <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://zipnative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://zipnative.dev/playgrounds/remote.html">
+  <link rel="alternate" hreflang="en" href="https://zipnative.dev/playgrounds/remote.html">
+  <link rel="alternate" hreflang="x-default" href="https://zipnative.dev/playgrounds/remote.html">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "zipnative Remote range access",
+    "url": "https://zipnative.dev/playgrounds/remote.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any (browser-based)",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "isPartOf": { "@id": "https://zipnative.dev/#website" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">zipnative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="./">Playgrounds</a></li>
+        <li><a href="https://github.com/Nizoka/zipnative" rel="noopener" target="_blank">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <div class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › Remote range access</div>
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./toolkit.html">Archive toolkit</a>
+      <a href="./inspect.html">Archive inspector</a>
+      <a href="./secure-extract.html">Secure extraction</a>
+      <a href="./modify.html">Incremental modify</a>
+      <a href="./stream.html">Forward streaming</a>
+      <a href="./remote.html" aria-current="page">Remote range access</a>
+      <a href="./cli.html">CLI builder</a>
+      <a href="./mcp.html">MCP explorer</a>
+      <a href="./" style="margin-left:auto;">All →</a>
+    </nav>
+    <article class="guide-content">
+      <h1>Open a 50 GB archive with the memory of its central directory</h1>
+      <p><code>openZipRange()</code> (1.1) never fetches: you inject a <code>ByteRangeSource</code> —
+      <code>{ size, read(offset, length) }</code> — and the engine asks for exactly the bytes a read
+      needs: <strong>one tail window, the central directory, then the local header and payload of the
+      entry you ask for</strong>. Every limit and cross-check of <code>openZip()</code> applies. Below,
+      the source counts its reads so you can see the arithmetic.</p>
+
+      <h2>1 · A dropped file, read by ranges</h2>
+      <p>Drop a large <code>.zip</code> (a JAR, a dataset, a game asset bundle). The source is
+      <code>Blob.slice()</code> — the file is <em>not</em> loaded into memory — and the counter shows how
+      little of it the inventory needs.</p>
+      <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop a .zip file or click to choose">
+        <strong>Drop a .zip here (the bigger, the better)</strong><br>
+        or click to choose a file — read by ranges, never uploaded, never fully loaded
+        <input type="file" id="file" accept=".zip,.jar,.docx,.epub,.vsix,application/zip" hidden>
+      </div>
+
+      <h2>2 · A URL served with HTTP <code>Range</code></h2>
+      <p>Any URL that answers <code>HEAD</code> with a <code>Content-Length</code>, honours
+      <code>Range</code> (status 206) and allows this origin through CORS — object storage with a
+      public bucket, a CDN, GitHub Pages. The source is <code>fetch</code> with a
+      <code>Range: bytes=…</code> header.</p>
+      <div class="pg-toolbar">
+        <input id="url" class="pg-picker" type="url" placeholder="https://example.com/archive.zip" style="flex:1 1 320px" aria-label="Archive URL">
+        <button id="open-url" class="btn btn-primary" type="button">Open by ranges →</button>
+        <button id="abort" class="btn btn-secondary" type="button" disabled>Abort</button>
+      </div>
+
+      <div id="status" class="pg-status" role="status" aria-live="polite"></div>
+      <div class="pg-output" id="counter" hidden></div>
+      <div id="report" hidden>
+        <p>Click a row to read that entry — by ranges, CRC-verified — and watch the counter.</p>
+        <div class="pg-table-wrap">
+          <table class="pg-table">
+            <thead><tr><th>Name</th><th>Method</th><th>Uncompressed</th><th>Compressed</th><th>Offset</th></tr></thead>
+            <tbody id="entry-rows"></tbody>
+          </table>
+        </div>
+        <div class="pg-output" id="entry-output" hidden></div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · your file never leaves the browser · engine: <span id="engine-source">…</span></span>
+        <span><a href="./">← All playgrounds</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="playground.js" defer></script>
+  <script type="module">
+    import { loadEngine } from './load-engine.js';
+    const { mod, source: engineSource } = await loadEngine();
+    const { createZip, openZipRange, METHOD_STORE, ZipError } = mod;
+    const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
+
+    const $ = (id) => document.getElementById(id);
+    const status = $('status');
+    const counter = $('counter');
+    const drop = $('drop');
+    const file = $('file');
+    let controller = null;
+    let current = null; // { zip, source, label }
+
+    function setStatus(msg, kind) { status.className = 'pg-status ' + kind; status.textContent = msg; }
+    function fmtBytes(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
+      return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    }
+
+    if (typeof openZipRange !== 'function') {
+      setStatus(`This playground needs zipnative ≥ 1.1.0 — the CDN served a build without openZipRange() (${engineSource}). Reload once the release is published.`, 'error');
+      throw new Error('openZipRange unavailable');
+    }
+
+    // Wrap any source so every read is counted and listed.
+    function counting(inner, label) {
+      const log = [];
+      let reads = 0, bytes = 0;
+      const source = {
+        size: inner.size,
+        async read(offset, length) {
+          reads++; bytes += length;
+          log.push(`read #${reads}: offset ${offset.toLocaleString()} · ${fmtBytes(length)}`);
+          return inner.read(offset, length);
+        },
+        stats: () => ({ reads, bytes, log }),
+      };
+      source.label = label;
+      return source;
+    }
+    function paintCounter(source, note) {
+      const { reads, bytes, log } = source.stats();
+      const pct = source.size > 0 ? ((bytes / source.size) * 100).toFixed(3) : '0';
+      counter.hidden = false;
+      counter.textContent =
+        `${source.label} · ${fmtBytes(source.size)}\n` +
+        `${reads} range read${reads === 1 ? '' : 's'} · ${fmtBytes(bytes)} fetched · ${pct} % of the archive` +
+        (note ? `\n${note}` : '') + '\n\n' + log.slice(-12).join('\n');
+    }
+
+    const fromBlob = (blob) => ({
+      size: blob.size,
+      read: async (offset, length) => new Uint8Array(await blob.slice(offset, offset + length).arrayBuffer()),
+    });
+    async function fromUrl(url) {
+      const head = await fetch(url, { method: 'HEAD' });
+      if (!head.ok) throw new Error(`HEAD ${url} → ${head.status}`);
+      const size = Number(head.headers.get('content-length'));
+      if (!Number.isFinite(size) || size <= 0) throw new Error('the server did not send a Content-Length — a byte-range source needs the size up front');
+      return {
+        size,
+        async read(offset, length) {
+          const res = await fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1}` }, signal: controller ? controller.signal : undefined });
+          if (res.status !== 206) throw new Error(`the server answered ${res.status} to a Range request — it must honour Range (206) for openZipRange()`);
+          return new Uint8Array(await res.arrayBuffer());
+        },
+      };
+    }
+
+    async function open(inner, label) {
+      try {
+        controller = new AbortController();
+        $('abort').disabled = false;
+        const source = counting(inner, label);
+        setStatus(`Opening ${label} by ranges…`, 'info');
+        const t0 = performance.now();
+        const diagnostics = [];
+        const zip = await openZipRange(source, { signal: controller.signal, onDiagnostic: (d) => diagnostics.push(d.code) });
+        const rows = $('entry-rows');
+        rows.innerHTML = '';
+        let shown = 0;
+        for (const entry of zip.entries()) {
+          if (shown++ >= 2000) break;
+          const tr = document.createElement('tr');
+          tr.tabIndex = 0;
+          const cells = [
+            entry.name,
+            entry.isDirectory ? 'dir' : (entry.compressionMethod === METHOD_STORE ? 'store' : (entry.compressionMethod === 8 ? 'deflate' : 'method ' + entry.compressionMethod)),
+            fmtBytes(entry.uncompressedSize),
+            fmtBytes(entry.compressedSize),
+            entry.localHeaderOffset.toLocaleString(),
+          ];
+          for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+          const read = () => readEntry(zip, source, entry);
+          tr.addEventListener('click', read);
+          tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') read(); });
+          rows.appendChild(tr);
+        }
+        const ms = (performance.now() - t0).toFixed(1);
+        current = { zip, source, label };
+        paintCounter(source, `inventory of ${zip.entryCount.toLocaleString()} entries in ${ms} ms — one tail window + the central directory, nothing else` +
+          (zip.isZip64 ? ' · zip64' : '') + (diagnostics.length ? ` · diagnostics: ${[...new Set(diagnostics)].join(', ')}` : ''));
+        $('entry-output').hidden = true;
+        $('report').hidden = false;
+        setStatus(`${zip.entryCount.toLocaleString()} entries listed from ${fmtBytes(source.stats().bytes)} of ${fmtBytes(source.size)}${shown > 2000 ? ' (first 2000 shown)' : ''}.`, 'ok');
+      } catch (err) {
+        $('report').hidden = true;
+        if (err && err.name === 'AbortError' || (controller && controller.signal.aborted)) setStatus(`Aborted: ${controller && controller.signal.reason ? String(controller.signal.reason.message || controller.signal.reason) : 'cancelled'} — no read left in flight.`, 'info');
+        else if (err instanceof ZipError) setStatus(`${err.code}\n${err.message}`, 'error');
+        else setStatus(String(err && err.message ? err.message : err), 'error');
+      } finally {
+        $('abort').disabled = true;
+      }
+    }
+
+    async function readEntry(zip, source, entry) {
+      const out = $('entry-output');
+      try {
+        controller = new AbortController();
+        $('abort').disabled = false;
+        const before = source.stats().bytes;
+        const t0 = performance.now();
+        let produced = 0;
+        let head = null;
+        for await (const chunk of zip.readEntryStream(entry, { signal: controller.signal })) {
+          if (head === null) head = chunk.subarray(0, 160);
+          produced += chunk.length;
+        }
+        const ms = (performance.now() - t0).toFixed(1);
+        const fetched = source.stats().bytes - before;
+        let preview = '';
+        try { preview = new TextDecoder('utf-8', { fatal: true }).decode(head || new Uint8Array()); } catch { preview = '(binary)'; }
+        out.hidden = false;
+        out.textContent =
+          `${entry.name}: ${fmtBytes(produced)} decompressed in ${ms} ms, CRC verified\n` +
+          `fetched for this read: ${fmtBytes(fetched)} (local header + ${fmtBytes(entry.compressedSize)} payload, in ≤ 256 KiB ranges)\n` +
+          (preview ? `\n${preview.replace(/\s+$/, '')}${produced > 160 ? '…' : ''}` : '');
+        paintCounter(source, `last read: ${entry.name}`);
+      } catch (err) {
+        if (controller && controller.signal.aborted) { out.hidden = false; out.textContent = `Aborted while reading ${entry.name} — the source will not be asked for another range.`; }
+        else if (err instanceof ZipError) { out.hidden = false; out.textContent = `${err.code}\n${err.message}`; }
+        else { out.hidden = false; out.textContent = String(err && err.message ? err.message : err); }
+      } finally {
+        $('abort').disabled = true;
+      }
+    }
+
+    $('abort').addEventListener('click', () => { if (controller) controller.abort(new Error('user pressed Abort')); });
+    drop.addEventListener('click', () => file.click());
+    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+    file.addEventListener('change', () => { if (file.files[0]) open(fromBlob(file.files[0]), file.files[0].name); });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      drop.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) open(fromBlob(e.dataTransfer.files[0]), e.dataTransfer.files[0].name);
+    });
+    $('open-url').addEventListener('click', async () => {
+      const url = $('url').value.trim();
+      if (!url) { setStatus('Enter a URL first.', 'error'); return; }
+      try { open(await fromUrl(url), url); } catch (err) { setStatus(String(err && err.message ? err.message : err), 'error'); }
+    });
+
+    // A demo archive built in the browser, so the page is alive before you drop anything:
+    // 1 500 entries, a few hundred KB — and the inventory fetches a fraction of it.
+    {
+      const zip = createZip({ compression: { deterministic: true } });
+      const te = new TextEncoder();
+      for (let i = 0; i < 1500; i++) zip.add(`data/record-${String(i).padStart(4, '0')}.txt`, te.encode(`record ${i}: ${'x'.repeat(40 + (i % 97))}\n`));
+      zip.add('README.md', te.encode('# demo\n\nBuilt in your browser with createZip(); read back by ranges with openZipRange().\n'));
+      const bytes = zip.toBytes();
+      open(fromBlob(new Blob([bytes], { type: 'application/zip' })), 'demo archive (built in the browser)');
+    }
+  </script>
+</body>
+</html>

@@ -5,11 +5,58 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-10-08
 
-### Documentation
+_Nothing yet._
 
-Documentation-only release of the site and the repository docs, aligned on the published ecosystem: `zipnative` 1.0.0, `zipnative-cli` 1.0.0 (npm 2026-09-05) and `zipnative-mcp` 1.0.0 (npm 2026-09-07). No engine change.
+## [1.1.0] - 2026-10-08
+
+**Zero breaking changes.** The public surface grew from 77 to 106 exports with none removed, the 39 error codes are unchanged, every new behaviour is opt-in, and the `deterministic: true` bytes are unchanged — proven by the byte baseline of the 33 pre-existing samples (`npm run verify:samples`), by `tests/tools/api-compat.test.ts` (every 1.0.0 export, code and signature still present) and by the `compat-previous` CI job (the 1.0.0 test suite run against these sources). The one deliberate output change — dates outside the DOS range, previously wrong — is entry C1 of the compatibility ledger in [release-notes/v1.1.0.md](release-notes/v1.1.0.md).
+
+### Security
+
+- **`verifyZip()` / `verifyEntry()` stop fabricating `localHeaderMatch`** for encrypted entries (hard-coded `true` in one path, `false` in the other); the local header is cross-checked even when the payload cannot be verified, and an encrypted entry whose local header contradicts the central directory now fails the archive — CWE-1288, [#12](https://github.com/Nizoka/zipnative/issues/12). Verdicts were never loosened.
+- **One error classification for corrupt deflate on every tier** — node:zlib, `DecompressionStream` and the pure-TS inflater all raise `ZipFormatError` `ZIP_DEFLATE_CORRUPT` / `ZIP_DEFLATE_TRUNCATED`; `ZIP_DECOMPRESSION_FAILED` is reserved for registered or injected codecs — CWE-703, [#10](https://github.com/Nizoka/zipnative/issues/10).
+- **Encrypted entries labelled by scheme** — `feature: 'aes'` for WinZip AES (method 99 or the 0x9901 extra), `'zipcrypto'`, `'strong-encryption'`; still never decrypted in 1.x.
+- **One new named bound, `maxEntryCompressedSize`** (1 GiB + 1 MiB, CWE-770), consulted only by the byte-range reader's whole-payload fetches; the in-memory reader never refuses a 1.0.0 archive on it. A `nameDecoder` runs before path sanitisation (CWE-22); a lying byte-range source is `ZIP_RECORD_TRUNCATED` (CWE-20).
+- **Supply chain** — harden-runner and `npm ci --ignore-scripts` on every job (`.npmrc` makes it the local default), `dependency-review.yml`, weekly `audit.yml`, `publish.yml` in three jobs — `verify` (the full publish gate, one tarball packed with its SBOM) → `publish` (the `npm-publish` environment, a pinned npm, the handed-on tarball digest-checked and published through OIDC with provenance) → `attest` (the published tarball compared with the registry's, SLSA Build L2 provenance for it and the CycloneDX SBOM) — with a `workflow_dispatch` dry run; `npm audit --audit-level=high` green again (`adm-zip` 0.6.1, `brace-expansion`, `source-map-js` — dev dependencies only), committed branch and tag rulesets, `CODEOWNERS`.
+
+### Added
+
+- **`openZipRange(source, options?)`** — random access over an injected `ByteRangeSource { size, read(offset, length) }` (HTTP `Range`, `Blob.slice()`, a file handle, object storage); `ZipRangeReader`, `rangeSourceFromBytes()`; the same defences as `openZip()` through the shared `src/parser/zip-entry-checks.ts`; 256 KiB ranged streaming through `createDecompressor()`; the cached tail window serves the central directory and small archives without a round trip, local headers are prefetched with 1 KiB of slack. Guide: [large and remote archives](docs/guides/large-and-remote.md); playground: [remote range access](docs/playgrounds/remote.html).
+- **`signal` and `onProgress`** on every asynchronous call — on the options of `extractZipStream`, `iterateZipEntries`, `openZip` / `openZipRange` (every read), `createZip` / `createParallelZip` (every `stream()` and `toBytes()`), and per call on `readEntryStream(entry, options)` and `stream(options)`; an abort rejects with `signal.reason` after resources are released (stream locks released without cancel, worker pools closed); `ZipProgress`, `ZipProgressHandler`; a skipped entry counts as done; the parallel `toBytes()` reports per settled entry.
+- **`addRaw()` and `addFromReader()`** on `ZipWriter` — transplant entries without recompression; `addFromReader` verifies the source entry first unless `verify: false`; `RawEntryMeta`, `RawEntryReader`, `AddFromReaderOptions`; the modifier's raw-copy plan now lives in `core/zip-segments.ts`.
+- **`canonicalizeZip()`, `saveCompact({ canonical })`, `analyzeDeterminism()`** — measure, canonicalise and prove reproducibility for any archive without recompression; `CanonicalOptions`, `CompactOptions`, `CanonicalizeOptions`, `DeterminismReport`, `DeterminismOffender`, `DeterminismConcern`; the canonical bytes join the frozen determinism contract (golden SHA-256 hashes over two committed foreign fixtures in `tests/parser/zip-canonical.test.ts`); `analyzeDeterminism(bytes, { date, dosTimeMode })` judges an archive canonicalised with a pinned date. Guide: [reproducible builds](docs/guides/reproducible-builds.md).
+- **`nameDecoder`** on every read path (applied when flag bit 11 is clear; `nameEncoding: 'custom'`), **`getExtendedTimestamps()`** (UT, NTFS, DOS fallback — `ExtendedTimestamps`), **`getUnixIds()`** (`UnixIds`), **`externalAttributesFromUnixMode()`**.
+- **`dosTimeMode: 'local' | 'utc'`** on every option bag that writes or reads `lastModified`, with full DOS-date clamping and the new `ZIP_TIMESTAMP_CLAMPED` diagnostic — [#9](https://github.com/Nizoka/zipnative/issues/9).
+- **`ZipCodec.createDecompressor?(maxOutput)` → `ZipDecompressor`** — the incremental codec contract; the forward reader streams any codec exposing it and refuses the others before the first byte with `ZIP_UNSUPPORTED_CODEC_MODE`; built-in store and deflate implement it — [#11](https://github.com/Nizoka/zipnative/issues/11).
+- **`AddEntryOptions.zip64`** — the per-entry Zip64 streaming opt-in for `addStream()` (APPNOTE 4.3.9.2: version 45, sentinel sizes and a (0, 0) Zip64 extra in the local header, 24-byte descriptor, both sizes in the central record); buffered entries refuse the option with `ZIP_INVALID_OPTION`.
+- **`EntryVerification.skipped`** (`EntrySkipReason`: `'encrypted' | 'stream-only-codec' | 'unsupported-method'`); `verifyZip()` delegates every entry to `verifyEntry()` — [#12](https://github.com/Nizoka/zipnative/issues/12).
+- **Samples and interop** — `zip64/zip64-streamed`, `incremental/merged-from-two`, `names-encoding/shift-jis-legacy` (an expected ISO non-conformant), `attributes/unix-ids`, `attributes/ntfs-timestamps` (38 samples, 33/5 in the ISO canary); write cases `zip64-streamed` and `transplanted` (19 validation cases: 6 producer reads + 13 write cases); `validate-zip` keys the descriptor width on the local header's Zip64 extra (`WF/DESCRIPTOR-WIDTH`).
+- **Tooling** — `scripts/gate.ts` (`gate`, `gate:fast`; profiles `--fast` / `--ci` / `--publish`, `--require-all`, `--only`, `--from`, `--json`, dist probes), `verify:samples` + `tests/regression/` (SHA-256 baseline with a `since` chain), `release:prepare`, `compat:previous` (`scripts/run-compat.ts` + `tests/compat/`), `agents:rules`, `hooks:install` / `hooks:uninstall` (opt-in `pre-commit` / `pre-push`), `scripts/lib/prose-language.ts`, `scripts/lib/agent-config.ts`; `tests/tools/` (workflows, gate, guard, agent-config, verify-issue, release-prepare, prose-language, api-compat); `vitest.config.ts` pins `TZ=UTC` and `pool: 'forks'`, and writes `test-output/.gate/vitest.json` under `GATE=1`.
+- **verify-docs** — 25 rules (52 in all, `--rules` lists them): `no-control-bytes`, `playground-syntax`, `export-named`, `limits-table`, `since-tags`, `derived-counts`, `count-tokens`, `version-token`, `errors-verified-on`, `sample-regression`, `prose-language`, `claude-md-budget`, `governance-sources`, `node-pin-parity`, `ruleset-parity`, `agent-config-parity`, `claude-rules-sync`, `claude-rules-budget`, `pr-template-parity`, `eol-lf`, `skills-shape`, `sitemap-lastmod-vs-git`, `bench-parity`, `rules-list`, and a `since` check in `surfaces-shape`; `docs/assets/ecosystem.json` gains `derived.*` figures recomputed from the tree and `declared.tests` / coverage held to the last gate run; the duplicated `switcher-parity` block is gone.
+- **Governance** — `CLAUDE.md`, `.claude/settings.json`, `.claude/hooks/guard.mjs`, `.claude/rules/` rendered from `.github/instructions/`, the `release-audit` skill; `AGENT_RULES.md` and `ai-governance.json` on the pdfnative schema; `ISSUE_TEMPLATE/maintenance.md`, `prompts/compliance-audit.prompt.md`, `release-notes/PR_TEMPLATE.md`; `.nvmrc`, `.node-version`, `.npmrc`.
+- **Docs and site** — two guides, the remote playground, four recipes (`remote-range`, `determinism-report`, `zip64-stream`, `utc-dates`), nine 1.1.0 capabilities in `docs/data/surfaces.json` and the choose guide; the inspector shows the determinism verdict and extended timestamps, the modifier offers canonical compaction, the streaming page demonstrates progress and cancellation, the toolkit pins dates with `dosTimeMode`; `docs/data/errors.json` re-audited for nine codes.
+
+### Changed
+
+- Out-of-range dates clamp correctly (1975-07-15 → 1980-01-01, not 1980-07-15; 2200 → 2107-12-31 23:59:58; an invalid `Date` → the epoch) with `ZIP_TIMESTAMP_CLAMPED` — bytes change only for inputs whose previous output was wrong (ledger C1).
+- `ZipUnsupportedFeature` + `'aes'`, `ZipEntry.nameEncoding` + `'custom'`, `ZipDiagnosticCode` + `ZIP_TIMESTAMP_CLAMPED` (additive; an exhaustive consumer `switch` adds a case — ledger C5); `ZipWriter`, `ZipModifier.saveCompact(options?)`, `ZipCodec`, `ZipCommonOptions`, `AddEntryOptions`, `StreamOptions` and `ReadEntryOptions` extended with optional members; `ZipLimits` gains the required member `maxEntryCompressedSize` — a hand-written complete `ZipLimits` literal must add it, `{ ...DEFAULT_ZIP_LIMITS }` spreads keep working (C6).
+- The messages of `ZIP_UNSUPPORTED_ZIP64_STREAMING` and `ZIP_UNSUPPORTED_CODEC_MODE` name the new remedies (outside the contract — C8); `recipes/custom-codec.ts` uses method 97 (C9).
+- `ci.yml` gains the `os` (Windows, macOS) and `compat-previous` jobs, runs the gate with `--require-all` and drops its path filter; `conformance.yml` runs samples, baseline, ISO validation and interop through the gate on Linux and Windows and the 4 GiB streaming test behind `ZIPNATIVE_BIG_TESTS`; `sample-regression.yml`; rulesets require `ci (22)`, `ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `interop-linux`, `interop-windows`, `sample-regression`, `compat-previous`.
+- ROADMAP: the post-1.0 items resolved (Zip64 opt-in shipped; AES moved to the 2.0 candidates; 1.2 candidates listed); SECURITY.md gains the supply-chain section, the `1.1.x` support row and three threat rows; AGENTS.md fits a 120-line budget; README, llms.txt, the agent brief, the homepage and the guides describe 1.1; `verifiedOn` 2026-10-08.
+
+### Fixed
+
+- Final audit, second pass: `canonicalizeZip()` / `analyzeDeterminism()` forward `nameDecoder`, `signal` and `onProgress` (a legacy name without bit 11 was frozen as mojibake); a pre-aborted `signal` no longer leaks a deflate worker pool; the parallel writer reports one monotonic `ZipProgress` series per call; every synchronous entry point taking `ZipCommonOptions` (`openZip` and `readEntry`, `createZipModifier` and its saves, `canonicalizeZip`, `analyzeDeterminism`) checks `signal` once on entry.
+- [#9](https://github.com/Nizoka/zipnative/issues/9) DOS timestamps depended on the process time zone and clamped only the year.
+- [#10](https://github.com/Nizoka/zipnative/issues/10) node:zlib and `DecompressionStream` errors leaked or carried a runtime-dependent class.
+- [#11](https://github.com/Nizoka/zipnative/issues/11) `iterateZipEntries()` ignored registered codecs.
+- [#12](https://github.com/Nizoka/zipnative/issues/12) `verifyEntry()` reported encrypted and stream-only entries as failed without a reason and with a fabricated `localHeaderMatch`.
+
+### Documentation (the ecosystem alignment, previously unreleased)
+
+The site and the repository docs aligned on the published ecosystem: `zipnative` 1.0.0, `zipnative-cli` 1.0.0 (npm 2026-09-05) and `zipnative-mcp` 1.0.0 (npm 2026-09-07). No engine change.
 
 - **The satellites are published** — README (ecosystem table, badges, status line), ROADMAP, AGENTS.md, llms.txt and the agent brief say so, with binaries, counts and the `^1.0.0` pin; `docs/assets/ecosystem.json` records both packages in full (version, repo, binary, pin, command groups, tools, prompts, resource templates, transports, environment variables) and is the single source of truth every count on the site is checked against.
 - **Three new guides** in the pdfnative charter — [CLI](docs/guides/cli.md) (the fifteen commands with every flag, the agent contract, global options, environment, security posture, what the CLI does not do), [MCP](docs/guides/mcp.md) (client configuration for Claude Desktop, Claude Code, Cursor, VS Code and Streamable HTTP; the thirteen tools with inputs and outputs; seven prompts; sandboxed resources; the seven environment variables; error and security models) and [Choosing your surface](docs/guides/choose.md) (the capability × surface matrix, twin of the new `docs/data/surfaces.json`).
@@ -66,6 +113,8 @@ Documentation-only release of the site and the repository docs, aligned on the p
 - **Release-notes format** — `release-notes/TEMPLATE.md` adopts the pdfnative template (fixed section order, GitHub-Release-title convention, publication workflow) with `Known limitations` and `Downstream integration notes` as documented zipnative extensions; all nine historical notes reformatted in place, substance unchanged.
 - **Zip64-streaming decision record** ([ROADMAP.md](ROADMAP.md)) — per-entry `AddEntryOptions.zip64` opt-in design retained; implementation post-1.0 (the speculative LFH extra is the hard part); the typed refusal stays and is now regression-tested.
 - `docs/playgrounds/` hub, sitemap, JSON-LD and `llms.txt` cover the five playgrounds; documentation refreshed for the 0.9 surface (README status + `verifyZip` example, quickstart "Verify in one call", llms.txt sections).
+
+## [0.8.2] - 2026-09-01
 
 **Conformance pass on 0.8.1.** A follow-up forensic review of the 0.8.1 release (two investigation agents + manual verification) — navigation 404s root-caused and fixed, one spec-conformance fix, honest disclosures, and a documentation-wide factuality sweep. verify-docs stands at **21 named rules**.
 
@@ -231,3 +280,17 @@ Milestone **M1 — read + random access + secure extraction**. Tagged, not publi
 
 - Project scaffolding: build (tsup, ESM+CJS+types), strict TypeScript (3 configs), ESLint 9 flat config, vitest 4 with v8 coverage thresholds, CI (ubuntu Node 22/24 matrix + blocking Windows job), CodeQL, OpenSSF Scorecard, Dependabot, interop conformance workflow, docs integrity workflow, AI-agent governance policy.
 - **Read path**: `openZip()` with lazy central-directory parsing and random access, `readEntry()` / `readEntryStream()` / `readEntryRaw()` / `verifyEntry()`, secure-by-default `extractZip()` / `extractZipStream()` with `sanitizeEntryPath()`, Zip64 reading with anti-spoofing cross-checks, UTF-8/CP437 name decoding, CRC-32 (slice-by-8), 4-tier inflate facade (injection → node:zlib → DecompressionStream → pure TS), CWE-tagged configurable security limits, deduplicating diagnostics channel, typed error hierarchy, adversarial fuzzing suite, foreign-provenance interop fixtures.
+
+[Unreleased]: https://github.com/Nizoka/zipnative/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Nizoka/zipnative/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/Nizoka/zipnative/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/Nizoka/zipnative/compare/v0.8.2...v0.9.0
+[0.8.2]: https://github.com/Nizoka/zipnative/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/Nizoka/zipnative/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/Nizoka/zipnative/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Nizoka/zipnative/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/Nizoka/zipnative/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/Nizoka/zipnative/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/Nizoka/zipnative/compare/v0.2.0...v0.4.0
+[0.2.0]: https://github.com/Nizoka/zipnative/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Nizoka/zipnative/releases/tag/v0.1.0

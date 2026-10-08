@@ -1,0 +1,198 @@
+{
+  "$comment": "Fingerprints (SHA-256 of the bytes) of every sample in test-output/. Regenerate deliberately with `npx tsx scripts/verify-samples.ts --update`, and say why in the release notes: a changed hash means existing output changed. Each entry's `since` names the release whose output the hash is: it is carried forward untouched while the sample is unchanged, and moves to the release doing the rebaseline when the hash changes, so the chain 1.0.0 -> 1.1.0 -> 1.2.0 stays auditable and every re-anchoring is visible in the diff.",
+  "baselineVersion": "1.1.0",
+  "provenance": "1.0.0 entries: captured on the v1.0.0 tree under TZ=UTC before any 1.1.0 engine change, so they prove the 1.1.0 writer emits byte-identical output for every 1.0.0 sample. 1.1.0 entries: the five samples the release added (zip64/zip64-streamed, incremental/merged-from-two, names-encoding/shift-jis-legacy, attributes/unix-ids, attributes/ntfs-timestamps), each validated by scripts/validate-zip.ts (ISO/IEC 21320-1 profile, shift-jis-legacy being an expected non-conformant) and opened by every extractor of the interop matrix that supports its trait. Later rebaselines carry this note forward and append their own account.",
+  "timezone": "UTC",
+  "entries": {
+    "attributes/ntfs-timestamps.zip": {
+      "hash": "7e378fd7c7d30f52550399c32877d47cbc6d7c7eb8f9e0ec3d0477c76207c842",
+      "size": 168,
+      "since": "1.1.0"
+    },
+    "attributes/unix-attrs.zip": {
+      "hash": "4417c2c0731ec2c1a1c5848034b6f1073be23a3a5559588f54aa30aead169c94",
+      "size": 365,
+      "since": "1.0.0"
+    },
+    "attributes/unix-ids.zip": {
+      "hash": "09543610f3e210acb41d30f9579763a4e3bd6d3e7e11bdfad3e558234838a60a",
+      "size": 183,
+      "since": "1.1.0"
+    },
+    "basic-formats/deflate-level-1.zip": {
+      "hash": "8d9d95aaaa56bfd0c75ac4ff160df6d635ddc7f13e61e3bb596194a2087c3f09",
+      "size": 205,
+      "since": "1.0.0"
+    },
+    "basic-formats/deflate-level-6.zip": {
+      "hash": "db8b4c3bf21e617b2a72e91e052f3fea1774817cd4fb846ea530270385ce0077",
+      "size": 202,
+      "since": "1.0.0"
+    },
+    "basic-formats/deflate-level-9.zip": {
+      "hash": "db8b4c3bf21e617b2a72e91e052f3fea1774817cd4fb846ea530270385ce0077",
+      "size": 202,
+      "since": "1.0.0"
+    },
+    "basic-formats/empty.zip": {
+      "hash": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85",
+      "size": 22,
+      "since": "1.0.0"
+    },
+    "basic-formats/mixed-methods.zip": {
+      "hash": "5bb557d309e82e3d7db7fb683c8cabcbc3f92efa206b46ea511a615e93206b20",
+      "size": 9510,
+      "since": "1.0.0"
+    },
+    "basic-formats/store.zip": {
+      "hash": "1a0c96190f47604fd7ff89c6569defe73c40674ab9561d02807255f5d38d8f5a",
+      "size": 9245,
+      "since": "1.0.0"
+    },
+    "comments/archive-comment.zip": {
+      "hash": "5a68177ab4f8ca9827faa84997815d6c2d0da2b8777b16dd1bdf684fa074f730",
+      "size": 197,
+      "since": "1.0.0"
+    },
+    "comments/entry-comments.zip": {
+      "hash": "d0c64b4ca50ddb1da82d6caf8bd6d52795bdb62c00ff71f1094da74949aecb84",
+      "size": 285,
+      "since": "1.0.0"
+    },
+    "deterministic/deterministic-a.zip": {
+      "hash": "459dc032f6e7e02153bed3cf9aac76e331542cc2a5f5fd12a1eb8300a7ddec54",
+      "size": 414,
+      "since": "1.0.0"
+    },
+    "deterministic/deterministic-b.zip": {
+      "hash": "459dc032f6e7e02153bed3cf9aac76e331542cc2a5f5fd12a1eb8300a7ddec54",
+      "size": 414,
+      "since": "1.0.0"
+    },
+    "edge-cases/empty-entries.zip": {
+      "hash": "a6f9f7666704440497a89db243af9be903834386f2409446aca13cc4e4ef0fe3",
+      "size": 222,
+      "since": "1.0.0"
+    },
+    "edge-cases/high-ratio.zip": {
+      "hash": "3de692fdeee8cd3dba826e3d55875325687065b802ad7471c72a84f4021f2479",
+      "size": 2070,
+      "since": "1.0.0"
+    },
+    "edge-cases/sfx-prefixed.zip": {
+      "hash": "e24aed49dbcb27033322606f2dceef4ac9237cda437c10b558272e3df5ca68ce",
+      "size": 281,
+      "since": "1.0.0"
+    },
+    "forward-trust/lfh-cd-name-mismatch.zip": {
+      "hash": "50744cd0d71660a6f989e2a93a41ee58ab957363c772d054b1d3faa4c73237b1",
+      "size": 152,
+      "since": "1.0.0"
+    },
+    "incremental/incremental-compacted.zip": {
+      "hash": "1f8344558c81e4c152ccd929855cd3ca12cd34e93865359f2d7ec2db651334b5",
+      "size": 560,
+      "since": "1.0.0"
+    },
+    "incremental/incremental-dead-bytes.zip": {
+      "hash": "7f3e0c32445a3babca47d499e85939a03d18165cbb9c5d8613809107e874b7d8",
+      "size": 773,
+      "since": "1.0.0"
+    },
+    "incremental/incremental-original.zip": {
+      "hash": "dde673865f6d4996d7c4147fd6503ca5f0ff4dc1b4dba41866513ad90ca52987",
+      "size": 573,
+      "since": "1.0.0"
+    },
+    "incremental/incremental-updated.zip": {
+      "hash": "eb74416697305e7cbd2f993534abf7c75c1ece463de214205b5753026e2b3c71",
+      "size": 902,
+      "since": "1.0.0"
+    },
+    "incremental/merged-from-two.zip": {
+      "hash": "9db90421d63fdb959b3692b3dd019169a870e132ad4878b9c2ae812624c58539",
+      "size": 862,
+      "since": "1.1.0"
+    },
+    "names-encoding/ascii.zip": {
+      "hash": "9f3bcfd34e1a25bec0aced377cf0fac05f3655b7203c82b0acec0fbd01575c90",
+      "size": 261,
+      "since": "1.0.0"
+    },
+    "names-encoding/deep-paths.zip": {
+      "hash": "9bb424b22fae362c046f26c90ef2320d1aa9083533481b0dec49dad81e12ffd2",
+      "size": 292,
+      "since": "1.0.0"
+    },
+    "names-encoding/shift-jis-legacy.zip": {
+      "hash": "7a9073b6c5727733d78ff1502ea0164b1f4bc837df3264ab936db11710f27b74",
+      "size": 156,
+      "since": "1.1.0"
+    },
+    "names-encoding/unicode-utf8.zip": {
+      "hash": "a2adfe9d290e90e51bfb3273d4b0fd6fdbb9b2158ac133aa211fe07bd6197dac",
+      "size": 506,
+      "since": "1.0.0"
+    },
+    "parallel/parallel.zip": {
+      "hash": "6de303a8770ddce480ba55dcf9386f0532dceded46b79e0cc2f273bc26bed1ea",
+      "size": 771,
+      "since": "1.0.0"
+    },
+    "parallel/sequential.zip": {
+      "hash": "6de303a8770ddce480ba55dcf9386f0532dceded46b79e0cc2f273bc26bed1ea",
+      "size": 771,
+      "since": "1.0.0"
+    },
+    "refusals/cd-mismatch.zip": {
+      "hash": "a66d46f5d3c73e86d28f87c7956c3433bf8b0dffa7e14a51c6599753dffd9876",
+      "size": 109,
+      "since": "1.0.0"
+    },
+    "refusals/declared-bomb.zip": {
+      "hash": "901197f22b6dc512052874b4b3dd865c73c7582e0394bc70f949b630dc164b7c",
+      "size": 118,
+      "since": "1.0.0"
+    },
+    "refusals/device-name.zip": {
+      "hash": "3196d5692649e6ec4787b90f4429dfcf0ddfc398fd1e0a5e9124468c9b72700a",
+      "size": 118,
+      "since": "1.0.0"
+    },
+    "refusals/duplicate-paths.zip": {
+      "hash": "6d76ed0dc24987ab882f909dc1f3255f53015d52a69b94bb821f512d180b2311",
+      "size": 217,
+      "since": "1.0.0"
+    },
+    "refusals/overlap.zip": {
+      "hash": "6be79409c6c79bb5a16d11762a25eaa1f6914068f335a3ed79bbd2c7ea313aed",
+      "size": 222,
+      "since": "1.0.0"
+    },
+    "refusals/zip-slip.zip": {
+      "hash": "98a2ff823c24676f0bcfec9c0c3ceea01bf4143c2d3f31b9fea880a00cd3182c",
+      "size": 218,
+      "since": "1.0.0"
+    },
+    "streaming/streamed-descriptor.zip": {
+      "hash": "ae540e28dc5e8b878eb7c1cbe97ab452b87b665482834a2e06619d32528eff58",
+      "size": 444,
+      "since": "1.0.0"
+    },
+    "streaming/streamed-multi.zip": {
+      "hash": "053407a85664f8f9fdb0b46dfef5bed3533a141598ca42f2395f4bf88b7b796f",
+      "size": 902,
+      "since": "1.0.0"
+    },
+    "zip64/zip64-66k-entries.zip": {
+      "hash": "67a173d208f7d3706babfe0ef2b48fd948c843ca4d2aef9d78098bbdbb7fd410",
+      "size": 6570122,
+      "since": "1.0.0"
+    },
+    "zip64/zip64-streamed.zip": {
+      "hash": "56afae27e9ba6f4a3d0283a3bb2b6e4bc455c880414d2aaab7ad6797e3c6614e",
+      "size": 434,
+      "since": "1.1.0"
+    }
+  }
+}

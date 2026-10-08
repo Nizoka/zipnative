@@ -1,34 +1,103 @@
 {
-  "$comment": "Machine-readable AI governance contract. Prose: .github/AGENT_RULES.md",
-  "version": 1,
-  "applies_to": ["zipnative"],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "zipnative AI Governance Configuration",
+  "description": "Machine-readable contract governing how AI coding agents may propose issues, contributions, and changes across the zipnative family. Agents that scan repository configuration on initialization MUST honour this file. See .github/AGENT_RULES.md for the human-and-agent-readable protocol.",
+  "version": "1.1.0",
+  "spec_updated": "2026-10-07",
+  "applies_to": [
+    "zipnative",
+    "zipnative-cli",
+    "zipnative-mcp"
+  ],
   "policy": {
-    "autonomous_github_writes_allowed": false,
+    "automatic_issue_reporting": false,
     "runtime_dependencies_allowed": false,
+    "human_in_the_loop_mandatory": true,
+    "autonomous_github_writes_allowed": false,
     "security_default_weakening_requires_human": true,
-    "deterministic_bytes_are_semver_major": true
+    "deterministic_bytes_are_semver_major": true,
+    "error_codes_frozen_since": "0.8.0",
+    "required_issue_fields": [
+      "minimal_reproduction",
+      "environment",
+      "expected_behavior"
+    ]
   },
   "human_in_the_loop": {
     "role_of_agent": "draftsman",
-    "role_of_human": "reviewer and sole performer of GitHub writes"
+    "role_of_human": "reviewer and sole performer of GitHub writes",
+    "gate": "A human MUST explicitly review, sign off on, and trigger any GitHub issue, comment, PR, or release. The agent's authority ends at producing a local draft plus a compliance report.",
+    "identity_integrity": "Any issue or PR is published under the human user's GitHub identity. The agent MUST remind the user of their shared responsibility for the content before submission.",
+    "draft_location": ".github/drafts/"
   },
-  "issue_drafting": {
-    "draft_dir": ".github/drafts/",
-    "validator": "scripts/verify-issue.mjs",
-    "pre_issue_checklist": [
-      "no runtime dependency proposed",
-      "no anti-goal proposed (encryption in 1.x, other formats, multi-disk, fs-in-engine, repair)",
-      "security-bound changes name the CWE and the SECURITY.md row",
-      "reproduction archive or generator script attached for parser bugs"
+  "pre_issue_checklist": [
+    "no_duplicate_open_or_closed_issue",
+    "zero_runtime_dependency_preserved",
+    "no_anti_goal_proposed (encryption in 1.x, other formats, multi-disk, fs-in-engine, repair, sockets, eval)",
+    "local_minimal_reproduction_executed",
+    "expected_vs_actual_documented",
+    "environment_captured",
+    "security_bound_changes_name_the_CWE_and_the_SECURITY.md_row",
+    "byte_identity_checked (test:generate + verify:samples)"
+  ],
+  "compliance_report": {
+    "description": "The structured summary an agent MUST present to the user alongside every draft and every AI-drafted pull request.",
+    "required_fields": [
+      "zero_dependency_confirmed",
+      "reproduction_command",
+      "reproduction_result",
+      "duplicate_search_performed",
+      "affected_packages",
+      "ai_drafted_scope",
+      "instructions_followed",
+      "quality_gate_results",
+      "rules_bent_with_justification",
+      "identity_reminder_shown"
     ]
   },
-  "compliance_report_fields": [
-    "ai_drafted_scope",
-    "instructions_followed",
-    "quality_gate_results",
-    "rules_bent_with_justification"
-  ],
   "capability_manifest": {
-    "sources": ["package.json", "src/index.ts", "docs/assets/ecosystem.json"]
+    "description": "Authoritative project context an agent SHOULD load before proposing changes.",
+    "sources": [
+      "AGENTS.md",
+      ".github/AGENT_RULES.md"
+    ],
+    "$comment": "on_demand: load lazily by topic. sources are loaded on every task and verify-docs (governance-sources) holds their total under 16 KiB; ecosystem.json is the counts manifest, needed only when a figure or version is touched.",
+    "on_demand": [
+      "docs/assets/ecosystem.json",
+      "docs/assets/api.json",
+      ".github/instructions/",
+      "ROADMAP.md",
+      "SECURITY.md",
+      "llms.txt"
+    ],
+    "claude_code": {
+      "description": "How the policy is enforced inside a Claude Code session (settings, hook, rules, skills); verify-docs rules agent-config-parity, claude-rules-sync, claude-rules-budget and skills-shape keep these files consistent.",
+      "settings": ".claude/settings.json",
+      "hooks": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "command": "node .claude/hooks/guard.mjs",
+          "denies": ["npm publish|unpublish|deprecate|dist-tag|version <bump>", "npx npm publish", "gh pr create|edit|close|merge|comment", "gh issue create|edit|close|comment", "gh release *", "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F", "git push (any form)", "git add --renormalize", "git tag (except list forms)"],
+          "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
+          "tests": "tests/tools/guard.test.ts"
+        }
+      ],
+      "permissions_deny": "Read on generated and bulk files (dist/**, coverage/**, test-output/**, node_modules/**, package-lock.json, tests/fixtures/**, docs/llms-full.txt, docs/llms-recipes.txt, docs/llms-index.json, docs/assets/*.png) and Bash on the HITL commands above",
+      "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
+      "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
+      "skills": [{ "name": "release-audit", "path": ".claude/skills/release-audit/SKILL.md", "model_invocable": false }]
+    }
+  },
+  "verification": {
+    "command": "node scripts/verify-issue.mjs <draft.md>",
+    "validator_covered_by": "tests/tools/verify-issue.test.ts",
+    "blocks_submission_on_failure": true
+  },
+  "references": {
+    "zero_dependency_policy": "README.md#what-zipnative-will-not-do",
+    "security_policy": "SECURITY.md",
+    "issue_templates": [".github/ISSUE_TEMPLATE"],
+    "draft_template": ".github/drafts/TEMPLATE.md"
   }
 }

@@ -7,15 +7,31 @@
  * Exit 1 with `path:line [rule] message` diagnostics on failure.
  *
  * Flags: --online (npm-registry drift), --strict (warnings → errors),
- *        --json (machine-readable report)
+ *        --json (machine-readable report), --rules (list the rules and exit)
  *
  * Suppress one finding with a `verify-docs:allow <rule>` marker on the
  * offending line or the line above it.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { buildApiJson } from './build-api-json.ts';
+import { diffClaudeRules, readRuleFiles } from './build-claude-rules.ts';
 import { buildLlmsFull, buildLlmsIndex, buildLlmsRecipes } from './build-llms-full.ts';
+import {
+    INSTRUCTIONS_DIR,
+    RULES_DIR,
+    checkAgentConfigParity,
+    checkClaudeRulesBudget,
+    checkEol,
+    checkNodeVersionPin,
+    checkPrTemplateParity,
+    checkSkillShape,
+    checkTagRuleset,
+    type Finding,
+} from './lib/agent-config.ts';
+import { findNonEnglishProse } from './lib/prose-language.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const args = new Set(process.argv.slice(2));
@@ -55,6 +71,72 @@ function walk(dir: string): string[] {
     return out;
 }
 
+/**
+ * Every rule this script can report, with its one-line contract. The list
+ * is the figure `derived.verifyDocsRules` is held to, the table
+ * `--rules` prints, and the Output section's self-check: a finding under a
+ * name that is not here is a bug in this script, not in the docs.
+ */
+const RULES: ReadonlyArray<readonly [string, string]> = [
+    ['manifest-shape', 'ecosystem.json is well-formed: versions, statuses, inventories, known derived/declared keys'],
+    ['package-version-sync', 'package.json, src/index.ts VERSION and the manifest agree'],
+    ['citation-version-sync', 'CITATION.cff version equals package.json'],
+    ['changelog-current', 'CHANGELOG.md has an [Unreleased] or the current version section'],
+    ['cdn-pin', 'playground loader pins the CDN to the manifest version, no local fallback'],
+    ['versions-widget', 'docs/assets/versions.js carries every manifest version'],
+    ['satellite-counts', '"N commands / tools / prompts" in prose equals the satellite inventories'],
+    ['surfaces-shape', 'docs/data/surfaces.json names only real exports, commands and tools; since is a semver'],
+    ['cli-surface-parity', 'the CLI guide, data file and playground describe exactly the manifest commands'],
+    ['mcp-surface-parity', 'the MCP guide and playground describe exactly the manifest tools and prompts'],
+    ['switcher-parity', 'every playground page carries the full switcher and the hub links every page'],
+    ['api-json-sync', 'docs/assets/api.json equals a fresh build (npm run docs:api)'],
+    ['tsdoc-complete', 'every public export carries a TSDoc summary'],
+    ['llms-sync', 'docs/llms.txt equals llms.txt'],
+    ['llms-index-sync', 'llms-full.txt, llms-recipes.txt and llms-index.json equal a fresh build (npm run docs:llms)'],
+    ['llms-index-quality', 'every index entry has a non-empty description and plausible sizes'],
+    ['verified-on-parity', 'llms.txt, the homepage footer and llms-index.json carry the manifest verifiedOn'],
+    ['errors-verified-on', 'docs/data/errors.json verifiedOn equals the manifest verifiedOn'],
+    ['seo-head', 'every indexable page has title, description, canonical + hreflang, the full og: set (title, description, url = canonical, type, site_name, image) and twitter: tags'],
+    ['internal-links', 'every relative link and anchor in docs, README and release notes resolves'],
+    ['guide-render-sync', 'every docs/guides/*.html equals a fresh render of its .md'],
+    ['anchor-parity', 'every #fragment points at a real id'],
+    ['sitemap-parity', 'every indexable page is in the sitemap, every <loc> resolves, lastmod is bounded by verifiedOn'],
+    ['sitemap-lastmod-vs-git', '(full clones only) lastmod is on or after the last commit of the page sources'],
+    ['jsonld-version', 'JSON-LD parses; every package node carries the manifest version; an ItemList mirrors the hub cards (count, order, numberOfItems, pages exist)'],
+    ['cdn-sri', 'third-party executable resources carry integrity + crossorigin'],
+    ['contrast', 'theme tokens meet WCAG AA contrast'],
+    ['sample-count', 'test-output/ never holds more archives than derived.sampleZips'],
+    ['sample-regression', 'the byte baseline exists, is well-formed, and tracks every generated sample'],
+    ['derived-counts', 'every derived.* figure equals the tree; declared.tests / coverage equal the last fresh gate run'],
+    ['count-tokens', '"N exports / codes / tests / samples / guides / … / N% coverage" in prose equal the manifest'],
+    ['version-token', '"<package> vX.Y.Z" in prose, the README table and the homepage badges equal the manifest'],
+    ['error-parity', 'the frozen code unions, docs/data/errors.json and the errors guide agree; throw sites use literal codes'],
+    ['prose-language', 'the project language is English; demonstrated content is marked demo-language:'],
+    ['claude-md-budget', 'CLAUDE.md imports AGENTS.md; both <= 120 lines; Copilot file <= 16 KiB; no line > 240 chars'],
+    ['governance-sources', 'ai-governance.json sources/on_demand exist; always-loaded sources < 16 KiB'],
+    ['node-pin-parity', '.nvmrc, .node-version, engines.node, the CI matrix and every setup-node step agree; packageManager is npm@'],
+    ['ruleset-parity', 'every required status check names a real job; sample-regression and compat-previous are required; squash-only merges; tags.json protects v*'],
+    ['agent-config-parity', 'settings.json parses; every CLAUDE.md "Never Read" glob is denied; HITL Bash denies present; guard hook parses'],
+    ['claude-rules-sync', '.claude/rules/ equals a fresh render of .github/instructions/ (npm run agents:rules)'],
+    ['claude-rules-budget', 'CLAUDE.md + its @imports + unscoped rules <= 16 KiB; a scoped rule > 32 KiB warns'],
+    ['pr-template-parity', 'every PR-template checklist item is verbatim in CONTRIBUTING.md; the template mentions npm run gate'],
+    ['eol-lf', '(git checkouts only) every tracked text blob is LF — a CRLF blob fails'],
+    ['skills-shape', 'every .claude/skills/*/SKILL.md names its directory, has a description, and its templates exist'],
+    ['bench-parity', 'the homepage benchmark bars equal bench/RESULTS.md within 10 %'],
+    ['no-control-bytes', 'no tracked text file carries a NUL byte (git would treat it as binary)'],
+    ['playground-syntax', 'every inline module script of a playground page parses (node --check)'],
+    ['export-named', 'every export of api.json is named in llms.txt'],
+    ['limits-table', 'every ZipLimits key is a row of the limits table in SECURITY.md and the security guide'],
+    ['since-tags', 'every export added since the previous release carries an @since tag'],
+    ['npm-drift', '(online only) the npm registry latest equals package.json, warn otherwise'],
+    ['rules-list', 'self-check: every reported rule is catalogued in RULES'],
+];
+const RULE_NAMES: ReadonlySet<string> = new Set(RULES.map(([name]) => name));
+if (args.has('--rules')) {
+    for (const [name, contract] of RULES) console.log(`${name.padEnd(24)} ${contract}`);
+    process.exit(0);
+}
+
 // ── Source of truth ──────────────────────────────────────────────────
 interface EcosystemPackage {
     version: string | null;
@@ -77,8 +159,22 @@ interface Ecosystem {
     packages: Record<string, EcosystemPackage>;
     verifiedOn?: string;
     site?: string;
-    derived?: { sampleZips?: number };
+    /** Figures verify-docs recomputes from the tree (derived-counts). */
+    derived?: Record<string, number | string | undefined>;
+    /** Hand-maintained figures the tree can only partly check (tests, coverage, ISO canaries). */
+    declared?: {
+        $comment?: string;
+        tests?: number;
+        coverageStatements?: number;
+        coverageMeasured?: number;
+        iso21320?: { conformantSamples?: number; nonConformantSamples?: number };
+    };
 }
+/** A misspelt derived key ("recipies") would silently drop its counter — reject unknown keys outright. */
+const KNOWN_DERIVED: ReadonlySet<string> = new Set([
+    '$comment', 'sampleZips', 'exports', 'errorCodes', 'diagnostics', 'testFiles', 'sampleGenerators',
+    'guides', 'playgrounds', 'recipes', 'interopTools', 'interopValidations', 'verifyDocsRules',
+]);
 const ecosystem = JSON.parse(read('docs/assets/ecosystem.json')) as Ecosystem;
 const truthVersion = ecosystem.packages['zipnative']?.version ?? null;
 const verifiedOn = ecosystem.verifiedOn ?? null;
@@ -101,9 +197,27 @@ if (verifiedOn === null || !/^\d{4}-\d{2}-\d{2}$/.test(verifiedOn)) {
 }
 if (ecosystem.derived !== undefined) {
     for (const key of Object.keys(ecosystem.derived)) {
-        if (key !== 'sampleZips') {
+        if (!KNOWN_DERIVED.has(key)) {
             report(MANIFEST, 1, 'manifest-shape',
                 `unknown derived.${key} — a typo here silently disables its counter`);
+        }
+    }
+}
+{
+    const declared = ecosystem.declared;
+    if (declared === undefined) {
+        report(MANIFEST, 1, 'manifest-shape', 'declared is missing — tests, coverage and the ISO canaries live there');
+    } else {
+        if (!Number.isInteger(declared.tests) || (declared.tests ?? 0) <= 0) {
+            report(MANIFEST, 1, 'manifest-shape', 'declared.tests must be a positive integer (the whole suite, skips included)');
+        }
+        const floor = declared.coverageStatements;
+        const measured = declared.coverageMeasured;
+        if (!Number.isInteger(floor) || (floor ?? -1) < 0 || (floor ?? 101) > 100) {
+            report(MANIFEST, 1, 'manifest-shape', 'declared.coverageStatements must be an integer percentage (the floor of the measured figure)');
+        }
+        if (typeof measured !== 'number' || (typeof floor === 'number' && Math.floor(measured) !== floor)) {
+            report(MANIFEST, 1, 'manifest-shape', `declared.coverageMeasured must be the measured percentage whose floor is declared.coverageStatements (got ${String(measured)} vs ${String(floor)})`);
         }
     }
 }
@@ -258,7 +372,7 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
 // manifest's tool list. Its verifiedOn rides with the manifest's.
 {
     interface Cell { supported?: boolean; call?: string; command?: string; tool?: string; notes?: string }
-    interface Surfaces { verifiedOn?: string; capabilities?: ReadonlyArray<{ id?: string; label?: string; library?: Cell; cli?: Cell; mcp?: Cell }> }
+    interface Surfaces { verifiedOn?: string; capabilities?: ReadonlyArray<{ id?: string; label?: string; since?: string; library?: Cell; cli?: Cell; mcp?: Cell }> }
     const path = 'docs/data/surfaces.json';
     if (!existsSync(resolve(ROOT, path))) {
         report(path, 1, 'surfaces-shape', 'missing — the choose guide needs its machine-readable twin');
@@ -275,6 +389,14 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
             const id = cap.id ?? '(no id)';
             if (ids.has(id)) report(path, 1, 'surfaces-shape', `duplicate capability id ${id}`);
             ids.add(id);
+            // since: the engine release that introduced the capability — a semver no newer than the manifest's.
+            if (cap.since !== undefined) {
+                if (typeof cap.since !== 'string' || !/^\d+\.\d+\.\d+$/.test(cap.since)) {
+                    report(path, 1, 'surfaces-shape', `${id}.since must be a semver triple (got ${String(cap.since)})`);
+                } else if (truthVersion !== null && cap.since.localeCompare(truthVersion, undefined, { numeric: true }) > 0) {
+                    report(path, 1, 'surfaces-shape', `${id}.since ${cap.since} is ahead of the engine version ${truthVersion}`);
+                }
+            }
             for (const surface of ['library', 'cli', 'mcp'] as const) {
                 const cell = cap[surface];
                 if (cell === undefined || typeof cell.supported !== 'boolean') {
@@ -285,7 +407,7 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
                 if (surface === 'library') {
                     // Every `name()` token must be a real export; bare prose is allowed.
                     for (const m of (cell.call ?? '').matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\(\)/g)) {
-                        const readerMethods = ['entries', 'readEntry', 'readEntryStream', 'readEntryRaw', 'verifyEntry', 'addStream', 'stream', 'save', 'saveCompact', 'add', 'addDirectory'];
+                        const readerMethods = ['entries', 'getEntry', 'readEntry', 'readEntryStream', 'readEntryRaw', 'verifyEntry', 'addStream', 'addRaw', 'addFromReader', 'stream', 'save', 'saveCompact', 'add', 'addDirectory', 'toBytes', 'skip', 'data'];
                         if (!apiNames.has(m[1]) && !readerMethods.includes(m[1])) {
                             report(path, 1, 'surfaces-shape', `${id}.library names ${m[1]}() — not an export in api.json`);
                         }
@@ -428,27 +550,6 @@ if (truthVersion !== null && pkg.version !== truthVersion) {
             }
             for (const name of snapByName.keys()) if (!(surface.commands ?? []).some((c) => c.name === name)) report(pagePath, line, 'cli-surface-parity', `snapshot command '${name}' is not in the builder`);
         }
-    }
-}
-
-// ── Rule: switcher-parity ────────────────────────────────────────────
-// Every playground page carries the same switcher: every playground
-// linked, the current page marked aria-current, and no entry pointing to
-// a page that does not exist (pdfnative rule, ported).
-{
-    const pages = walk('docs/playgrounds').filter((p) => p.endsWith('.html') && !p.endsWith('/index.html'));
-    const expected = new Set(pages.map((p) => './' + p.split('/').pop()));
-    for (const page of pages) {
-        const html = read(page);
-        const nav = html.match(/<nav class="playground-switcher"[\s\S]*?<\/nav>/);
-        if (nav === null) { report(page, 1, 'switcher-parity', 'missing the playground switcher'); continue; }
-        const links = [...nav[0].matchAll(/<a href="(\.\/[^"]+\.html)"([^>]*)>/g)];
-        const found = new Set(links.map((m) => m[1]));
-        for (const e of expected) if (!found.has(e)) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher lacks ${e}`);
-        for (const f of found) if (!expected.has(f)) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `switcher links to a page that does not exist: ${f}`);
-        const self = './' + page.split('/').pop();
-        const current = links.find((m) => m[2].includes('aria-current="page"'));
-        if (current === undefined || current[1] !== self) report(page, lineOf(html, nav.index ?? 0), 'switcher-parity', `aria-current must mark ${self}`);
     }
 }
 
@@ -610,6 +711,17 @@ if (verifiedOn !== null) {
     }
 }
 
+// ── Rule: errors-verified-on ─────────────────────────────────────────
+// The error registry carries its own audit stamp; it rides with the
+// manifest's like surfaces.json's does (surfaces-shape), or an agent
+// reading errors.json alone would trust a date nobody re-checked.
+if (verifiedOn !== null && existsSync(resolve(ROOT, 'docs/data/errors.json'))) {
+    const stamp = (JSON.parse(read('docs/data/errors.json')) as { verifiedOn?: string }).verifiedOn;
+    if (stamp !== verifiedOn) {
+        report('docs/data/errors.json', 1, 'errors-verified-on', `verifiedOn ${String(stamp)} != manifest ${verifiedOn} — re-audit raisedWhen/remedy against src/ and restamp`);
+    }
+}
+
 // ── HTML corpus ──────────────────────────────────────────────────────
 const htmlPages = walk('docs').filter((p) => p.endsWith('.html'));
 
@@ -635,6 +747,18 @@ for (const page of htmlPages) {
     const description = html.match(/<meta name="description" content="([^"]*)"/);
     if (description === null || description[1].trim().length === 0) {
         report(page, 1, 'seo-head', 'missing or empty meta description');
+    }
+    // The full Open Graph set: a share card without og:title/og:description
+    // falls back to whatever the crawler guesses, and og:url must be the
+    // canonical so shares of ?query / #fragment variants collapse to one.
+    for (const prop of ['og:title', 'og:description', 'og:type', 'og:site_name', 'og:image']) {
+        if (!new RegExp(`<meta property="${prop}" content="[^"]+"`).test(html)) report(page, 1, 'seo-head', `missing ${prop}`);
+    }
+    const ogUrl = html.match(/<meta property="og:url" content="([^"]+)"/);
+    if (ogUrl === null) report(page, 1, 'seo-head', 'missing og:url');
+    else if (canonicals.length === 1 && ogUrl[1] !== canonicals[0][1]) report(page, 1, 'seo-head', `og:url ${ogUrl[1]} must equal the canonical ${canonicals[0][1]}`);
+    for (const name of ['twitter:card', 'twitter:title', 'twitter:description']) {
+        if (!new RegExp(`<meta name="${name}" content="[^"]+"`).test(html)) report(page, 1, 'seo-head', `missing ${name}`);
     }
 }
 
@@ -776,10 +900,36 @@ for (const page of htmlPages) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version', '#library node lacks softwareVersion');
             }
         };
+        // An ItemList (a hub's mainEntity) is a machine-readable copy of the
+        // hub's cards: the 1.1.0 playgrounds hub listed 7 of its 8 pages for
+        // a whole release because nothing compared the two. The list must
+        // name every same-directory page the hub links to, in card order,
+        // with consecutive positions and a numberOfItems equal to its length.
+        const dir = page.slice(0, page.lastIndexOf('/') + 1);
+        const cards = [...html.matchAll(/href="([a-z0-9-]+\.html)"/g)].map((c) => c[1]).filter((f, i, all) => f !== 'index.html' && all.indexOf(f) === i);
+        const checkItemList = (list: Record<string, unknown>): void => {
+            const items = Array.isArray(list['itemListElement']) ? (list['itemListElement'] as Array<Record<string, unknown>>) : [];
+            if (list['numberOfItems'] !== items.length) {
+                report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList numberOfItems ${String(list['numberOfItems'])} != ${items.length} itemListElement entries`);
+            }
+            const files = items.map((item, i) => {
+                if (item['position'] !== i + 1) report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList position ${String(item['position'])} at index ${i} — positions must be 1..n in order`);
+                const url = typeof item['url'] === 'string' ? item['url'] : '';
+                const file = url.slice(url.lastIndexOf('/') + 1);
+                if (!existsSync(resolve(ROOT, dir + file))) report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList item "${String(item['name'])}" points to ${url} — no such page beside the hub`);
+                return file;
+            });
+            if (cards.length > 0 && files.join(' ') !== cards.join(' ')) {
+                report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `ItemList [${files.join(', ')}] must equal the hub's cards in order [${cards.join(', ')}]`);
+            }
+        };
         for (const node of nodes) {
             checkVersion(node);
             const about = node['about'];
             if (about !== null && typeof about === 'object') checkVersion(about as Record<string, unknown>);
+            const entity = node['mainEntity'];
+            if (entity !== null && typeof entity === 'object' && (entity as Record<string, unknown>)['@type'] === 'ItemList') checkItemList(entity as Record<string, unknown>);
+            if (node['@type'] === 'ItemList') checkItemList(node);
             const type = node['@type'];
             if ((type === 'WebSite' || type === 'SoftwareSourceCode' || type === 'TechArticle') && node['inLanguage'] === undefined) {
                 report(page, lineOf(html, m.index ?? 0), 'jsonld-version', `${String(type)} node lacks inLanguage`);
@@ -844,7 +994,8 @@ for (const page of htmlPages) {
 {
     const declared = ecosystem.derived?.sampleZips;
     if (typeof declared === 'number' && existsSync(resolve(ROOT, 'test-output'))) {
-        const onDisk = walk('test-output').filter((p) => p.endsWith('.zip')).length;
+        // Dot-directories (.gate logs, the .compat extraction) are never samples.
+        const onDisk = walk('test-output').filter((p) => p.endsWith('.zip') && !p.includes('/.')).length;
         if (onDisk > declared) {
             report('docs/assets/ecosystem.json', 1, 'sample-count',
                 `test-output/ holds ${onDisk} archives but derived.sampleZips declares ${declared} — a generator grew; bump the manifest`);
@@ -965,6 +1116,792 @@ for (const page of htmlPages) {
     }
 }
 
+// ── Documentation corpus (count-tokens, version-token, prose-language) ─
+// llms-full.txt and llms-recipes.txt are generated from files already in
+// the corpus; scanning a concatenation would double-report every finding
+// at line numbers nobody can act on. CHANGELOG.md and release-notes/ are
+// history and quote superseded figures on purpose.
+const DOC_FILES: readonly string[] = [
+    ...walk('docs').filter((p) => /\.(html|md|svg|txt|js|xml)$/.test(p) && !p.endsWith('llms-full.txt') && !p.endsWith('llms-recipes.txt')),
+    ...['README.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'SECURITY.md', 'SUPPORT.md', 'ROADMAP.md', 'llms.txt']
+        .filter((p) => existsSync(resolve(ROOT, p))),
+];
+// The satellite guides and playgrounds quote THEIR packages' figures.
+const COMPANION_DOC = /^docs\/(?:guides|playgrounds)\/(?:cli|mcp)\.(?:md|html)$/;
+
+// ── Rule: derived-counts ─────────────────────────────────────────────
+// Every derived.* figure is recomputed from the tree and must match
+// exactly; declared.tests and declared.coverage* are held to the last
+// gate run when its report is newer than every test file (an older one
+// predates a test added since and would fail the wrong side). A manifest
+// nobody checks is a second copy of the prose — the pdfnative 1.8.0 lesson
+// (mutating declared.tests to 9999 passed every rule).
+{
+    const listDir = (dir: string, test: (f: string) => boolean): string[] =>
+        existsSync(resolve(ROOT, dir)) ? readdirSync(resolve(ROOT, dir)).filter(test) : [];
+    const unionSize = (source: string, name: string): number => {
+        const m = source.match(new RegExp(`export type ${name} =([\\s\\S]*?'ZIP_[A-Z0-9_]+';)`));
+        return new Set([...(m?.[1] ?? '').matchAll(/'(ZIP_[A-Z0-9_]+)'/g)].map((x) => x[1])).size;
+    };
+    const errorsSource = read('src/types/zip-errors.ts');
+    const errorCodes = ['ZipBaseErrorCode', 'ZipFormatErrorCode', 'ZipSecurityErrorCode', 'ZipDataErrorCode', 'ZipLimitErrorCode', 'ZipUnsupportedErrorCode']
+        .reduce((sum, union) => sum + unionSize(errorsSource, union), 0);
+    const apiJson = JSON.parse(read('docs/assets/api.json')) as { exports?: ReadonlyArray<unknown> };
+    const interopSource = existsSync(resolve(ROOT, 'tests/helpers/interop-tools.ts')) ? read('tests/helpers/interop-tools.ts') : '';
+    const [producersPart = '', extractorsPart = ''] = interopSource.split('export const EXTRACTORS');
+    const toolIds = (part: string): number => [...part.matchAll(/^\s+id: '([a-z0-9-]+)',/gm)].length;
+    const writeCases = [...read('scripts/run-interop.ts').matchAll(/^\s+name: '([a-z0-9-]+)',$/gm)].length;
+    const recipesIndex = JSON.parse(read('recipes/index.json')) as { recipes?: ReadonlyArray<{ file?: string }> };
+    const recipeFiles = listDir('recipes', (f) => f.endsWith('.ts') && !f.startsWith('_'));
+    if ((recipesIndex.recipes?.length ?? 0) !== recipeFiles.length) {
+        report('recipes/index.json', 1, 'derived-counts', `index lists ${recipesIndex.recipes?.length ?? 0} recipes but recipes/ holds ${recipeFiles.length} .ts files`);
+    }
+    const testFiles = walk('tests').filter((p) => p.endsWith('.test.ts'));
+    const actualDerived: Record<string, number> = {
+        exports: apiJson.exports?.length ?? 0,
+        errorCodes,
+        diagnostics: unionSize(read('src/types/zip-types.ts'), 'ZipDiagnosticCode'),
+        testFiles: testFiles.length,
+        sampleGenerators: listDir('scripts/generators', (f) => f.endsWith('.ts')).length,
+        guides: listDir('docs/guides', (f) => f.endsWith('.md')).length,
+        // Live playgrounds only — a retired one survives as a noindex redirect stub.
+        playgrounds: listDir('docs/playgrounds', (f) => f.endsWith('.html') && f !== 'index.html'
+            && !/name=["']robots["'][^>]*noindex/i.test(read(`docs/playgrounds/${f}`))).length,
+        recipes: recipeFiles.length,
+        interopTools: toolIds(extractorsPart),
+        interopValidations: toolIds(producersPart) + writeCases,
+        verifyDocsRules: RULES.length,
+    };
+    for (const key of Object.keys(actualDerived)) {
+        if (!KNOWN_DERIVED.has(key)) report('scripts/verify-docs.ts', 1, 'manifest-shape', `derived-counts computes ${key} but KNOWN_DERIVED does not list it`);
+    }
+    for (const [key, actual] of Object.entries(actualDerived)) {
+        const want = ecosystem.derived?.[key];
+        if (want === undefined) {
+            report(MANIFEST, 1, 'derived-counts', `derived.${key} is missing — the tree has ${actual}; count-tokens needs it`);
+        } else if (want !== actual) {
+            report(MANIFEST, 1, 'derived-counts', `derived.${key} says ${String(want)} but the tree has ${actual} — update the manifest, not the docs`);
+        }
+    }
+    const newestTest = testFiles.reduce((max, p) => Math.max(max, statSync(resolve(ROOT, p)).mtimeMs), 0);
+    const fresh = (path: string): boolean => existsSync(resolve(ROOT, path)) && statSync(resolve(ROOT, path)).mtimeMs >= newestTest;
+    const vitestJson = 'test-output/.gate/vitest.json';
+    if (fresh(vitestJson)) {
+        let total: number | undefined;
+        try {
+            total = (JSON.parse(read(vitestJson)) as { numTotalTests?: number }).numTotalTests;
+        } catch {
+            total = undefined;
+        }
+        if (typeof total === 'number' && total > 0 && ecosystem.declared?.tests !== total) {
+            report(MANIFEST, 1, 'derived-counts', `declared.tests says ${String(ecosystem.declared?.tests)} but the last gate run counted ${total} tests — update the manifest (and every doc quoting it)`);
+        }
+    }
+    const coverageSummary = 'coverage/coverage-summary.json';
+    if (fresh(coverageSummary)) {
+        let pct: number | undefined;
+        try {
+            pct = (JSON.parse(read(coverageSummary)) as { total?: { statements?: { pct?: number } } }).total?.statements?.pct;
+        } catch {
+            pct = undefined;
+        }
+        if (typeof pct === 'number') {
+            if (ecosystem.declared?.coverageStatements !== Math.floor(pct)) {
+                report(MANIFEST, 1, 'derived-counts', `declared.coverageStatements says ${String(ecosystem.declared?.coverageStatements)} but the last coverage run measured ${pct} % — update the manifest`);
+            }
+            if (typeof ecosystem.declared?.coverageMeasured === 'number' && Math.abs(ecosystem.declared.coverageMeasured - pct) > 0.05) {
+                report(MANIFEST, 1, 'derived-counts', `declared.coverageMeasured says ${ecosystem.declared.coverageMeasured} but the last coverage run measured ${pct} % — update the manifest`);
+            }
+        }
+    }
+}
+
+// ── Rule: count-tokens ───────────────────────────────────────────────
+// "106 exports", "39-code error vocabulary", "685 tests", "93.9% statement
+// coverage", "38-sample corpus": every such token in the corpus equals its
+// manifest counter. Nothing policed 77 / 39 / 385+ / 93.9 % before 1.1.0,
+// and the same sentence carried different figures across README, homepage
+// and llms.txt. Coverage is bounded, not matched: a doc may state the
+// floor ("93%+") or the measured figure ("93.9 %"), never more. Historical
+// prose opts out with `verify-docs:allow count-tokens`.
+{
+    interface CountToken {
+        readonly pattern: RegExp;
+        readonly source: string;
+        readonly mode: 'equal' | 'floor';
+        /** Skip a match whose trailing 80 characters match this (disambiguation). */
+        readonly unless?: RegExp;
+        readonly requireIn?: readonly string[];
+    }
+    const COUNT_TOKENS: readonly CountToken[] = [
+        { pattern: /(?<![\d.])(\d+)\+?[ -]exports?\b/g, source: 'derived.exports', mode: 'equal', requireIn: ['README.md', 'docs/agent-brief.md'] },
+        { pattern: /(?<![\d.])(\d+)[ -]code\b(?=[^\n]{0,80}ZipDiagnosticCode)/g, source: 'derived.diagnostics', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\s+diagnostic(?:\s+codes?)?\b/g, source: 'derived.diagnostics', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)[ -](?:frozen[ -])?(?:error[ -])?codes?\b/g, source: 'derived.errorCodes', mode: 'equal', unless: /^[^\n]{0,80}(?:diagnostic|ZipDiagnosticCode)/ },
+        { pattern: /(?<![\d.])(\d+)\+?\s+tests\b/g, source: 'declared.tests', mode: 'equal', requireIn: ['AGENTS.md', 'README.md'] },
+        // The homepage metric tiles separate the number from its noun with markup.
+        { pattern: /class="metric-value">(\d+)\+?<\/div>\s*<div class="metric-label">Tests</g, source: 'declared.tests', mode: 'equal', requireIn: ['docs/index.html'] },
+        { pattern: /class="metric-value">(\d+(?:\.\d+)?)\s?%<\/div>\s*<div class="metric-label">Coverage/g, source: 'declared.coverageStatements', mode: 'floor' },
+        { pattern: /class="metric-value">(\d+)<\/div>\s*<div class="metric-label">Foreign interop tools/g, source: 'derived.interopTools', mode: 'equal' },
+        { pattern: /class="metric-value">(\d+)<\/div>\s*<div class="metric-label">Frozen error codes/g, source: 'derived.errorCodes', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\+?\s+test files\b/g, source: 'derived.testFiles', mode: 'equal' },
+        { pattern: /\bacross\s+(\d+)\+?\s+(?:test\s+)?files\b/g, source: 'derived.testFiles', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+(?:\.\d+)?)\s?(?:%|percent)\+?\s+(?:statement\s+)?coverage\b/g, source: 'declared.coverageStatements', mode: 'floor' },
+        { pattern: /(?<![\d.])(\d+(?:\.\d+)?)\s?%\+?\s+statements\b/g, source: 'declared.coverageStatements', mode: 'floor' },
+        { pattern: /(?<![\d.])(\d+)[ -]samples?\b/g, source: 'derived.sampleZips', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\s+(?:sample|demonstration)\s+archives\b/g, source: 'derived.sampleZips', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\s+(?:sample\s+)?generators\b/g, source: 'derived.sampleGenerators', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\s+(?:documented\s+)?guides\b/g, source: 'derived.guides', mode: 'equal' },
+        { pattern: /\b(\d+|five|six|seven|eight|nine|ten)\s+(?:interactive\s+|live\s+|zero-install\s+|hands-on\s+)?playgrounds\b/gi, source: 'derived.playgrounds', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\s+(?:executable\s+)?recipes\b/g, source: 'derived.recipes', mode: 'equal' },
+        { pattern: /(?<![\d.])(\d+)\s+(?:interop\s+)?validations\b/g, source: 'derived.interopValidations', mode: 'equal' },
+        { pattern: /\b(\d+|five|six|seven|eight)[ -](?:foreign|external|independent)[ -](?:tools?|parsers?|extractors?)\b|\b(\d+|five|six|seven|eight)-parser\b/gi, source: 'derived.interopTools', mode: 'equal' },
+    ];
+    const NUMERALS: Record<string, number> = { five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const manifestRef = (source: string): number | undefined => {
+        const [table, key] = source.split('.');
+        const record = table === 'derived' ? ecosystem.derived : (ecosystem.declared as Record<string, unknown> | undefined);
+        const value = record?.[key];
+        return typeof value === 'number' ? value : undefined;
+    };
+    const corpus = DOC_FILES.filter((f) => !COMPANION_DOC.test(f));
+    for (const token of COUNT_TOKENS) {
+        const expected = manifestRef(token.source);
+        if (expected === undefined) {
+            report(MANIFEST, 1, 'manifest-shape', `${token.source} is missing — count-tokens needs it to police "${token.pattern.source}"`);
+            continue;
+        }
+        const seenIn = new Set<string>();
+        for (const file of corpus) {
+            const text = read(file);
+            token.pattern.lastIndex = 0;
+            let m: RegExpExecArray | null;
+            while ((m = token.pattern.exec(text)) !== null) {
+                const raw = m[1] ?? m[2] ?? '';
+                if (token.unless !== undefined && token.unless.test(text.slice(m.index + m[0].length, m.index + m[0].length + 80))) continue;
+                seenIn.add(file);
+                const found = NUMERALS[raw.toLowerCase()] ?? Number(raw);
+                if (!Number.isFinite(found)) continue;
+                const measured = ecosystem.declared?.coverageMeasured;
+                if (token.mode === 'floor' && raw.includes('.') && typeof measured === 'number') {
+                    // A decimal claims a measurement, not a floor: it must equal declared.coverageMeasured.
+                    if (Math.abs(found - measured) > 0.001 && !allowed(text, m.index, 'count-tokens')) {
+                        report(file, lineOf(text, m.index), 'count-tokens', `"${m[0].trim()}" — the manifest says the measured figure is ${measured} % (declared.coverageMeasured)`);
+                    }
+                    continue;
+                }
+                const ok = token.mode === 'equal' ? found === expected : Math.floor(found) <= expected;
+                if (ok || allowed(text, m.index, 'count-tokens')) continue;
+                const verdict = token.mode === 'equal'
+                    ? `the manifest says ${expected} (${token.source})`
+                    : `the manifest floor is ${expected} % (${token.source}) — a doc may not claim more coverage than was measured`;
+                report(file, lineOf(text, m.index), 'count-tokens', `"${m[0].trim()}" — ${verdict}`);
+            }
+        }
+        for (const required of token.requireIn ?? []) {
+            if (!existsSync(resolve(ROOT, required))) {
+                report(required, 1, 'count-tokens', `missing — it must state the ${token.source} count`);
+            } else if (!seenIn.has(required)) {
+                report(required, 1, 'count-tokens', `never states the ${token.source} count ("${expected}") — it is the figure agents quote`);
+            }
+        }
+    }
+}
+
+// ── Rule: version-token ──────────────────────────────────────────────
+// A package name with a nearby semver that disagrees with the manifest is
+// the most damaging drift a doc can carry ("zipnative-mcp 1.0.0 is …"
+// outliving a release). Range specifiers (^1.0.0), floors (≥ 1.1.0) and
+// clause numbers (§4.5.3) are skipped by lookbehind; the gap between name
+// and version must not cross a quote, slash, paren or sentence boundary.
+// Two structural forms the prose regex cannot reach: the README ecosystem
+// table (`[\`zipnative\`](url) | … | 1.0.0 |`) and the homepage badges
+// (`data-zn-badge="zipnative">v1.0.0<`, which JavaScript overwrites at
+// runtime but a non-JS fetcher reads as is). "both X.Y.Z" / "all three
+// packages …, X.Y.Z" are claims about the satellites and must hold for
+// every package they cover.
+{
+    const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const check = (file: string, text: string, pattern: RegExp, name: string, version: string): void => {
+        pattern.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = pattern.exec(text)) !== null) {
+            if (m[1] === version || allowed(text, m.index, 'version-token')) continue;
+            report(file, lineOf(text, m.index), 'version-token', `"${m[0].trim()}" — the manifest says ${name} is ${version}`);
+        }
+    };
+    for (const [name, pkgEntry] of Object.entries(ecosystem.packages)) {
+        if (typeof pkgEntry.version !== 'string') continue;
+        const escaped = escape(name);
+        const patterns = [
+            // "zipnative" must not match inside "zipnative-cli".
+            new RegExp(`\\b${escaped}(?![\\w-])[^\\n'"\`/().]{0,60}?(?<![\\^~\\d.§])(?<![<>≥≤=]\\s{0,3})\\bv?(\\d+\\.\\d+\\.\\d+)\\b`, 'g'),
+            new RegExp(`\\[\`${escaped}\`\\]\\([^)]*\\)\\s*\\|[^|\\n]*\\|\\s*\\*{0,2}v?(\\d+\\.\\d+\\.\\d+)\\*{0,2}\\s*\\|`, 'g'),
+            new RegExp(`data-zn-badge=["']${escaped}["'][^>]*>\\s*v?(\\d+\\.\\d+\\.\\d+)\\s*<`, 'g'),
+        ];
+        for (const file of DOC_FILES) {
+            const text = read(file);
+            for (const pattern of patterns) check(file, text, pattern, name, pkgEntry.version);
+        }
+    }
+    const satellites = Object.entries(ecosystem.packages).filter(([n]) => n !== pkg.name);
+    const everyone = Object.entries(ecosystem.packages);
+    const CLAIMS: ReadonlyArray<readonly [RegExp, ReadonlyArray<readonly [string, EcosystemPackage]>, string]> = [
+        [/\bboth\s+(?:at\s+|on\s+)?v?(\d+\.\d+\.\d+)\b/g, satellites, 'both satellites'],
+        [/\ball three packages[^,\n]{0,40},\s*v?(\d+\.\d+\.\d+)\b/g, everyone, 'all three packages'],
+        [/\bCurrent version:\s*v?(\d+\.\d+\.\d+)\b/g, everyone.filter(([n]) => n === pkg.name), pkg.name],
+    ];
+    for (const file of DOC_FILES) {
+        const text = read(file);
+        for (const [pattern, covered, label] of CLAIMS) {
+            pattern.lastIndex = 0;
+            let m: RegExpExecArray | null;
+            while ((m = pattern.exec(text)) !== null) {
+                const claimed = m[1];
+                const wrong = covered.filter(([, p]) => p.version !== claimed).map(([n, p]) => `${n} is ${String(p.version)}`);
+                if (wrong.length === 0 || allowed(text, m.index, 'version-token')) continue;
+                report(file, lineOf(text, m.index), 'version-token', `"${m[0].trim()}" claims ${label} are ${claimed} but ${wrong.join(', ')}`);
+            }
+        }
+    }
+}
+
+// ── Rule: prose-language ─────────────────────────────────────────────
+// The project language is English. Another language is allowed only as
+// demonstrated content (a legacy code-page sample, a foreign-tool
+// transcript), marked `demo-language:` on or above the line;
+// scripts/lib/prose-language.ts is the shared detector.
+{
+    const corpus = [
+        ...DOC_FILES,
+        ...(existsSync(resolve(ROOT, 'release-notes')) ? walk('release-notes').filter((p) => p.endsWith('.md')) : []),
+        ...walk('recipes').filter((p) => p.endsWith('.ts')),
+        ...walk('scripts/generators').filter((p) => p.endsWith('.ts')),
+        ...(existsSync(resolve(ROOT, 'bench/RESULTS.md')) ? ['bench/RESULTS.md'] : []),
+    ];
+    for (const file of corpus) {
+        const text = read(file);
+        for (const finding of findNonEnglishProse(text, file, { suppress: 'verify-docs:allow prose-language' })) {
+            report(file, finding.line, 'prose-language',
+                `${finding.reason}: "${finding.snippet}" — write it in English, or mark demonstrated content with \`demo-language: <tag> (reason)\` on or above the line`);
+        }
+    }
+}
+
+// ── Rule: sample-regression ──────────────────────────────────────────
+// The byte baseline (tests/regression/baselines/samples.sha256.json) is
+// the release's safety net: it must exist, every entry must carry a
+// SHA-256, a size and a `since` no newer than the manifest version, and —
+// once the corpus is generated — every sample must be tracked. A missing
+// entry only warns (a release-in-progress sample is untracked until its
+// rebaseline); `--strict` makes the release PR carry it.
+{
+    const path = 'tests/regression/baselines/samples.sha256.json';
+    const semverLe = (a: string, b: string): boolean => {
+        const pa = a.split('.').map(Number);
+        const pb = b.split('.').map(Number);
+        for (let i = 0; i < 3; i++) {
+            if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) < (pb[i] ?? 0);
+        }
+        return true;
+    };
+    if (!existsSync(resolve(ROOT, path))) {
+        report(path, 1, 'sample-regression', 'missing — the byte baseline is the release safety net (npm run test:generate && npx tsx scripts/verify-samples.ts --update)');
+    } else {
+        interface Baseline { baselineVersion?: string; entries?: Record<string, { hash?: string; size?: number; since?: string }> }
+        let baseline: Baseline = {};
+        try {
+            baseline = JSON.parse(read(path)) as Baseline;
+        } catch (err) {
+            report(path, 1, 'sample-regression', `not valid JSON — ${(err as Error).message}`);
+        }
+        const entries = Object.entries(baseline.entries ?? {});
+        if (entries.length === 0) report(path, 1, 'sample-regression', 'no entries — regenerate the samples and rebaseline');
+        if (typeof baseline.baselineVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(baseline.baselineVersion)) {
+            report(path, 1, 'sample-regression', 'baselineVersion must be a semver triple');
+        } else if (truthVersion !== null && !semverLe(baseline.baselineVersion, truthVersion)) {
+            report(path, 1, 'sample-regression', `baselineVersion ${baseline.baselineVersion} is ahead of the manifest's ${truthVersion}`);
+        }
+        for (const [name, entry] of entries) {
+            if (typeof entry.hash !== 'string' || !/^[0-9a-f]{64}$/.test(entry.hash) || typeof entry.size !== 'number'
+                || typeof entry.since !== 'string' || !/^\d+\.\d+\.\d+$/.test(entry.since)) {
+                report(path, 1, 'sample-regression', `${name}: every entry carries hash (SHA-256 hex), size and since (semver)`);
+            } else if (truthVersion !== null && !semverLe(entry.since, truthVersion)) {
+                report(path, 1, 'sample-regression', `${name}: since ${entry.since} is ahead of the manifest's ${truthVersion}`);
+            }
+        }
+        const declaredSamples = ecosystem.derived?.sampleZips;
+        if (typeof declaredSamples === 'number' && entries.length > declaredSamples) {
+            report(path, 1, 'sample-regression', `baseline holds ${entries.length} entries but derived.sampleZips declares ${declaredSamples} — a sample was removed; rebaseline`);
+        }
+        if (typeof declaredSamples === 'number' && entries.length < declaredSamples) {
+            report(path, 1, 'sample-regression', `${declaredSamples - entries.length} of ${declaredSamples} declared samples have no baseline entry — rebaseline (verify-samples --update) in the release PR, since: ${truthVersion ?? '?'}`, 'warn');
+        }
+        if (existsSync(resolve(ROOT, 'test-output'))) {
+            const onDisk = walk('test-output').filter((p) => p.endsWith('.zip') && !p.includes('/.')).map((p) => p.replace(/^test-output\//, ''));
+            const tracked = new Set(entries.map(([n]) => n));
+            if (onDisk.length > 0 && typeof declaredSamples === 'number' && onDisk.length >= declaredSamples) {
+                for (const [name] of entries) {
+                    if (!onDisk.includes(name)) report(path, 1, 'sample-regression', `${name} is in the baseline but no generator writes it — drop the entry (verify-samples --update)`);
+                }
+            }
+            for (const f of onDisk) {
+                if (!tracked.has(f)) report(path, 1, 'sample-regression', `${f} is generated but untracked — rebaseline in the release PR`, 'warn');
+            }
+        }
+    }
+}
+
+// ── Rule: claude-md-budget ───────────────────────────────────────────
+// The agent entry files are loaded into every session's context, so their
+// size is a tax on every task. CLAUDE.md must start by importing AGENTS.md
+// (one source of truth, not a fork), both stay under 120 lines, the
+// Copilot file under 16 KiB, and no line exceeds 240 characters.
+{
+    const MAX_LINE = 240;
+    const budgets: Array<{ file: string; maxLines?: number; maxBytes?: number; firstLine?: string }> = [
+        { file: 'CLAUDE.md', maxLines: 120, firstLine: '@AGENTS.md' },
+        { file: 'AGENTS.md', maxLines: 120 },
+        { file: '.github/copilot-instructions.md', maxBytes: 16384 },
+    ];
+    for (const budget of budgets) {
+        if (!existsSync(resolve(ROOT, budget.file))) {
+            report(budget.file, 1, 'claude-md-budget', 'missing — every agent entry file must exist');
+            continue;
+        }
+        const text = read(budget.file);
+        const lines = text.split('\n');
+        const lineCount = lines[lines.length - 1] === '' ? lines.length - 1 : lines.length;
+        if (budget.maxLines !== undefined && lineCount > budget.maxLines) {
+            report(budget.file, 1, 'claude-md-budget', `${lineCount} lines — the budget is ${budget.maxLines}; move detail to .github/instructions/`);
+        }
+        const bytes = Buffer.byteLength(text, 'utf8');
+        if (budget.maxBytes !== undefined && bytes > budget.maxBytes) {
+            report(budget.file, 1, 'claude-md-budget', `${bytes} bytes — the budget is ${budget.maxBytes}; move detail to .github/instructions/`);
+        }
+        lines.forEach((line, i) => {
+            if (line.length > MAX_LINE) report(budget.file, i + 1, 'claude-md-budget', `line is ${line.length} characters — the limit is ${MAX_LINE}`);
+        });
+        if (budget.firstLine !== undefined) {
+            const first = lines.find((l) => l.trim() !== '')?.trim();
+            if (first !== budget.firstLine) {
+                report(budget.file, 1, 'claude-md-budget', `first non-empty line is "${first ?? ''}" — it must be "${budget.firstLine}" so Claude Code loads AGENTS.md instead of a fork of it`);
+            }
+        }
+    }
+}
+
+// ── Rule: governance-sources ─────────────────────────────────────────
+// .github/ai-governance.json tells agents which files to load before
+// proposing a change. A path that no longer exists teaches them nothing,
+// and an always-loaded set over 16 KiB taxes every session.
+{
+    const GOVERNANCE = '.github/ai-governance.json';
+    const MAX_SOURCES_BYTES = 16 * 1024;
+    if (existsSync(resolve(ROOT, GOVERNANCE))) {
+        let policy: { capability_manifest?: { sources?: unknown; on_demand?: unknown } } = {};
+        try {
+            policy = JSON.parse(read(GOVERNANCE)) as typeof policy;
+        } catch (err) {
+            report(GOVERNANCE, 1, 'governance-sources', `not valid JSON — ${(err as Error).message}`);
+        }
+        const asPaths = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+        let total = 0;
+        for (const [list, entries] of [['sources', asPaths(policy.capability_manifest?.sources)], ['on_demand', asPaths(policy.capability_manifest?.on_demand)]] as const) {
+            for (const p of entries) {
+                const full = resolve(ROOT, p);
+                if (!existsSync(full)) {
+                    report(GOVERNANCE, 1, 'governance-sources', `capability_manifest.${list} names "${p}", which does not exist`);
+                } else if (list === 'sources' && statSync(full).isFile()) {
+                    total += statSync(full).size;
+                }
+            }
+        }
+        if (total >= MAX_SOURCES_BYTES) {
+            report(GOVERNANCE, 1, 'governance-sources', `capability_manifest.sources total ${total} bytes — the always-loaded set must stay under ${MAX_SOURCES_BYTES}; move a file to on_demand`);
+        }
+    }
+}
+
+// ── Rule: node-pin-parity ────────────────────────────────────────────
+// One Node pin, four readers: .nvmrc (setup-node in every workflow),
+// .node-version (the other version managers), engines.node (npm) and the
+// CI matrix, which deliberately spans versions but must include the pin.
+{
+    let pinnedMajor: number | null = null;
+    if (!existsSync(resolve(ROOT, '.nvmrc'))) {
+        report('.nvmrc', 1, 'node-pin-parity', 'missing — every workflow reads its Node version from it');
+    } else {
+        const raw = read('.nvmrc').trim();
+        const m = /^v?(\d+)/.exec(raw);
+        if (!m) report('.nvmrc', 1, 'node-pin-parity', `"${raw}" is not a Node version`);
+        else pinnedMajor = Number(m[1]);
+    }
+    const pkgJson = JSON.parse(read('package.json')) as { engines?: { node?: string }; packageManager?: string };
+    const enginesMajor = /(\d+)/.exec(pkgJson.engines?.node ?? '')?.[1];
+    if (enginesMajor === undefined) {
+        report('package.json', 1, 'node-pin-parity', 'engines.node is missing or names no major version');
+    } else if (pinnedMajor !== null && Number(enginesMajor) !== pinnedMajor) {
+        report('package.json', 1, 'node-pin-parity', `engines.node "${pkgJson.engines?.node ?? ''}" but .nvmrc pins ${pinnedMajor} — the two majors must agree`);
+    }
+    if (typeof pkgJson.packageManager !== 'string' || !pkgJson.packageManager.startsWith('npm@')) {
+        report('package.json', 1, 'node-pin-parity', `packageManager must be present and start with "npm@" (found ${JSON.stringify(pkgJson.packageManager ?? null)})`);
+    }
+    let ciMatrix: number[] = [];
+    for (const name of readdirSync(resolve(ROOT, '.github/workflows')).filter((f) => /\.ya?ml$/.test(f))) {
+        const relPath = `.github/workflows/${name}`;
+        const text = read(relPath);
+        const uses = [...text.matchAll(/uses:\s*actions\/setup-node@/g)];
+        if (uses.length === 0) continue;
+        const withFile = [...text.matchAll(/node-version-file:\s*\.nvmrc\b/g)].length;
+        if (withFile >= uses.length) continue;
+        const matrix = /node-version:\s*\$\{\{\s*matrix\.node-version\s*\}\}/.test(text) && /node-version:\s*\[([^\]]*)\]/.exec(text);
+        if (name === 'ci.yml' && matrix) {
+            ciMatrix = matrix[1].split(',').map((s) => Number(s.trim().replace(/['"]/g, ''))).filter((n) => Number.isFinite(n));
+            if (pinnedMajor !== null && !ciMatrix.includes(pinnedMajor)) {
+                report(relPath, lineOf(text, matrix.index), 'node-pin-parity', `matrix [${matrix[1].trim()}] does not include the .nvmrc major ${pinnedMajor}`);
+            }
+            continue;
+        }
+        report(relPath, lineOf(text, uses[0].index), 'node-pin-parity', 'actions/setup-node must read `node-version-file: .nvmrc` (only ci.yml may span a matrix)');
+    }
+    const nodeVersion = existsSync(resolve(ROOT, '.node-version')) ? read('.node-version') : null;
+    for (const f of checkNodeVersionPin({ nodeVersion, enginesNode: pkgJson.engines?.node ?? null, ciMatrix })) {
+        report(f.file, f.line, 'node-pin-parity', f.message, f.severity === 'error' ? 'error' : 'warn');
+    }
+}
+
+// ── Rule: ruleset-parity ─────────────────────────────────────────────
+// .github/rulesets/main.json is the committed copy of the branch
+// protection; its required status checks are matched by NAME against the
+// jobs the workflows define. A context naming no job blocks every PR, or
+// the committed copy lies. sample-regression must be required.
+{
+    const RULESET = '.github/rulesets/main.json';
+    if (existsSync(resolve(ROOT, RULESET))) {
+        let ruleset: { rules?: Array<{ type?: string; parameters?: { required_status_checks?: Array<{ context?: string }>; allowed_merge_methods?: unknown } }> } = {};
+        let parsed = true;
+        try {
+            ruleset = JSON.parse(read(RULESET)) as typeof ruleset;
+        } catch (err) {
+            parsed = false;
+            report(RULESET, 1, 'ruleset-parity', `not valid JSON — ${(err as Error).message}`);
+        }
+        if (parsed) {
+            const jobs = new Set<string>();
+            const matrixValues = new Map<string, Set<string>>();
+            for (const name of readdirSync(resolve(ROOT, '.github/workflows')).filter((f) => /\.ya?ml$/.test(f))) {
+                let inJobs = false;
+                let current: string | null = null;
+                for (const line of read(`.github/workflows/${name}`).split('\n')) {
+                    if (/^jobs:\s*$/.test(line)) { inJobs = true; continue; }
+                    if (!inJobs) continue;
+                    if (/^\S/.test(line)) { inJobs = false; continue; }
+                    const id = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
+                    if (id) {
+                        current = id[1];
+                        jobs.add(current);
+                        matrixValues.set(current, new Set());
+                        continue;
+                    }
+                    if (current === null) continue;
+                    const jobName = /^ {4}name:\s*(.+?)\s*$/.exec(line);
+                    if (jobName) jobs.add(jobName[1].replace(/^["']|["']$/g, ''));
+                    const list = /^ {8}[A-Za-z0-9_-]+:\s*\[([^\]]*)\]\s*$/.exec(line);
+                    if (list) for (const v of list[1].split(',')) matrixValues.get(current)?.add(v.trim().replace(/['"]/g, ''));
+                }
+            }
+            const contexts: string[] = [];
+            for (const rule of ruleset.rules ?? []) {
+                if (rule.type !== 'required_status_checks') continue;
+                for (const check of rule.parameters?.required_status_checks ?? []) {
+                    if (typeof check.context === 'string') contexts.push(check.context);
+                }
+            }
+            for (const context of contexts) {
+                if (jobs.has(context)) continue;
+                const m = /^(.+?)\s*\((.+)\)$/.exec(context);
+                if (m && jobs.has(m[1]) && m[2].split(',').every((v) => matrixValues.get(m[1])?.has(v.trim()))) continue;
+                report(RULESET, 1, 'ruleset-parity', `required status check "${context}" names no job in .github/workflows/ — every PR to main would block on it`);
+            }
+            if (!contexts.includes('sample-regression')) {
+                report(RULESET, 1, 'ruleset-parity', '"sample-regression" is not a required status check — the byte baseline must block merges');
+            }
+            if (!contexts.includes('compat-previous')) {
+                report(RULESET, 1, 'ruleset-parity', '"compat-previous" is not a required status check — the previous release\'s suite must block merges');
+            }
+            // CONTRIBUTING § Release says squash-merge: the committed ruleset must say the same.
+            const methods = (ruleset.rules ?? []).find((r) => r.type === 'pull_request')?.parameters?.allowed_merge_methods;
+            if (!Array.isArray(methods) || methods.length !== 1 || methods[0] !== 'squash') {
+                report(RULESET, 1, 'ruleset-parity', `allowed_merge_methods must be ["squash"] (got ${JSON.stringify(methods ?? null)}) — CONTRIBUTING promises a linear squash history`);
+            }
+        }
+    }
+    const tags = existsSync(resolve(ROOT, '.github/rulesets/tags.json')) ? read('.github/rulesets/tags.json') : null;
+    for (const f of checkTagRuleset(tags)) report(f.file, f.line, 'ruleset-parity', f.message, f.severity === 'error' ? 'error' : 'warn');
+}
+
+// ── Rules: agent-config-parity, claude-rules-sync, claude-rules-budget,
+//           pr-template-parity, eol-lf, skills-shape ─────────────────────
+// The Claude Code configuration is a second copy of the governance policy:
+// the "Never Read" bullet of CLAUDE.md and the deny list of settings.json,
+// the HITL commands and the guard hook, the instruction files and the
+// rules generated from them, the skills and the templates they hand to
+// agents. Each pair drifts silently. The checks are pure functions in
+// scripts/lib/agent-config.ts; this block only reads files and spawns
+// `node --check` and `git ls-files --eol`.
+{
+    const relay = (findings: readonly Finding[], rule: string): void => {
+        for (const f of findings) report(f.file, f.line, rule, f.message, f.severity === 'error' ? 'error' : 'warn');
+    };
+    const readOr = (p: string): string | null => (existsSync(resolve(ROOT, p)) ? read(p) : null);
+    const claudeMd = readOr('CLAUDE.md') ?? '';
+
+    const hookPath = resolve(ROOT, '.claude/hooks/guard.mjs');
+    const hookExists = existsSync(hookPath);
+    const hookCheck = hookExists ? spawnSync(process.execPath, ['--check', hookPath], { encoding: 'utf8', windowsHide: true }) : null;
+    relay(checkAgentConfigParity({
+        settingsText: readOr('.claude/settings.json'),
+        claudeMd,
+        hook: { exists: hookExists, checkStatus: hookCheck?.status ?? null, checkStderr: hookCheck?.stderr ?? '' },
+    }), 'agent-config-parity');
+
+    const diff = diffClaudeRules(ROOT);
+    for (const bad of diff.invalid) report(`${INSTRUCTIONS_DIR}/${bad.source}`, 1, 'claude-rules-sync', `${bad.error} — the generator refuses it`);
+    for (const f of diff.missing) report(`${RULES_DIR}/${f}`, 1, 'claude-rules-sync', 'missing — run `npm run agents:rules`');
+    for (const f of diff.stale) report(`${RULES_DIR}/${f}`, 1, 'claude-rules-sync', 'differs from its instruction file — edit the .github/instructions/ source, then run `npm run agents:rules`');
+    for (const f of diff.extra) report(`${RULES_DIR}/${f}`, 1, 'claude-rules-sync', 'has no instruction source — delete it, or add the .github/instructions/<area>.instructions.md it should come from');
+
+    relay(checkClaudeRulesBudget({ claudeMd, resolveImport: (name) => readOr(name), rules: readRuleFiles(ROOT) }), 'claude-rules-budget');
+
+    relay(checkPrTemplateParity(readOr('.github/PULL_REQUEST_TEMPLATE.md') ?? readOr('.github/pull_request_template.md'), readOr('CONTRIBUTING.md') ?? ''), 'pr-template-parity');
+
+    const gitOut = (...gitArgs: string[]): string | null => {
+        const r = spawnSync('git', ['-C', ROOT, ...gitArgs], { encoding: 'utf8', windowsHide: true });
+        return r.status === 0 ? r.stdout : null;
+    };
+    const top = gitOut('rev-parse', '--show-toplevel')?.trim().replace(/\\/g, '/');
+    if (top !== undefined && top === ROOT.replace(/\\/g, '/')) {
+        relay(checkEol(gitOut('ls-files', '--eol') ?? ''), 'eol-lf');
+    }
+
+    const skillsDir = resolve(ROOT, '.claude/skills');
+    if (existsSync(skillsDir)) {
+        for (const dir of readdirSync(skillsDir).sort()) {
+            if (!statSync(join(skillsDir, dir)).isDirectory()) continue;
+            relay(checkSkillShape({
+                dir,
+                text: readOr(`.claude/skills/${dir}/SKILL.md`),
+                existsInSkill: (name) => existsSync(join(skillsDir, dir, name)),
+                existsInRepo: (p) => existsSync(resolve(ROOT, p)),
+            }), 'skills-shape');
+        }
+    }
+}
+
+// ── Rule: sitemap-lastmod-vs-git ─────────────────────────────────────
+// sitemap-parity bounds lastmod by verifiedOn but cannot see a page edited
+// AFTER its lastmod was written. Where git history is available (a full
+// local clone — the maintainer's gate, not CI's shallow checkout, where a
+// grafted HEAD would date every file today), each <url>'s lastmod must be
+// on or after the last commit touching any of its source files.
+if (verifiedOn !== null) {
+    const git = (...gitArgs: string[]): string | null => {
+        const r = spawnSync('git', ['-C', ROOT, ...gitArgs], { encoding: 'utf8', windowsHide: true });
+        return r.status === 0 ? r.stdout : null;
+    };
+    const toplevel = git('rev-parse', '--show-toplevel')?.trim().replace(/\\/g, '/');
+    const shallow = git('rev-parse', '--is-shallow-repository')?.trim();
+    if (toplevel !== undefined && toplevel === ROOT.replace(/\\/g, '/') && shallow === 'false') {
+        const xml = read('docs/sitemap.xml');
+        const tracked = new Set((git('ls-files', '--', 'docs') ?? '').split(/\r?\n/).filter(Boolean));
+        const lastCommit = new Map<string, string>();
+        let date = '';
+        for (const raw of (git('log', '--format=%x01%cs', '--name-only', '--', 'docs') ?? '').split(/\r?\n/)) {
+            if (raw.startsWith('\u0001')) { date = raw.slice(1).trim(); continue; }
+            const file = raw.trim();
+            if (file && !lastCommit.has(file)) lastCommit.set(file, date);
+        }
+        const sourcesOf = (loc: string): string[] => {
+            let path = loc.replace(/^https?:\/\/[^/]+/, '').replace(/^\//, '');
+            if (path === '' || path.endsWith('/')) path += 'index.html';
+            const out = [`docs/${path}`];
+            const guide = /^guides\/([^/]+)\.html$/.exec(path);
+            if (guide && guide[1] !== 'index') out.push(`docs/guides/${guide[1]}.md`);
+            return out;
+        };
+        for (const urlBlock of xml.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
+            const loc = /<loc>\s*([^<]+?)\s*<\/loc>/.exec(urlBlock[1])?.[1];
+            const lastmod = /<lastmod>\s*(\d{4}-\d{2}-\d{2})\s*<\/lastmod>/.exec(urlBlock[1])?.[1];
+            if (!loc || !lastmod) continue;
+            const line = lineOf(xml, urlBlock.index);
+            for (const src of sourcesOf(loc)) {
+                if (!tracked.has(src)) continue;
+                const committed = lastCommit.get(src);
+                if (committed !== undefined && committed > lastmod) {
+                    report('docs/sitemap.xml', line, 'sitemap-lastmod-vs-git', `${loc} lastmod ${lastmod} but ${src} was last committed ${committed} — re-audit the page and set lastmod to ${committed} (bounded by verifiedOn ${verifiedOn})`);
+                }
+            }
+        }
+    }
+}
+
+// ── Rule: bench-parity ───────────────────────────────────────────────
+// The homepage benchmark bars and bench/RESULTS.md are two statements of
+// the same measurement. RESULTS.md is the source: each homepage
+// .bench-value must equal the figure recorded there for the library its
+// .bench-label names, in the scenario its group title names — an op/s
+// figure within 10 %, a "N× slower" ratio within 10 %, "fastest" verbatim.
+if (existsSync(resolve(ROOT, 'bench/RESULTS.md'))) {
+    const md = read('bench/RESULTS.md');
+    const scenarioOf = (title: string): string | null =>
+        /create/i.test(title) ? 'create' : /inventory/i.test(title) ? 'inventory' : /random access/i.test(title) ? 'random' : null;
+    const recorded = new Map<string, { kind: 'ops' | 'ratio' | 'fastest'; value: number }>();
+    let scenario: string | null = null;
+    for (const line of md.split('\n')) {
+        if (line.startsWith('### ')) { scenario = scenarioOf(line); continue; }
+        if (scenario === null) continue;
+        const row = /^\|\s*([a-z][a-z-]*)[^|]*\|(.*)\|\s*$/.exec(line);
+        if (!row || row[1] === 'library') continue;
+        const cells = row[2].split('|').map((c) => c.trim());
+        const first = cells[0] ?? '';
+        const entry = /^\*{0,2}fastest\*{0,2}$/i.test(first) ? { kind: 'fastest' as const, value: 0 }
+            : /^([\d.]+)×/.test(first) ? { kind: 'ratio' as const, value: parseFloat(first) }
+                : /^[\d.]+$/.test(first) ? { kind: 'ops' as const, value: parseFloat(first) }
+                    : null;
+        if (entry !== null) recorded.set(`${scenario}|${row[1]}`, entry);
+    }
+    const html = read('docs/index.html');
+    const groups = [...html.matchAll(/<div class="bench-group-title">([^<]+)<\/div>([\s\S]*?)(?=<div class="bench-group-title">|<\/div>\s*<p class="bench-note">)/g)];
+    let checked = 0;
+    for (const group of groups) {
+        const key = scenarioOf(group[1]);
+        const groupLine = lineOf(html, group.index);
+        if (key === null) { report('docs/index.html', groupLine, 'bench-parity', `group "${group[1].trim()}" names no scenario of bench/RESULTS.md`); continue; }
+        for (const row of group[2].matchAll(/<div class="bench-label">([^<]+)<\/div>[\s\S]*?<div class="bench-value">([^<]+)<\/div>/g)) {
+            const lib = row[1].trim().toLowerCase();
+            const shown = row[2].trim();
+            const line = lineOf(html, group.index + (row.index ?? 0));
+            const want = recorded.get(`${key}|${lib}`);
+            if (want === undefined) { report('docs/index.html', line, 'bench-parity', `no row for "${row[1].trim()}" under the ${key} scenario in bench/RESULTS.md`); continue; }
+            checked++;
+            const num = parseFloat(shown);
+            const ok = want.kind === 'fastest' ? /^fastest$/i.test(shown)
+                : Number.isFinite(num) && Math.abs(num - want.value) / want.value <= 0.1
+                    && (want.kind === 'ops' ? /op\/s/.test(shown) : /×/.test(shown));
+            if (!ok) report('docs/index.html', line, 'bench-parity', `"${row[1].trim()}" shows "${shown}" but bench/RESULTS.md records ${want.kind === 'fastest' ? 'fastest' : want.kind === 'ops' ? `${want.value} op/s` : `${want.value}× slower`}`);
+        }
+    }
+    if (checked === 0 && recorded.size > 0) report('docs/index.html', 1, 'bench-parity', 'no .bench-value rows matched — has the markup changed?');
+}
+
+// ── Rule: no-control-bytes ───────────────────────────────────────────
+// A NUL byte in a tracked text file makes git treat the file as binary:
+// no diff in a pull request, no blame, no merge. One slipped into
+// scripts/build-api-json.ts in 1.1.0 (a template literal holding U+0000)
+// and reviewers saw "Binary file changed" for a release-critical script.
+{
+    const corpus = [
+        ...walk('src').filter((p) => /\.(ts|mts|cts|js|mjs|cjs|json|md)$/.test(p)),
+        ...walk('scripts').filter((p) => /\.(ts|mts|cts|js|mjs|cjs|json|md)$/.test(p)),
+        ...walk('tests').filter((p) => /\.(ts|mts|cts|js|mjs|cjs|json|md)$/.test(p) && !p.includes('/fixtures/')),
+        ...walk('docs').filter((p) => /\.(md|txt|html|js|json|xml|svg|css)$/.test(p) && !p.endsWith('llms-full.txt')),
+        ...walk('recipes').filter((p) => p.endsWith('.ts')),
+        ...walk('.github').filter((p) => /\.(yml|yaml|md|json)$/.test(p)),
+        ...['README.md', 'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'ROADMAP.md', 'SUPPORT.md', 'CODE_OF_CONDUCT.md', 'llms.txt', 'package.json']
+            .filter((p) => existsSync(resolve(ROOT, p))),
+    ];
+    for (const file of corpus) {
+        const bytes = readFileSync(resolve(ROOT, file));
+        const at = bytes.indexOf(0);
+        if (at >= 0) {
+            const line = bytes.subarray(0, at).toString('utf8').split('\n').length;
+            report(file, line, 'no-control-bytes', 'contains a NUL byte (U+0000) — git treats the file as binary; write it as the \\u0000 escape');
+        }
+    }
+}
+
+// ── Rule: playground-syntax ──────────────────────────────────────────
+// Every playground page carries its logic in an inline module script that
+// nothing compiles: a syntax error ships a dead page that looks fine in a
+// diff. node --check parses each extracted module (pdfnative rule, ported).
+{
+    const tmp = mkdtempSync(join(tmpdir(), 'zipnative-playground-'));
+    try {
+        for (const page of walk('docs/playgrounds').filter((p) => p.endsWith('.html'))) {
+            const html = read(page);
+            let n = 0;
+            for (const m of html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)) {
+                n++;
+                const file = join(tmp, `${page.split('/').pop()?.replace(/\.html$/, '') ?? 'page'}-${n}.mjs`);
+                writeFileSync(file, m[1]);
+                const r = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8', windowsHide: true });
+                if (r.status !== 0) {
+                    const detail = (r.stderr ?? '').split('\n').find((l) => /SyntaxError|Error/.test(l)) ?? 'node --check failed';
+                    report(page, lineOf(html, m.index ?? 0), 'playground-syntax', `inline module script ${n} does not parse — ${detail.trim()}`);
+                }
+            }
+        }
+    } finally {
+        rmSync(tmp, { recursive: true, force: true });
+    }
+}
+
+// ── Rule: export-named ───────────────────────────────────────────────
+// llms.txt is the one document an agent is sure to read: every public
+// export must be named there at least once. The 1.1.0 audit found 66 of
+// 104 names absent — option types, constants, the codec tiers.
+{
+    const names = new Set((JSON.parse(read('docs/assets/api.json')) as { exports?: ReadonlyArray<{ name?: string }> }).exports?.map((e) => e.name ?? '') ?? []);
+    const llms = read('llms.txt');
+    const missing = [...names].filter((n) => n !== '' && !new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(llms)).sort();
+    for (const n of missing) report('llms.txt', 1, 'export-named', `export ${n} is named nowhere in llms.txt — add it to the section of the surface it belongs to`);
+}
+
+// ── Rule: limits-table ───────────────────────────────────────────────
+// src/core/zip-limits.ts promises its table is mirrored in SECURITY.md;
+// every key of DEFAULT_ZIP_LIMITS must be a row of the limits table in
+// SECURITY.md and in the security guide, with the default beside it.
+{
+    const source = read('src/core/zip-limits.ts');
+    const block = /export const DEFAULT_ZIP_LIMITS[^{]*\{([\s\S]*?)\n\};/.exec(source)?.[1] ?? '';
+    const keys = [...block.matchAll(/^\s*([A-Za-z]+):/gm)].map((m) => m[1]);
+    if (keys.length === 0) report('src/core/zip-limits.ts', 1, 'limits-table', 'DEFAULT_ZIP_LIMITS not found');
+    for (const file of ['SECURITY.md', 'docs/guides/security.md']) {
+        const text = read(file);
+        for (const key of keys) {
+            if (!new RegExp(`^\\| \`${key}\` \\|`, 'm').test(text)) {
+                report(file, 1, 'limits-table', `no table row for the limit \`${key}\` — every ZipLimits key is documented with its default and CWE in both tables`);
+            }
+        }
+    }
+}
+
+// ── Rule: since-tags ─────────────────────────────────────────────────
+// Every export added after the previous release carries an @since tag in
+// the TSDoc block above its declaration — the only machine-checkable
+// record of which release a symbol needs (api.json carries the summary).
+{
+    const previous = existsSync(resolve(ROOT, 'tests/compat'))
+        ? readdirSync(resolve(ROOT, 'tests/compat')).filter((f) => /^api-\d+\.\d+\.\d+\.json$/.test(f)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop()
+        : undefined;
+    if (previous !== undefined) {
+        const old = new Set((JSON.parse(read(`tests/compat/${previous}`)) as { exports: ReadonlyArray<{ name: string; subpath: string }> }).exports.map((e) => `${e.subpath}:${e.name}`));
+        const current = (JSON.parse(read('docs/assets/api.json')) as { exports: ReadonlyArray<{ name: string; subpath: string; module: string }> }).exports;
+        for (const e of current) {
+            if (old.has(`${e.subpath}:${e.name}`) || old.has(`.:${e.name}`)) continue;
+            const text = read(e.module);
+            const decl = new RegExp(`^export\\s+(?:declare\\s+)?(?:async\\s+)?(?:interface|type|function|const|class)\\s+${e.name}\\b`, 'm').exec(text);
+            if (decl === null) continue; // re-exported under another declaration shape; api-json-sync covers existence
+            const before = text.slice(0, decl.index);
+            const doc = /\/\*\*((?:[^*]|\*(?!\/))*)\*\/\s*$/.exec(before);
+            if (doc === null || !/@since\s+\d+\.\d+\.\d+/.test(doc[1])) {
+                report(e.module, lineOf(text, decl.index), 'since-tags', `${e.name} was added after ${previous.replace(/^api-|\.json$/g, '')} but its TSDoc carries no @since tag`);
+            }
+        }
+    }
+}
+
 // ── Rule: npm-drift (online only) ────────────────────────────────────
 if (online) {
     try {
@@ -982,6 +1919,11 @@ if (online) {
 }
 
 // ── Output ───────────────────────────────────────────────────────────
+for (const p of [...problems]) {
+    if (!RULE_NAMES.has(p.rule)) {
+        report('scripts/verify-docs.ts', 1, 'rules-list', `rule "${p.rule}" reported a finding but is not catalogued in RULES — add it so derived.verifyDocsRules and --rules stay true`);
+    }
+}
 const errors = problems.filter((p) => p.level === 'error' || (strict && p.level === 'warn'));
 const warnings = problems.filter((p) => p.level === 'warn' && !strict);
 if (asJson) {

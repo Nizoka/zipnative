@@ -2,7 +2,7 @@
   "$comment": "Single source of truth for every version, count and inventory quoted anywhere in the tree. scripts/verify-docs.ts enforces consistency — edit THIS file first, then the prose.",
   "packages": {
     "zipnative": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "repo": "https://github.com/Nizoka/zipnative",
       "status": "active"
     },
@@ -78,20 +78,35 @@
   "engine": {
     "node": ">=22"
   },
-  "verifiedOn": "2026-09-07",
+  "verifiedOn": "2026-10-08",
   "site": "https://zipnative.dev",
   "contracts": {
     "deterministic_bytes_are_semver_major": true,
     "error_codes_frozen_since": "0.8.0"
   },
   "derived": {
-    "sampleZips": 33
+    "$comment": "Recomputed from the tree by verify-docs derived-counts (exports from api.json, codes from the source unions, files from directory listings, interop from the tool registry and the write-case list, rules from the verify-docs catalogue); every figure quoted in the prose is held to one of these by count-tokens.",
+    "sampleZips": 38,
+    "exports": 106,
+    "errorCodes": 39,
+    "diagnostics": 12,
+    "testFiles": 61,
+    "sampleGenerators": 12,
+    "guides": 11,
+    "playgrounds": 8,
+    "recipes": 16,
+    "interopTools": 6,
+    "interopValidations": 19,
+    "verifyDocsRules": 52
   },
   "declared": {
-    "$comment": "Hand-maintained expectations the ISO/IEC 21320-1 validator (scripts/validate-zip.ts) canaries against — the pdfnative pdfaSamples pattern. 29 samples must PASS the profile (three of them are hostile-but-spec-valid: zip-slip, device-name, duplicate-paths); 4 crafted archives must FAIL with their declared check.",
+    "$comment": "Hand-maintained figures. tests and coverage* are what the last gate run measured — verify-docs derived-counts holds them to test-output/.gate/vitest.json and coverage/coverage-summary.json whenever those are fresher than every test file, and count-tokens holds the prose to them (coverageStatements is the integer floor a doc may quote with a +, coverageMeasured the only decimal it may quote). iso21320 is what scripts/validate-zip.ts canaries against — the pdfnative pdfaSamples pattern: 33 samples must PASS the profile (three of them hostile-but-spec-valid: zip-slip, device-name, duplicate-paths); 5 crafted archives must FAIL with their declared check.",
+    "tests": 757,
+    "coverageStatements": 95,
+    "coverageMeasured": 95.2,
     "iso21320": {
-      "conformantSamples": 29,
-      "nonConformantSamples": 4
+      "conformantSamples": 33,
+      "nonConformantSamples": 5
     }
   },
   "milestones": {

@@ -11,14 +11,14 @@
 [![bundle size](https://img.shields.io/bundlephobia/minzip/zipnative)](https://bundlephobia.com/package/zipnative)
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
-![93.9 percent statement coverage](https://img.shields.io/badge/coverage-93.9%25-brightgreen)
+![95.2 percent statement coverage](https://img.shields.io/badge/coverage-95.2%25-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![npm provenance](https://img.shields.io/badge/provenance-signed-blueviolet)
 [![website](https://img.shields.io/badge/zipnative.dev-2563EB)](https://zipnative.dev)
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Built for the archives that actually matter in 2026 — OOXML, EPUB, JAR/VSIX, and multi-gigabyte data drops that must never be buffered whole — under the same engineering doctrine as [pdfnative](https://github.com/Nizoka/pdfnative).
 
-> **Status: 1.0 — stable.** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9). The satellites are published too: [`zipnative-cli`](https://www.npmjs.com/package/zipnative-cli) (15 commands, agent-grade JSON contract) and [`zipnative-mcp`](https://www.npmjs.com/package/zipnative-mcp) (13 tools for AI assistants) — see [Ecosystem](#ecosystem). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
+> **Status: 1.x — stable (current: zipnative 1.1.0).** The public API surface, the 39-code error vocabulary and the `deterministic: true` output bytes are **frozen under semantic versioning** — removals and byte changes are semver-major (the full promise is in [SECURITY.md](SECURITY.md)). Built up through read (v0.1), deterministic write (v0.2), incremental modification (v0.4), workers + forward streaming (v0.5), the resumable inflater (v0.6), the interop gate (v0.7), the frozen error codes (v0.8) and one-call verification (v0.9); 1.1 adds range access over remote and huge archives, cancellation and progress, raw transplant, canonicalisation of any archive, legacy name decoding and the Zip64 streaming opt-in — every one additive and opt-in. The satellites are published too: [`zipnative-cli`](https://www.npmjs.com/package/zipnative-cli) (15 commands, agent-grade JSON contract) and [`zipnative-mcp`](https://www.npmjs.com/package/zipnative-mcp) (13 tools for AI assistants) — see [Ecosystem](#ecosystem). Documentation: [zipnative.dev](https://zipnative.dev) (site sources in [docs/](docs/), interactive [playgrounds](docs/playgrounds/) included).
 
 ## Why zipnative?
 
@@ -117,8 +117,10 @@ modifier.removeEntry('word/obsolete.xml');
 // Append-only: untouched entries are never recompressed; the original
 // bytes are preserved verbatim (removed content stays recoverable!).
 const updated = modifier.save();
-// True deletion + compact canonical layout, still no recompression:
+// True deletion + compact layout, still no recompression:
 const compacted = modifier.saveCompact();
+// …or the reproducible form (name order, epoch timestamps, extras dropped) — v1.1:
+const canonical = modifier.saveCompact({ canonical: true });
 ```
 
 Parallel creation across worker threads (v0.5, `zipnative/worker`):
@@ -170,6 +172,52 @@ if (!report.ok) {
 // reason — never faked as corruption.
 ```
 
+Opening a remote or huge archive by ranges (v1.1 — the engine never fetches; you inject a `ByteRangeSource`):
+
+```ts
+import { openZipRange } from 'zipnative';
+
+const zip = await openZipRange({
+    size: contentLength,
+    read: async (offset, length) => rangeFetch(url, offset, length), // HTTP Range, Blob.slice, FileHandle.read, S3…
+});
+const manifest = await zip.readEntry('manifest.json');   // one tail window + the central directory + this entry
+for await (const chunk of zip.readEntryStream('data.bin')) { /* 256 KiB ranged reads, bounded memory */ }
+// Same limits and cross-checks as openZip(); a lying source is ZIP_RECORD_TRUNCATED.
+```
+
+Making any archive reproducible (v1.1 — no recompression, bytes under the frozen determinism contract):
+
+```ts
+import { analyzeDeterminism, canonicalizeZip } from 'zipnative';
+
+analyzeDeterminism(foreignBytes).offenders;      // [{ name, concern: 'timestamp' | 'order' | 'extra-field' | … }]
+const canonical = canonicalizeZip(foreignBytes); // sorted, epoch timestamps, extras dropped except Zip64 — idempotent
+analyzeDeterminism(canonical).deterministic;     // true
+```
+
+Transplanting entries without recompression (v1.1 — merge, split, repack in O(bytes copied)):
+
+```ts
+const out = createZip();
+const a = openZip(bytesA);
+for (const entry of a.entries()) out.addFromReader(a, entry);          // verified first, unless { verify: false }
+out.addRaw('pre.bin', deflatedBytes, { method: 8, crc32, uncompressedSize }); // already-compressed payload
+```
+
+Cancellation, progress, UTC timestamps, legacy names, Zip64 streaming (v1.1 — every one opt-in, nothing changes by default):
+
+```ts
+for await (const file of extractZipStream(bytes, { signal: controller.signal, onProgress: (p) => bar(p.bytesOut) })) {
+    for await (const chunk of file.stream()) sink(file.path, chunk);   // { path, entry, stream() }; an abort rejects with signal.reason
+}
+createZip({ defaultDate: pinned, dosTimeMode: 'utc' });            // explicit dates independent of the process time zone
+openZip(bytes, { nameDecoder: (b) => new TextDecoder('shift_jis').decode(b) }); // applied only when bit 11 is clear; paths still sanitised
+getExtendedTimestamps(entry); getUnixIds(entry);                   // UT / NTFS / ux extra fields, read-only
+zip.addStream('huge.tar', chunks, { zip64: true });                // entries that MAY exceed 4 GiB (Zip64 local header + 24-byte descriptor)
+verifyZip(bytes).entries[0].skipped;                               // 'encrypted' | 'stream-only-codec' | 'unsupported-method'
+```
+
 **Bundler notes for `zipnative/worker`**: the worker script is resolved as `new URL('./zip-worker.js', import.meta.url)`, which Vite and webpack 5 detect and bundle automatically. If your bundler cannot (or your CSP restricts worker sources), pass `workerUrl` explicitly — e.g. `createParallelZip({ workerUrl: new URL('zip-worker.js', yourAssetBase) })` — pointing at a copy of the script served from your origin (locate it with `import.meta.resolve('zipnative/worker/zip-worker.js')` — a dedicated subpath export since 0.8). On runtimes without workers the same code runs entirely on the calling thread.
 
 Everything public is exported from the two entry points — `zipnative` and `zipnative/worker`; if it is not exported there, it is private.
@@ -194,7 +242,8 @@ ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 
 - `iterateZipEntries` reads data-descriptor entries (flag bit 3) for plain deflate since v0.6 — including zipnative's own `addStream()` output and bsdtar-style archives. Still refused: store+bit3 (not self-delimiting), encrypted+bit3, and custom-codec+bit3; `skip()` on a bit-3 entry costs a full decompress-and-discard.
 - Codec injection (`setDeflateImpl`, `registerCodec`) on the main entry does not propagate to the `zipnative/worker` bundle (separate module state); parallel/sequential byte-identity is promised for the built-in tiers.
 - `save()` keeps every original byte: removed/replaced content remains recoverable in the output (use `saveCompact()` for true deletion); `saveCompact()` drops SFX prefixes; archives with duplicate entry names cannot be modified incrementally.
-- `addStream` entries beyond 4 GiB are rejected with a typed error — buffer via `add()`; the per-entry Zip64-streaming opt-in is designed (0.9 decision record in [ROADMAP.md](ROADMAP.md)) and lands post-1.0. Buffered entries, entry counts and archive offsets are fully Zip64.
+- `addStream` entries that cross 4 GiB are rejected with a typed error unless the entry opts in with `{ zip64: true }` (v1.1 — Zip64 local header and 24-byte descriptor). A streaming reader that sizes the descriptor from the measured lengths, such as Java's `ZipInputStream`, cannot read an opted-in entry that stayed below 4 GiB — opt in only for entries that may exceed it. Buffered entries, entry counts and archive offsets are fully Zip64. Under `deterministic: true` each stream entry is buffered through the pinned encoder and capped at 2 GiB.
+- `openZipRange` needs the archive's size up front and a source that honours exact byte ranges; a source that returns fewer bytes than asked is reported as a truncated archive, never retried.
 - Since v0.8.1, default extraction also refuses entries whose names are **Windows reserved device names** (`CON`, `NUL`, `COM1`…`LPT9` — CWE-67) or that collapse to nothing (`.`, `./`). Archives authored on POSIX systems containing files like `aux.h` therefore throw by default on **every** platform; pass `rejectTraversal: false` to skip such entries instead.
 - Without `CompressionStream` on the runtime (or when `deterministic: true` is requested), stream-entry compression buffers the entry before compressing — a documented memory caveat.
 - Number fields above `Number.MAX_SAFE_INTEGER` (≈ 9 PB) are rejected; the public API uses `number`, not `bigint`.
@@ -202,10 +251,10 @@ ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 
 
 ## What zipnative will NOT do
 
-- **No encryption, read or write, in 1.x.** ZipCrypto is cryptographically broken (Biham–Kocher); writing it would be harm dressed as a feature. AES (AE-2) may come in a later major behind an injected crypto provider. Encrypted entries are *detected* (`entry.isEncrypted`) and reads fail with a typed `ZipUnsupportedError`.
+- **No encryption, read or write, in 1.x.** ZipCrypto is cryptographically broken (Biham–Kocher); writing it would be harm dressed as a feature. AES (AE-2) may come in a later major behind an injected crypto provider. Encrypted entries are *detected* (`entry.isEncrypted`) and reads fail with a typed `ZipUnsupportedError` whose `feature` names the scheme (`'zipcrypto'`, `'aes'`, `'strong-encryption'`).
 - **No other archive formats.** No 7z, RAR, tar, gzip; no zstd/bzip2/LZMA codecs built in (the codec registry is the extension point).
 - **No multi-disk/spanned archives** — detected and refused cleanly.
-- **No filesystem I/O in the engine.** Extraction returns data plus sanitized paths; writing files to disk is the CLI's job.
+- **No filesystem I/O in the engine.** Extraction returns data plus sanitized paths; writing files to disk is the CLI's job. Remote or huge archives are read through a caller-injected byte-range source (`openZipRange`), never a socket the engine opens.
 - **No archive repair/salvage** (rebuilding a central directory from local headers) — v1 errors cleanly instead of guessing.
 - **No network access, ever.**
 
@@ -213,7 +262,7 @@ ZIP has no veraPDF — JHOVE never shipped a ZIP module, and no ISO/IEC 21320-1 
 
 | Package | Purpose | Status |
 |---|---|---|
-| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 77 exports, zero runtime dependencies | 1.0.0 |
+| [`zipnative`](https://www.npmjs.com/package/zipnative) | core engine (this repo) — 106 exports, zero runtime dependencies | 1.1.0 |
 | [`zipnative-cli`](https://github.com/Nizoka/zipnative-cli) | command-line tool (`npx zipnative-cli`, binary `zipnative`) — 15 commands, `--json` envelope, `--dry-run`, JSON Schemas, shell completion; the filesystem trust boundary the engine refuses to be | 1.0.0 |
 | [`zipnative-mcp`](https://github.com/Nizoka/zipnative-mcp) | MCP server for AI assistants (`npx zipnative-mcp`) — 13 tools, 7 prompts, sandboxed file resources, stdio + Streamable HTTP | 1.0.0 |
 
@@ -222,15 +271,13 @@ Both satellites pin `zipnative ^1.0.0` in their `dependencies` and add nothing t
 ## Development
 
 ```bash
-npm ci
-npm run typecheck:all   # src + tests + scripts
-npm run lint
-npm run test:coverage
-npm run build
-npm run test:interop    # validate generated archives with unzip/7z/Expand-Archive/jar
+npm ci --ignore-scripts
+npm run gate:fast       # typecheck:all, lint, test, verify:docs — the inner loop
+npm run gate            # what CI runs: coverage, build, dist probes, samples, ISO/IEC 21320-1, interop
+npm run test:interop    # validate generated archives with unzip/7z/bsdtar/python/jar/Expand-Archive
 ```
 
-Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite is 757 tests across 61 files with 95.2% statement coverage; every count and version quoted in the documentation is tied to [docs/assets/ecosystem.json](docs/assets/ecosystem.json) by `npm run verify:docs`, and every generated sample archive to a byte-level baseline by `npm run verify:samples`. Conventions live in [AGENTS.md](AGENTS.md) and `.github/instructions/`. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Origin
 

@@ -53,6 +53,8 @@ import {
 import {
     EXTRA_ZIP64,
     FLAG_DATA_DESCRIPTOR,
+    FLAG_ENCRYPTED,
+    FLAG_STRONG_ENCRYPTION,
     FLAG_UTF8,
     SENTINEL_U16,
     SENTINEL_U32,
@@ -61,11 +63,13 @@ import { enforceLimit, resolveLimits } from '../core/zip-limits.js';
 import {
     createDiagnosticEmitter,
     deadBytesRatioDiagnostic,
+    timestampClampedDiagnostic,
     timestampNotPinnedDiagnostic,
 } from '../core/zip-diagnostics.js';
 import { bytesEqual, compareNames, validateEntryName } from '../core/zip-encoding.js';
+import { throwIfAborted } from '../core/zip-control.js';
 import { dateToDosDateTime, DETERMINISTIC_DOS_DATE, DETERMINISTIC_DOS_TIME } from '../core/zip-dos-time.js';
-import { buildZip64Extra, serializeExtraFields } from '../core/zip-extra-fields.js';
+import { buildZip64Extra, lfhZip64Fields, serializeExtraFields } from '../core/zip-extra-fields.js';
 import {
     parseCentralFileHeader,
     parseLocalFileHeader,
@@ -90,6 +94,43 @@ export interface ZipModifierOptions extends ZipCommonOptions {
      * and emits ZIP_TIMESTAMP_NOT_PINNED.
      */
     readonly defaultDate?: Date | 'now';
+}
+
+/**
+ * The canonical form `saveCompact({ canonical: true })` rewrites an archive
+ * into — zipnative's own deterministic layout (docs/guides/determinism.md,
+ * level 1), applied to content from ANY producer without recompression:
+ * timestamps pinned, entries sorted by raw name bytes, every name re-encoded
+ * as UTF-8 with flag bit 11, extra fields dropped (Zip64 is recomputed;
+ * encrypted entries keep theirs — the 0x9901 AES record is part of the
+ * ciphertext's envelope), comments dropped, version-made-by and internal
+ * attributes constant. The equivalent of Debian's strip-nondeterminism or
+ * Gradle's reproducibleFileOrder + preserveFileTimestamps=false, for any
+ * ZIP. `analyzeDeterminism()` on the output reports `deterministic: true`
+ * (pass the same `date` to it when one was pinned).
+ *
+ * @since 1.1.0
+ */
+export interface CanonicalOptions {
+    /**
+     * Timestamp written on every entry, read with the modifier's
+     * `dosTimeMode`. Default: the DOS epoch (the deterministic default).
+     */
+    readonly date?: Date;
+    /** Keep the archive comment and the entry comments. Default false. */
+    readonly keepComments?: boolean;
+    /**
+     * Keep each entry's external attributes (Unix modes, DOS attributes).
+     * Default true; `false` writes the canonical defaults (`0o100644` files,
+     * `0o40755` directories).
+     */
+    readonly keepExternalAttributes?: boolean;
+}
+
+/** Options for {@link ZipModifier.saveCompact}. @since 1.1.0 */
+export interface CompactOptions {
+    /** Rewrite into the canonical deterministic form (see {@link CanonicalOptions}). Default false. */
+    readonly canonical?: boolean | CanonicalOptions;
 }
 
 /** Incremental archive modifier — obtain via {@link createZipModifier}. */
@@ -122,8 +163,21 @@ export interface ZipModifier {
      * Edits stay pending — saves are repeatable and each re-plans.
      */
     save(): Uint8Array;
-    /** Canonical rewrite without recompression; removed data is truly gone. */
-    saveCompact(): Uint8Array;
+    /**
+     * Canonical rewrite without recompression; removed data is truly gone.
+     * With `{ canonical: true }` (1.1.0) every entry is also normalised
+     * into the deterministic form — the reproducible-builds fix for an
+     * archive from any producer.
+     */
+    saveCompact(options?: CompactOptions): Uint8Array;
+}
+
+/** `CanonicalOptions` with every default applied. */
+interface ResolvedCanonical {
+    readonly dosDate: number;
+    readonly dosTime: number;
+    readonly keepComments: boolean;
+    readonly keepExternalAttributes: boolean;
 }
 
 type PendingEdit =
@@ -139,32 +193,10 @@ interface SourceRecord {
 
 const te = new TextEncoder();
 
-/**
- * @internal Zip64 treatment for an appended LOCAL file header. APPNOTE
- * §4.5.3: when a local header carries a Zip64 extra it MUST contain BOTH
- * the original and compressed sizes (the emit-only-overflowed-fields rule
- * applies to the central directory only). So: if either size overflows,
- * sentinel both classic fields and put both u64s in the extra. Exported
- * from this module (not from src/index.ts) so the ≥4 GiB path is unit-
- * testable without a 4 GiB buffer.
- */
-export function lfhZip64Fields(uncompressedSize: number, compressedSize: number): {
-    readonly classicUncompressed: number;
-    readonly classicCompressed: number;
-    readonly extra: Uint8Array | null;
-    readonly usesZip64: boolean;
-} {
-    const usesZip64 = uncompressedSize > SENTINEL_U32 - 1 || compressedSize > SENTINEL_U32 - 1;
-    if (!usesZip64) {
-        return { classicUncompressed: uncompressedSize, classicCompressed: compressedSize, extra: null, usesZip64 };
-    }
-    return {
-        classicUncompressed: SENTINEL_U32,
-        classicCompressed: SENTINEL_U32,
-        extra: buildZip64Extra(uncompressedSize, compressedSize, undefined),
-        usesZip64,
-    };
-}
+// `lfhZip64Fields` lives in core/zip-extra-fields.ts since 1.1.0 (the segment
+// generator needs it for raw entries); re-exported here for the suites that
+// pin the modifier's ≥ 4 GiB local-header form.
+export { lfhZip64Fields } from '../core/zip-extra-fields.js';
 
 /**
  * Wrap an opened archive in an incremental modifier.
@@ -175,7 +207,9 @@ export function lfhZip64Fields(uncompressedSize: number, compressedSize: number)
  * editing would be ambiguous; extract and rebuild with createZip instead.
  */
 export function createZipModifier(reader: ZipReader, options?: ZipModifierOptions): ZipModifier {
-    // Validate early.
+    // Validate early. The signal is checked once here and once on entry of
+    // each synchronous save; nothing in between can be interrupted.
+    throwIfAborted(options?.signal);
     const limits = resolveLimits(options?.limits);
     const emit = createDiagnosticEmitter(options?.strict, options?.onDiagnostic);
 
@@ -216,14 +250,20 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         return sourceIndex.has(name);
     };
 
-    // Written-entry defaults (mirrors createZip's resolution).
+    // Written-entry defaults (mirrors createZip's resolution, dosTimeMode included).
     const defaultCompression = options?.compression;
+    const dosMode = options?.dosTimeMode ?? 'local';
+    const toDos = (date: Date, entryName?: string): { dosDate: number; dosTime: number } => {
+        const dos = dateToDosDateTime(date, dosMode);
+        if (dos.clamped !== null) emit(timestampClampedDiagnostic(dos.clamped, entryName));
+        return dos;
+    };
     let defaultDos: { dosDate: number; dosTime: number };
     if (options?.defaultDate === 'now') {
         emit(timestampNotPinnedDiagnostic());
-        defaultDos = dateToDosDateTime(new Date());
+        defaultDos = toDos(new Date());
     } else if (options?.defaultDate instanceof Date) {
-        defaultDos = dateToDosDateTime(options.defaultDate);
+        defaultDos = toDos(options.defaultDate);
     } else {
         defaultDos = { dosDate: DETERMINISTIC_DOS_DATE, dosTime: DETERMINISTIC_DOS_TIME };
     }
@@ -234,20 +274,33 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         return finalName;
     };
 
+    /** Validate early (at addEntry/replaceEntry, not at save): the modifier writes buffered entries only. */
+    const rejectStreamOnlyOptions = (name: string, entryOptions: AddEntryOptions | undefined): void => {
+        if (entryOptions?.zip64 !== undefined) {
+            throw new ZipError('ZIP_INVALID_OPTION',
+                `zipnative: entry '${name}': zip64 applies to addStream() only — buffered entries promote to Zip64 automatically`);
+        }
+    };
+
     /** Build the EntrySpec for one pending `write` (shared by both saves). */
     const specForWrite = (name: string, edit: { data: Uint8Array; options?: AddEntryOptions }): EntrySpec => {
         const isDirectory = name.endsWith('/');
+        if (edit.options?.zip64 !== undefined) {
+            throw new ZipError('ZIP_INVALID_OPTION',
+                `zipnative: entry '${name}': zip64 applies to addStream() only — buffered entries promote to Zip64 automatically`);
+        }
         const compression = edit.options?.compression;
         const level = compression?.level ?? defaultCompression?.level ?? 6;
         if (!Number.isInteger(level) || level < 0 || level > 9) {
             throw new ZipError('ZIP_INVALID_OPTION', `zipnative: compression.level must be an integer 0-9 (got ${String(level)})`);
         }
-        const dos = edit.options?.date !== undefined ? dateToDosDateTime(edit.options.date) : defaultDos;
+        const dos = edit.options?.date !== undefined ? toDos(edit.options.date, name) : defaultDos;
         return {
             nameBytes: te.encode(name),
             isDirectory,
             data: isDirectory ? new Uint8Array(0) : edit.data,
             source: null,
+            raw: null,
             method: isDirectory ? 'store' : (compression?.method ?? defaultCompression?.method ?? 'deflate'),
             level,
             deterministic: compression?.deterministic ?? defaultCompression?.deterministic ?? false,
@@ -257,6 +310,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 ?? (isDirectory ? ((0o040755 << 16) | 0x10) >>> 0 : (0o100644 << 16) >>> 0),
             comment: edit.options?.comment === undefined ? new Uint8Array(0) : te.encode(edit.options.comment),
             extraFields: edit.options?.extraFields ?? [],
+            zip64: false,
         };
     };
 
@@ -293,7 +347,8 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
      * verbatim survivor (`nameIsUtf8` false, original `rawName`), the
      * source's own flag is preserved untouched.
      */
-    const planForCopy = (source: ZipEntry, nameBytes: Uint8Array, nameIsUtf8: boolean): PlannedEntry => {
+    const planForCopy = (source: ZipEntry, nameBytes: Uint8Array, nameIsUtf8: boolean, canonical: ResolvedCanonical | null = null): PlannedEntry => {
+        if (canonical !== null) return planForCanonicalCopy(source, canonical);
         let flags = source.flags & ~FLAG_DATA_DESCRIPTOR;
         // Set-only: a non-ASCII UTF-8 re-encoding needs bit 11 to stay
         // truthful; an ASCII name is valid under BOTH encodings, so an
@@ -320,9 +375,59 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         crc32: source.crc32,
         compressedSize: source.compressedSize,
         uncompressedSize: source.uncompressedSize,
+        zip64: false,
         versionMadeBy: source.versionMadeBy,
         internalAttributes: source.internalAttributes,
         versionNeededMin: source.versionNeeded,
+        };
+    };
+
+    /**
+     * The canonical copy: same compressed bytes, canonical metadata. The
+     * name is the DECODED name re-encoded as UTF-8 (a CP437 source becomes
+     * a UTF-8 entry, bit 11 always set, as the writer does); the flags keep
+     * only the encryption bits; the extra fields are dropped unless the
+     * entry is encrypted (its 0x9901 record belongs to the ciphertext).
+     */
+    const planForCanonicalCopy = (source: ZipEntry, canonical: ResolvedCanonical): PlannedEntry => {
+        const encryptionBits = source.flags & (FLAG_ENCRYPTED | FLAG_STRONG_ENCRYPTION);
+        const isDirectory = source.isDirectory;
+        return {
+            nameBytes: te.encode(source.name),
+            method: source.compressionMethod,
+            flags: FLAG_UTF8 | encryptionBits,
+            dosDate: canonical.dosDate,
+            dosTime: canonical.dosTime,
+            externalAttributes: canonical.keepExternalAttributes
+                ? source.externalAttributes
+                : (isDirectory ? ((0o040755 << 16) | 0x10) >>> 0 : (0o100644 << 16) >>> 0),
+            comment: canonical.keepComments ? source.comment : new Uint8Array(0),
+            extraFields: source.isEncrypted
+                ? source.extraFields.filter((f: ZipExtraField) => f.id !== EXTRA_ZIP64)
+                : [],
+            payload: rawCompressedSlice(source),
+            source: null,
+            level: 6,
+            deterministic: false,
+            crc32: source.crc32,
+            compressedSize: source.compressedSize,
+            uncompressedSize: source.uncompressedSize,
+            zip64: false,
+            versionNeededMin: source.versionNeeded,
+        };
+    };
+
+    const resolveCanonical = (option: boolean | CanonicalOptions | undefined): ResolvedCanonical | null => {
+        if (option === undefined || option === false) return null;
+        const opts = option === true ? {} : option;
+        const dos = opts.date === undefined
+            ? { dosDate: DETERMINISTIC_DOS_DATE, dosTime: DETERMINISTIC_DOS_TIME }
+            : toDos(opts.date);
+        return {
+            dosDate: dos.dosDate,
+            dosTime: dos.dosTime,
+            keepComments: opts.keepComments === true,
+            keepExternalAttributes: opts.keepExternalAttributes !== false,
         };
     };
 
@@ -376,6 +481,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                 throw new ZipError('ZIP_ENTRY_EXISTS',
                     `zipnative: entry '${finalName}' already exists — use replaceEntry() to overwrite it`);
             }
+            rejectStreamOnlyOptions(finalName, entryOptions);
             edits.set(finalName, { kind: 'write', data: bytes, options: entryOptions });
         },
 
@@ -387,6 +493,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
                     `zipnative: no entry named '${finalName}' (it may have been removed) — `
                     + 'use addEntry() to create it');
             }
+            rejectStreamOnlyOptions(finalName, entryOptions);
             edits.set(finalName, { kind: 'write', data: bytes, options: entryOptions });
         },
 
@@ -439,6 +546,7 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
         },
 
         save(): Uint8Array {
+            throwIfAborted(options?.signal);
             // No-op fast path: the identical buffer, zero copy.
             if (edits.size === 0
                 && (pendingComment === null || bytesEqual(pendingComment, layout.comment))) {
@@ -572,26 +680,32 @@ export function createZipModifier(reader: ZipReader, options?: ZipModifierOption
             return out;
         },
 
-        saveCompact(): Uint8Array {
+        saveCompact(compactOptions?: CompactOptions): Uint8Array {
+            throwIfAborted(options?.signal);
+            const canonical = resolveCanonical(compactOptions?.canonical);
             const writeSpecs: EntrySpec[] = [];
             const plans: PlannedEntry[] = [];
             for (const [name, edit] of edits) {
                 if (edit.kind === 'write') {
                     writeSpecs.push(specForWrite(name, edit));
                 } else if (edit.kind === 'rawCopy') {
-                    plans.push(planForCopy(edit.source, te.encode(name), true));
+                    // A renamed entry: the canonical copy re-encodes the NEW name.
+                    plans.push(canonical === null
+                        ? planForCopy(edit.source, te.encode(name), true)
+                        : { ...planForCanonicalCopy(edit.source, canonical), nameBytes: te.encode(name) });
                 }
             }
             for (const record of survivingSources()) {
-                plans.push(planForCopy(record.entry, record.entry.rawName, false));
+                plans.push(planForCopy(record.entry, record.entry.rawName, false, canonical));
             }
             plans.push(...planArchive(writeSpecs, new Uint8Array(0), limits, emit).plans);
             plans.sort((a, b) => compareNames(a.nameBytes, b.nameBytes));
             enforceLimit(limits, 'maxEntries', plans.length, 'surviving entry count');
 
+            const comment = pendingComment ?? layout.comment;
             const ctx: ZipCtx = {
                 plans,
-                comment: pendingComment ?? layout.comment,
+                comment: canonical !== null && !canonical.keepComments && pendingComment === null ? new Uint8Array(0) : comment,
                 hasStreamEntries: false,
             };
             return assembleArchive(ctx);

@@ -136,6 +136,21 @@ export function timestampNotPinnedDiagnostic(): ZipDiagnostic {
     };
 }
 
+export function timestampClampedDiagnostic(reason: 'invalid' | 'before-1980' | 'after-2107', entryName?: string): ZipDiagnostic {
+    const what = reason === 'invalid'
+        ? 'an invalid Date was given; the DOS epoch (1980-01-01 00:00:00) was written instead'
+        : reason === 'before-1980'
+            ? 'a Date before 1980-01-01 was given; DOS timestamps start there, so the epoch was written instead'
+            : 'a Date after 2107-12-31 23:59:58 was given; DOS timestamps end there, so that maximum was written instead';
+    return {
+        code: 'ZIP_TIMESTAMP_CLAMPED',
+        severity: 'info',
+        message: `${entryName === undefined ? 'defaultDate' : `entry '${entryName}'`}: ${what}. `
+            + 'Pass a Date within 1980–2107, or omit it for the deterministic epoch default.',
+        ...(entryName === undefined ? {} : { entryName }),
+    };
+}
+
 export function nondeterministicCodecDiagnostic(): ZipDiagnostic {
     return {
         code: 'ZIP_NONDETERMINISTIC_CODEC',

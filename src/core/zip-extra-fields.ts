@@ -13,7 +13,7 @@
  */
 
 import { type ZipExtraField } from '../types/zip-types.js';
-import { SENTINEL_U16, SENTINEL_U32 } from './zip-constants.js';
+import { EXTRA_NTFS, EXTRA_UNIX_UIDGID, EXTRA_UT_TIMESTAMP, SENTINEL_U16, SENTINEL_U32 } from './zip-constants.js';
 import { toSafeNumber, viewOf } from './zip-structs.js';
 
 /** Parse an extra-field block into raw `{id, data}` pairs. */
@@ -150,6 +150,35 @@ export function buildZip64Extra(
     return out;
 }
 
+/**
+ * Zip64 treatment for a LOCAL file header whose sizes are known up front
+ * (a raw-copied payload can be ≥ 4 GiB: a slice of an existing archive, not
+ * a freshly compressed ≤ 2 GiB buffer). APPNOTE §4.5.3: when a local header
+ * carries a Zip64 extra it MUST contain BOTH the original and compressed
+ * sizes (the emit-only-overflowed-fields rule applies to the central
+ * directory only). So: if either size overflows, sentinel both classic
+ * fields and put both u64s in the extra. Exported from this module (not
+ * from src/index.ts) so the ≥ 4 GiB path is unit-testable without a 4 GiB
+ * buffer; shared by the segment generator and the modifier's save().
+ */
+export function lfhZip64Fields(uncompressedSize: number, compressedSize: number): {
+    readonly classicUncompressed: number;
+    readonly classicCompressed: number;
+    readonly extra: Uint8Array | null;
+    readonly usesZip64: boolean;
+} {
+    const usesZip64 = uncompressedSize > SENTINEL_U32 - 1 || compressedSize > SENTINEL_U32 - 1;
+    if (!usesZip64) {
+        return { classicUncompressed: uncompressedSize, classicCompressed: compressedSize, extra: null, usesZip64 };
+    }
+    return {
+        classicUncompressed: SENTINEL_U32,
+        classicCompressed: SENTINEL_U32,
+        extra: buildZip64Extra(uncompressedSize, compressedSize, undefined),
+        usesZip64,
+    };
+}
+
 /** Serialize `{id, data}` extra fields into one block (write-side mirror). */
 export function serializeExtraFields(fields: readonly ZipExtraField[]): Uint8Array {
     const total = fields.reduce((sum, f) => sum + 4 + f.data.length, 0);
@@ -174,6 +203,97 @@ export function resolveUtMtime(fields: readonly ZipExtraField[]): Date | null {
     const dv = viewOf(ut.data);
     const seconds = dv.getInt32(1, true); // signed Unix time per the UT spec
     return new Date(seconds * 1000);
+}
+
+/** The three Unix timestamps an extra field can carry; absent ones are null. */
+export interface ExtraTimestamps {
+    readonly mtime: Date | null;
+    readonly atime: Date | null;
+    readonly ctime: Date | null;
+}
+
+/**
+ * Every timestamp of the UT (0x5455) extra. The flags byte says which of
+ * mtime / atime / ctime follow, each a signed 32-bit Unix time. The
+ * central-directory copy usually carries the mtime only (Info-ZIP writes
+ * atime/ctime into the local header alone); a truncated block yields what
+ * fits and never throws.
+ */
+export function resolveUtTimestamps(fields: readonly ZipExtraField[]): ExtraTimestamps | null {
+    const ut = fields.find((f) => f.id === EXTRA_UT_TIMESTAMP);
+    if (ut === undefined || ut.data.length < 1) return null;
+    const flags = ut.data[0];
+    const dv = viewOf(ut.data);
+    let pos = 1;
+    const next = (): Date | null => {
+        if (pos + 4 > ut.data.length) return null;
+        const seconds = dv.getInt32(pos, true);
+        pos += 4;
+        return new Date(seconds * 1000);
+    };
+    const mtime = (flags & 0x01) !== 0 ? next() : null;
+    const atime = (flags & 0x02) !== 0 ? next() : null;
+    const ctime = (flags & 0x04) !== 0 ? next() : null;
+    return { mtime, atime, ctime };
+}
+
+/** FILETIME (100 ns ticks since 1601-01-01 UTC) → Date; null when out of Date's range. */
+function fileTimeToDate(ticks: bigint): Date | null {
+    const EPOCH_DIFF_MS = 11644473600000n;
+    const ms = ticks / 10000n - EPOCH_DIFF_MS;
+    if (ms < -8640000000000000n || ms > 8640000000000000n) return null;
+    return new Date(Number(ms));
+}
+
+/**
+ * The NTFS (0x000a) extra: a reserved u32, then tagged attributes; tag
+ * 0x0001 (size 24) carries mtime, atime, ctime as 64-bit FILETIMEs. A
+ * malformed or truncated block yields null, never a throw.
+ */
+export function resolveNtfsTimestamps(fields: readonly ZipExtraField[]): ExtraTimestamps | null {
+    const ntfs = fields.find((f) => f.id === EXTRA_NTFS);
+    if (ntfs === undefined || ntfs.data.length < 4) return null;
+    const dv = viewOf(ntfs.data);
+    let pos = 4;
+    while (pos + 4 <= ntfs.data.length) {
+        const tag = dv.getUint16(pos, true);
+        const size = dv.getUint16(pos + 2, true);
+        pos += 4;
+        if (pos + size > ntfs.data.length) return null;
+        if (tag === 0x0001 && size >= 24) {
+            return {
+                mtime: fileTimeToDate(dv.getBigUint64(pos, true)),
+                atime: fileTimeToDate(dv.getBigUint64(pos + 8, true)),
+                ctime: fileTimeToDate(dv.getBigUint64(pos + 16, true)),
+            };
+        }
+        pos += size;
+    }
+    return null;
+}
+
+/**
+ * The Info-ZIP "ux" (0x7875) extra: version 1, then a sized uid and a
+ * sized gid (little-endian, 1–8 bytes each). Values above 2^53 are
+ * reported as null; a malformed block yields null, never a throw.
+ */
+export function resolveUnixIds(fields: readonly ZipExtraField[]): { readonly uid: number; readonly gid: number } | null {
+    const ux = fields.find((f) => f.id === EXTRA_UNIX_UIDGID);
+    if (ux === undefined || ux.data.length < 3 || ux.data[0] !== 1) return null;
+    const readSized = (at: number): { value: number; next: number } | null => {
+        if (at >= ux.data.length) return null;
+        const size = ux.data[at];
+        if (size < 1 || size > 8 || at + 1 + size > ux.data.length) return null;
+        let value = 0n;
+        for (let i = size - 1; i >= 0; i--) value = (value << 8n) | BigInt(ux.data[at + 1 + i]);
+        if (value > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+        return { value: Number(value), next: at + 1 + size };
+    };
+    const uid = readSized(1);
+    if (uid === null) return null;
+    const gid = readSized(uid.next);
+    if (gid === null) return null;
+    return { uid: uid.value, gid: gid.value };
 }
 
 /** Extract the Unicode Path (0x7075) name, when present and well-formed. */

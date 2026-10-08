@@ -8,10 +8,10 @@
 import { crc32, openZip, registerCodec, ZipError } from 'zipnative';
 
 export default async function run(): Promise<Record<string, string>> {
-    // A tiny archive whose single entry claims method 99 with a raw
+    // A tiny archive whose single entry claims method 97 with a raw
     // (identity-"compressed") payload — normally unreadable.
     const payload = new TextEncoder().encode('exotic method payload');
-    const archive = buildMethod99Archive(payload);
+    const archive = buildMethod97Archive(payload);
 
     let beforeCode = '(none)';
     try {
@@ -21,8 +21,8 @@ export default async function run(): Promise<Record<string, string>> {
     }
 
     registerCodec({
-        method: 99,
-        name: 'identity-99',
+        method: 97,
+        name: 'identity-97',
         decompressSync: (data) => data.slice(),
     });
     const after = new TextDecoder().decode(openZip(archive).readEntry('x.bin'));
@@ -30,8 +30,8 @@ export default async function run(): Promise<Record<string, string>> {
     return { 'before-code': beforeCode, after };
 }
 
-/** Hand-assembled single-entry archive declaring compression method 99. */
-function buildMethod99Archive(data: Uint8Array): Uint8Array {
+/** Hand-assembled single-entry archive declaring compression method 97 — 99 is WinZip AES, which 1.1 labels feature: aes. */
+function buildMethod97Archive(data: Uint8Array): Uint8Array {
     const te = new TextEncoder();
     const name = te.encode('x.bin');
     const crc = crc32(data);
@@ -39,7 +39,7 @@ function buildMethod99Archive(data: Uint8Array): Uint8Array {
     const lv = new DataView(lfh.buffer);
     lv.setUint32(0, 0x04034b50, true);
     lv.setUint16(4, 20, true);
-    lv.setUint16(8, 99, true); // compression method
+    lv.setUint16(8, 97, true); // compression method
     lv.setUint32(14, crc, true);
     lv.setUint32(18, data.length, true);
     lv.setUint32(22, data.length, true);
@@ -50,7 +50,7 @@ function buildMethod99Archive(data: Uint8Array): Uint8Array {
     cv.setUint32(0, 0x02014b50, true);
     cv.setUint16(4, 0x031E, true);
     cv.setUint16(6, 20, true);
-    cv.setUint16(10, 99, true);
+    cv.setUint16(10, 97, true);
     cv.setUint32(16, crc, true);
     cv.setUint32(20, data.length, true);
     cv.setUint32(24, data.length, true);

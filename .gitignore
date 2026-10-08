@@ -14,3 +14,15 @@ RELEASE_PR_*.md
 .github/drafts/*
 !.github/drafts/README.md
 !.github/drafts/TEMPLATE.md
+
+# Per-machine and secret files
+.env
+.env.*
+*.log
+Thumbs.db
+.vscode/
+.claude/settings.local.json
+
+# npm pack / npm sbom write these to the root; the release workflow keeps its own copies
+*.tgz
+*.cdx.json

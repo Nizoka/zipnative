@@ -60,7 +60,7 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 ## 0.7.x — Interop corpus expansion + docs finish ✅ *(shipped 2026-09-01)*
 
 - Interop write cases 7 → 11 (SFX stubs via the modifier,
-  comment-heavy, empty archive, store-only) — gate total 17 validations
+  comment-heavy, empty archive, store-only) — gate total 17 validations <!-- verify-docs:allow count-tokens (0.7 figure, historical) -->
   with the 6 foreign-producer reads; refusal-posture suite
   pinning the typed refusals foreign tools tolerate
 - Guide renderer (`docs:guides`, .md as the source of truth) +
@@ -122,8 +122,9 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
 - Deferred from the band, logged: a worker playground (the only page
   requiring build-tooling changes — post-1.0)
 
-## 1.0.0 ✅ *(shipped 2026-09-02, current)*
+## 1.0.0 ✅ *(shipped 2026-09-02)*
 
+<!-- verify-docs:allow count-tokens (1.0.0 figure, historical) -->
 - Semver commitment: the 77-export API surface, the 39-code error
   vocabulary and the `deterministic: true` bytes are frozen (SECURITY.md
   states the promise; `tsdoc-complete` polices 77/77 documented exports)
@@ -152,7 +153,62 @@ CI, fuzzing, and — from 0.2 — the blocking interop conformance gate).
   13 tools, 7 prompts, sandboxed `zipnative://output/` resources, stdio
   + loopback Streamable HTTP; pins `zipnative ^1.0.0`
 
-## Post-1.0 (engine)
+## 1.1.0 ✅ *(release branch, current — zero breaking changes)*
 
-- Read-only AES decryption behind an injected crypto provider (if demand)
-- Per-entry Zip64 streaming opt-in (the 0.9 decision record above)
+Additive only: the public surface grew from 77 to 106 exports with none
+removed; the 39 error codes unchanged; every new behaviour opt-in;
+`deterministic: true` bytes unchanged (the byte baseline of the 33
+pre-existing samples proves it).
+
+- Issues closed at the source: [#9](https://github.com/Nizoka/zipnative/issues/9)
+  (`dosTimeMode: 'utc'`, full DOS-date clamping with the
+  `ZIP_TIMESTAMP_CLAMPED` diagnostic), [#10](https://github.com/Nizoka/zipnative/issues/10)
+  (`ZIP_DEFLATE_CORRUPT` / `ZIP_DEFLATE_TRUNCATED` on every inflate tier;
+  `ZIP_DECOMPRESSION_FAILED` reserved for injected codecs), [#11](https://github.com/Nizoka/zipnative/issues/11)
+  (the `createDecompressor()` codec contract — streamed by the forward
+  reader; others refused before the first byte), [#12](https://github.com/Nizoka/zipnative/issues/12)
+  (`verifyEntry().skipped` with a real `localHeaderMatch`)
+- Per-entry Zip64 streaming opt-in (`addStream(…, { zip64: true })`, the
+  0.9 decision record) — validated by the ISO gate and the interop matrix
+- Five adoption features: `openZipRange()` over an injected byte-range
+  source; `signal` / `onProgress` on every asynchronous call;
+  `addRaw()` / `addFromReader()` raw transplant; `canonicalizeZip()` /
+  `saveCompact({ canonical })` + `analyzeDeterminism()`; `nameDecoder`
+  + `getExtendedTimestamps()` / `getUnixIds()`
+- Encrypted entries labelled by scheme (`feature: 'aes'` for WinZip AES);
+  `externalAttributesFromUnixMode()`; the new limit `maxEntryCompressedSize`
+- Hardening parity with pdfnative 1.8.0: `scripts/gate.ts` profiles,
+  harden-runner + `--ignore-scripts` everywhere, OIDC publish behind the
+  `npm-publish` environment with SLSA Build L2 provenance and SBOM
+  attestation, dependency review, weekly audit, rulesets, the sample byte
+  baseline (`verify:samples`), the Claude Code governance layer,
+  `release-prepare`, and 25 new verify-docs rules
+- Two new guides (large and remote archives; reproducible builds), the
+  remote playground, four new recipes, five new samples
+
+## 1.2 candidates
+
+- The standards backlog deferred by the 1.1.0 final audit (minor findings only:
+  a verify-docs test harness, `api-exists`, members and `since` in `api.json`,
+  `verify:bundle`, harden-runner `block`, CodeQL `security-extended`, issue
+  forms, `security.txt`, signed commits) — filed from
+  `.github/drafts/zipnative-1.2-standards-backlog.md`
+- Pure-TS *streaming* deflate under `deterministic: true` (lifts the 2 GiB
+  per-entry cap and makes the Zip64 opt-in deterministic)
+- `createZipModifier` over a `ZipRangeReader` (streaming `save()`:
+  original by ranges + additions) and `extractZipStream` over a range source
+- Writing UT / NTFS extra fields (interaction with the "extra fields: none,
+  except Zip64" contract to be decided first)
+- A `runtimes` CI job (Bun, Deno, Workers smoke) promoted to blocking
+- The worker playground: a same-origin Blob shim that imports the
+  CDN-served `zipnative/worker/zip-worker.js` (the script is cross-origin
+  for a same-origin `Worker` today — the 0.9 deferral)
+- Satellite follow-ups: `--url` / remote resources, `merge` / `split` /
+  `canonicalize` commands and tools, `--name-encoding`, `--timeout`,
+  `dosTimeMode: 'utc'` instead of re-composed dates
+
+## 2.0 candidates
+
+- Read-only AES (AE-2) decryption behind an injected crypto provider —
+  the published 1.x policy says "no encryption, read or write, in 1.x";
+  1.1 labels such entries `feature: 'aes'` and stops there

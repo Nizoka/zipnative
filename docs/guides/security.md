@@ -24,6 +24,24 @@ exhaustion — both are addressed structurally here.
 | Ambiguous EOCD / trailing garbage | only a self-consistent record closest to EOF is accepted | — |
 | Zip64 sentinel spoofing | cross-checks against every non-sentinel classic field | CWE-1288 |
 | Duplicate names | `onDuplicate: 'error'` by default | CWE-694 |
+| Unbounded fetch of a compressed payload from a byte-range source (1.1) | `maxEntryCompressedSize` (1 GiB + 1 MiB) on `openZipRange()`'s whole-payload reads; the in-memory reader uses zero-copy views and never consults it | CWE-770 |
+| Encrypted entries (ZipCrypto, WinZip AES, strong encryption) | detected and refused with `ZIP_UNSUPPORTED_ENCRYPTION`; `feature` names the scheme (`'aes'` since 1.1); never decrypted in 1.x | — |
+
+The bounds (`ZipLimits`; defaults in `DEFAULT_ZIP_LIMITS`; overridden per
+call with `limits: { … }`, a violation throws `ZipLimitError` naming the
+limit, the configured value and the observed one):
+
+| Limit | Default | Bounds | CWE |
+|---|---|---|---|
+| `maxEntries` | 100 000 | entries in the central directory and in a forward walk | CWE-400 |
+| `maxEntryUncompressedSize` | 1 GiB | decompressed bytes of one entry, counted during inflation on every tier | CWE-400 |
+| `maxEntryCompressedSize` | 1 GiB + 1 MiB | one compressed payload fetched whole by `openZipRange()` (the in-memory reader uses zero-copy views and never consults it) — 1.1 | CWE-770 |
+| `maxTotalUncompressedSize` | 8 GiB | decompressed bytes of one extraction | CWE-400 |
+| `maxCompressionRatio` | 1024 | declared uncompressed ÷ compressed size, for entries of 1 KiB and more compressed | CWE-409 |
+| `maxNameBytes` | 4 096 | one entry name | CWE-400 |
+| `maxExtraFieldBytes` | 65 535 | one extra-field block | CWE-400 |
+| `maxCommentBytes` | 65 535 | the archive comment or one entry comment | CWE-400 |
+| `maxCentralDirectoryBytes` | 256 MiB | the central directory, checked before it is read or fetched | CWE-400 |
 
 Every bound lives on `ZipLimits`, is documented, and is caller-configurable
 — raising one is an explicit decision, never a silent default.
@@ -36,11 +54,31 @@ present different content there than `openZip()` authoritatively reports.
 Use it only for streams you cannot seek, and never feed its names to a
 filesystem without `sanitizeEntryPath()`.
 
+## Injected decoders and sources (1.1)
+
+- A `nameDecoder` decodes entry names whose flag bit 11 is clear (legacy
+  code pages). The decoded string goes through the same path sanitisation
+  as every other name — `..`, absolute paths, NUL bytes, NTFS streams and
+  device names are refused after decoding, so a decoder cannot smuggle a
+  traversal.
+- A `ByteRangeSource` is untrusted like the bytes it serves: every record
+  the in-memory reader cross-checks is cross-checked here on the same
+  code, a `size` smaller than the records imply or a short `read()` is
+  `ZIP_RECORD_TRUNCATED`, the central directory is fetched only after
+  `maxCentralDirectoryBytes` has been checked, and whole-payload fetches
+  are bounded by `maxEntryCompressedSize`.
+- An `AbortSignal` rejects with `signal.reason` only after the engine has
+  released what it held — stream locks, worker pools, in-flight reads.
+
 ## What the engine never does
 
 No filesystem access, no sockets, no `eval`, no runtime dependencies —
-the supply chain is one repository, watched by CodeQL, OpenSSF Scorecard
-and an adversarial fuzzing suite on Linux and Windows.
+the supply chain is one repository, watched by CodeQL, OpenSSF Scorecard,
+dependency review and an adversarial fuzzing suite on Linux, Windows and
+macOS. Every workflow runs under harden-runner with SHA-pinned actions and
+`npm ci --ignore-scripts`; releases are published by OIDC Trusted
+Publishing with SLSA Build L2 provenance and a CycloneDX SBOM attested
+alongside the tarball (`npm audit signatures` verifies).
 
 ## Reporting
 

@@ -13,31 +13,25 @@
 #      both directions (zipnative also reads foreign producers).
 #      BLOCKING since M2 (v0.2.0).
 #
+# Both run through the gate (`--from test:generate --publish --require-all`:
+# test:generate, verify:samples, validate:zip, test:interop) so the step
+# list has one definition; the large-archive suite (a synthetic 4 GiB + 1
+# Zip64 stream, `ZIPNATIVE_BIG_TESTS=1`) runs here and nowhere else.
+#
 # Tool versions are echoed into the job summary first, so a failure is
 # attributable to "our bug" vs "runner image tool drift".
+#
+# No `paths:` filter: both jobs are required status checks
+# (.github/rulesets/main.json), and a required check that never reports
+# leaves a documentation-only pull request stuck on "Expected".
 name: Conformance
 
 on:
   push:
     branches: [main, master]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/run-interop.ts'
-      - 'scripts/validate-zip.ts'
-      - 'scripts/generate-samples.ts'
-      - 'scripts/generators/**'
-      - '.github/workflows/conformance.yml'
   pull_request:
     branches: [main, master]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/run-interop.ts'
-      - 'scripts/validate-zip.ts'
-      - 'scripts/generate-samples.ts'
-      - 'scripts/generators/**'
-      - '.github/workflows/conformance.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -49,21 +43,26 @@ concurrency:
 jobs:
   interop-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Record tool versions
         run: |
@@ -72,37 +71,52 @@ jobs:
             echo '```'
             unzip -v | head -1 || true
             7z i | head -3 || true
+            bsdtar --version || true
             python3 --version || true
             java -version 2>&1 | head -1 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Generate the sample corpus
-        run: npm run test:generate
+      - name: Samples, baseline, ISO/IEC 21320-1 validation, interop matrix (blocking)
+        run: npx tsx scripts/gate.ts --publish --from test:generate --require-all
 
-      - name: Validate ISO/IEC 21320-1 conformance (blocking)
-        run: npm run validate:zip
+      - name: Large-archive suite (synthetic 4 GiB + 1 Zip64 stream)
+        env:
+          ZIPNATIVE_BIG_TESTS: '1'
+        run: npx vitest run tests/core/zip64-streaming.test.ts
 
-      - name: Run interop matrix
-        run: npm run test:interop
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conformance-logs-linux
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore
 
   interop-windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
+      # harden-runner supports Windows in audit mode only.
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Record tool versions
         shell: pwsh
@@ -114,11 +128,14 @@ jobs:
           java -version 2>&1 | Select-Object -First 1 >> $env:GITHUB_STEP_SUMMARY
           '```' >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Generate the sample corpus
-        run: npm run test:generate
+      - name: Samples, baseline, ISO/IEC 21320-1 validation, interop matrix (blocking)
+        run: npx tsx scripts/gate.ts --publish --from test:generate --require-all
 
-      - name: Validate ISO/IEC 21320-1 conformance (blocking)
-        run: npm run validate:zip
-
-      - name: Run interop matrix
-        run: npm run test:interop
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conformance-logs-windows
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore

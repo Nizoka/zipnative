@@ -1,2 +1,28 @@
-# Default: everything requires maintainer review.
+# CODEOWNERS
+
+# Default owner for everything
 * @Nizoka
+
+# Engine and public API contract
+src/ @Nizoka
+src/index.ts @Nizoka
+src/core/zip-limits.ts @Nizoka
+src/types/zip-errors.ts @Nizoka
+package.json @Nizoka
+tsup.config.ts @Nizoka
+docs/assets/ecosystem.json @Nizoka
+tests/fixtures/ @Nizoka
+tests/regression/baselines/ @Nizoka
+
+# CI/CD and release automation
+.github/workflows/ @Nizoka
+.github/rulesets/ @Nizoka
+scripts/ @Nizoka
+release-notes/ @Nizoka
+CHANGELOG.md @Nizoka
+SECURITY.md @Nizoka
+
+# Agent layer: permissions, the fail-closed guard hook, generated rules, skills
+.claude/ @Nizoka
+.github/ai-governance.json @Nizoka
+.github/AGENT_RULES.md @Nizoka

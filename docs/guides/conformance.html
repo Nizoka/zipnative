@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="Conformance and validation — zipnative">
+  <meta name="twitter:description" content="ZIP has no veraPDF — so zipnative ships the closest thing: the first open clause-by-clause ISO/IEC 21320-1:2015 validator, layered over a six-parser differential extraction matrix.">
   <meta property="og:url" content="https://zipnative.dev/guides/conformance.html">
   <meta property="og:title" content="Conformance and validation — zipnative">
   <meta property="og:description" content="ZIP has no veraPDF — so zipnative ships the closest thing: the first open clause-by-clause ISO/IEC 21320-1:2015 validator, layered over a six-parser differential extraction matrix.">
@@ -168,11 +170,13 @@ the forbidden bits of <code>APPNOTE-4.4.4</code>). The standard&#39;s remaining 
 rows disregard whole APPNOTE sections (manifest files, the encryption
 chapters) and need no byte-level check.</p>
 <p><strong>Every archive zipnative writes conforms to this profile</strong> — validated
-over the full sample corpus (29 conformant archives), enforced by blocking
+over the full sample corpus (33 conformant archives), enforced by blocking
 gates on Linux and Windows CI and re-run before every npm publish.</p>
-<p>The expectations are two-sided: the corpus also carries <strong>4 deliberately
-non-conformant archives</strong> (from the <a href="security.html">refusals corpus</a> and the
-forward-trust sample) that MUST fail with their declared clause — proof the
+<p>The expectations are two-sided: the corpus also carries <strong>5 deliberately
+non-conformant archives</strong> (from the <a href="security.html">refusals corpus</a>, the
+forward-trust sample, and the legacy-code-page names sample — non-ASCII
+names without bit 11 are exactly what clause 4.4.4 forbids and what the
+<code>nameDecoder</code> option exists for) that MUST fail with their declared clause — proof the
 gate can reject. A coverage canary pins both counts against
 <code>docs/assets/ecosystem.json</code>, so a sample can neither appear nor vanish
 silently.</p>
@@ -210,7 +214,8 @@ on a mainstream tool; consumers of incremental output that must
 interoperate with 7-Zip should ship <code>saveCompact()</code> output instead.</p>
 <h2 id="level-2--the-differential-extraction-matrix">Level 2 — the differential extraction matrix<a class="heading-anchor" href="#level-2--the-differential-extraction-matrix" aria-label="Link to this section">#</a></h2>
 <p><code>npm run test:interop</code> (<a href="https://github.com/Nizoka/zipnative/blob/main/scripts/run-interop.ts" target="_blank" rel="noopener">scripts/run-interop.ts</a>)
-is the empirical layer, blocking since v0.2.0: an 11-case archive matrix
+is the empirical layer, blocking since v0.2.0: a 13-case archive matrix
+(the Zip64 streaming opt-in and a raw-transplanted archive joined in 1.1)
 built through the public API is extracted and <strong>byte-compared</strong> by every
 available mainstream extractor (PowerShell <code>Expand-Archive</code>, bsdtar,
 Info-ZIP unzip, 7-Zip, Python <code>zipfile</code>, <code>jar</code>) on Linux and Windows — and
@@ -219,7 +224,7 @@ byte-for-byte. This is the same validation posture Archivematica applies to
 ZIP packages: independent extraction and fixity, across six parser
 implementations.</p>
 <h2 id="running-it-locally">Running it locally<a class="heading-anchor" href="#running-it-locally" aria-label="Link to this section">#</a></h2>
-<pre><code class="language-bash">npm run test:generate   # writes the 33-sample corpus to test-output/
+<pre><code class="language-bash">npm run test:generate   # writes the 38-sample corpus to test-output/
 npm run validate:zip    # levels 0 + 1 (ISO profile + foreign integrity)
 npm run test:interop    # level 2 (differential extraction matrix)
 </code></pre>
@@ -264,6 +269,8 @@ reference validator rejects.</li>
             <li><a href="errors.html">Errors and error codes</a></li>
             <li><a href="use-cases.html">Use cases</a></li>
             <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
           </ul>
         </div>
         <div class="footer-col">

@@ -15,6 +15,14 @@ export {
     type ZipReader,
 } from './parser/zip-reader.js';
 
+// ── 1b. Random access over a byte-range source (1.1.0) ───────────────
+export {
+    openZipRange,
+    rangeSourceFromBytes,
+    type ByteRangeSource,
+    type ZipRangeReader,
+} from './parser/zip-range-reader.js';
+
 // ── 2. Forward streaming: CD-less iteration over pipes ───────────────
 export {
     iterateZipEntries,
@@ -37,7 +45,10 @@ export {
 export {
     createZip,
     type AddEntryOptions,
+    type AddFromReaderOptions,
     type CreateZipOptions,
+    type RawEntryMeta,
+    type RawEntryReader,
     type ZipCompressionOptions,
     type ZipWriter,
 } from './core/zip-builder.js';
@@ -50,18 +61,37 @@ export {
     type VerifyZipOptions,
     type ZipVerificationReport,
 } from './parser/zip-verify.js';
+export {
+    analyzeDeterminism,
+    type AnalyzeDeterminismOptions,
+    type DeterminismConcern,
+    type DeterminismOffender,
+    type DeterminismReport,
+} from './parser/zip-determinism.js';
 
 // ── 4. Modifying: incremental save / compact rewrite ─────────────────
 export {
     createZipModifier,
+    type CanonicalOptions,
+    type CompactOptions,
     type ZipModifier,
     type ZipModifierOptions,
 } from './parser/zip-modifier.js';
-
-// ── 4b. Entry attributes (0.9) ───────────────────────────────────────
 export {
+    canonicalizeZip,
+    type CanonicalizeOptions,
+} from './parser/zip-canonical.js';
+
+// ── 4b. Entry attributes (0.9; the write-side helper since 1.1.0) ────
+export {
+    externalAttributesFromUnixMode,
+    getExtendedTimestamps,
+    getUnixIds,
     getUnixMode,
     isSymlinkEntry,
+    type ExtendedTimestamps,
+    type UnixIds,
+    type UnixModeOptions,
 } from './core/zip-attributes.js';
 
 // ── 4c. Byte sources for the streaming entry points (0.9) ────────────
@@ -69,8 +99,14 @@ export { type ByteSource } from './core/zip-source.js';
 
 // ── 5. Entries and shared types ──────────────────────────────────────
 export type {
+    DosTimeMode,
+    EntrySkipReason,
     EntryVerification,
     ZipCommonOptions,
+    ZipNameDecoder,
+    ZipNameEncoding,
+    ZipProgress,
+    ZipProgressHandler,
     ZipDiagnostic,
     ZipDiagnosticCode,
     ZipDiagnosticHandler,
@@ -108,6 +144,7 @@ export {
     registerCodec,
     type CodecCompressOptions,
     type ZipCodec,
+    type ZipDecompressor,
 } from './codecs/codec-registry.js';
 export {
     initNodeZipCodecs,
@@ -135,4 +172,4 @@ export {
 
 // ── 9. Package metadata ──────────────────────────────────────────────
 /** Library version — kept in sync with package.json by verify:docs. */
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';

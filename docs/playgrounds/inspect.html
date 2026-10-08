@@ -7,6 +7,13 @@
   <meta name="description" content="Drop any .zip — DOCX, JAR, VSIX, EPUB — and read its central directory in your browser: names, methods, sizes, CRCs and flags, without extracting a byte. Runs zipnative's real engine locally.">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:locale" content="en_US">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="zipnative">
+  <meta property="og:url" content="https://zipnative.dev/playgrounds/inspect.html">
+  <meta property="og:title" content="Archive inspector — zipnative playground">
+  <meta property="og:description" content="Drop any .zip — DOCX, JAR, VSIX, EPUB — and read its central directory in your browser: names, methods, sizes, CRCs and flags, without extracting a byte. Runs zipnative's real engine locally.">
+  <meta name="twitter:title" content="Archive inspector — zipnative playground">
+  <meta name="twitter:description" content="Drop any .zip — DOCX, JAR, VSIX, EPUB — and read its central directory in your browser: names, methods, sizes, CRCs and flags, without extracting a byte. Runs zipnative's real engine locally.">
   <meta property="og:image" content="https://zipnative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -60,6 +67,7 @@
       <a href="./secure-extract.html">Secure extraction</a>
       <a href="./modify.html">Incremental modify</a>
       <a href="./stream.html">Forward streaming</a>
+      <a href="./remote.html">Remote range access</a>
       <a href="./cli.html">CLI builder</a>
       <a href="./mcp.html">MCP explorer</a>
       <a href="./" style="margin-left:auto;">All →</a>
@@ -81,7 +89,7 @@
         <div class="pg-output" id="summary"></div>
         <div class="pg-table-wrap">
           <table class="pg-table">
-            <thead><tr><th>Name</th><th>Method</th><th>Uncompressed</th><th>Compressed</th><th>CRC-32</th><th>Flags</th></tr></thead>
+            <thead><tr><th>Name</th><th>Method</th><th>Uncompressed</th><th>Compressed</th><th>CRC-32</th><th>Flags</th><th>Modified</th></tr></thead>
             <tbody id="entry-rows"></tbody>
           </table>
         </div>
@@ -101,7 +109,7 @@
   <script src="playground.js" defer></script>
   <script type="module">
     import { loadEngine } from './load-engine.js';
-    const { mod: { openZip, METHOD_STORE, FLAG_ENCRYPTED, FLAG_DATA_DESCRIPTOR, FLAG_UTF8, ZipError }, source: engineSource } = await loadEngine();
+    const { mod: { openZip, analyzeDeterminism, getExtendedTimestamps, METHOD_STORE, FLAG_ENCRYPTED, FLAG_DATA_DESCRIPTOR, FLAG_UTF8, ZipError }, source: engineSource } = await loadEngine();
     const srcEl = document.getElementById('engine-source'); if (srcEl) srcEl.textContent = engineSource;
 
     const $ = (id) => document.getElementById(id);
@@ -115,12 +123,29 @@
       if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
       return (n / (1024 * 1024)).toFixed(2) + ' MB';
     }
+    // 1.1: UT / NTFS extra fields first, the DOS field as the fallback — the source is named.
+    function modified(entry) {
+      if (typeof getExtendedTimestamps !== 'function') return entry.lastModified.toISOString().slice(0, 19).replace('T', ' ');
+      const t = getExtendedTimestamps(entry);
+      return (t.mtime ? t.mtime.toISOString().slice(0, 19).replace('T', ' ') : '—') + ' (' + t.source + ')';
+    }
     function flagList(f) {
       const on = [];
       if (f & FLAG_ENCRYPTED) on.push('encrypted');
       if (f & FLAG_DATA_DESCRIPTOR) on.push('descriptor');
       if (f & FLAG_UTF8) on.push('utf8');
       return on.length ? on.join(' · ') : '—';
+    }
+
+    // 1.1: the same verdict the CLI's inspect --check deterministic derives.
+    function determinismLine(bytes) {
+      if (typeof analyzeDeterminism !== 'function') return '';
+      try {
+        const r = analyzeDeterminism(bytes);
+        const concerns = [...new Set(r.offenders.map((o) => o.concern))];
+        return `\ndeterministic form: ${r.deterministic ? 'yes' : 'no'}` +
+          (concerns.length ? ` — ${r.offenders.length} offending entr${r.offenders.length === 1 ? 'y' : 'ies'} (${concerns.join(', ')}); canonicalizeZip() would fix it without recompression` : '');
+      } catch { return ''; }
     }
 
     async function inspect(fileObj) {
@@ -146,6 +171,7 @@
             fmtBytes(entry.compressedSize),
             '0x' + (entry.crc32 >>> 0).toString(16).padStart(8, '0'),
             flagList(entry.flags),
+            modified(entry),
           ];
           for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
           rows.appendChild(tr);
@@ -158,7 +184,8 @@
           `uncompressed ${fmtBytes(totalUnc)} · compressed ${fmtBytes(totalComp)} · ratio ${ratio}×\n` +
           `zip64: ${reader.isZip64 ? 'yes' : 'no'}` +
           (reader.comment.length > 0 ? ` · comment: ${JSON.stringify(new TextDecoder().decode(reader.comment))}` : '') +
-          (diagnostics.length ? `\ndiagnostics: ${[...new Set(diagnostics)].join(', ')}` : '');
+          (diagnostics.length ? `\ndiagnostics: ${[...new Set(diagnostics)].join(', ')}` : '') +
+          determinismLine(bytes);
         $('report').hidden = false;
         setStatus(`Read ${reader.entryCount} entries without decompressing any of them.`, 'ok');
       } catch (err) {

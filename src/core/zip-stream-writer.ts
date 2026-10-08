@@ -24,9 +24,28 @@ import { hasDecompressionStream } from '../codecs/inflate.js';
 import { writeDataDescriptor } from './zip-structs.js';
 import { METHOD_STORE } from '../codecs/codec-registry.js';
 import { archiveSegments, assertStreamSizesInRange, type PlannedEntry, type ZipCtx } from './zip-segments.js';
+import { createProgressTracker, throwIfAborted, type ProgressTracker } from './zip-control.js';
+import type { ZipProgressHandler } from '../types/zip-types.js';
 
-/** Options for `ZipWriter.stream()`. */
-export interface StreamOptions {
+/** @internal The cancellation and progress controls the writer's common options carry. */
+export interface StreamControl {
+    readonly signal?: AbortSignal;
+    readonly onProgress?: ZipProgressHandler;
+    /**
+     * @internal A tracker the caller already reports through (the parallel
+     * writer's planning phase); the stream writer continues it instead of
+     * starting a second one, so one operation is one monotonic series.
+     */
+    readonly tracker?: ProgressTracker;
+}
+
+/**
+ * Options for `ZipWriter.stream()`: the chunk size, and — per call — the
+ * cancellation signal and progress handler (1.1.0). Given here they
+ * override the ones passed to `createZip()` / `createParallelZip()` for
+ * this stream only; given there they apply to every call.
+ */
+export interface StreamOptions extends StreamControl {
     /** Output chunk size in bytes. Default 64 KiB, clamped to 1 KiB – 16 MiB. */
     readonly chunkSize?: number;
 }
@@ -60,9 +79,13 @@ function hasCompressionStream(): boolean {
 export async function* streamArchive(
     planCtx: () => ZipCtx,
     options?: StreamOptions,
+    control?: StreamControl,
 ): AsyncGenerator<Uint8Array, void, undefined> {
     const chunkSize = resolveChunkSize(options?.chunkSize);
+    const signal = control?.signal;
+    throwIfAborted(signal);
     const ctx = planCtx(); // validation completes before the first byte
+    const progress = control?.tracker ?? createProgressTracker(control?.onProgress, ctx.plans.length);
 
     // Re-chunker: one buffer held at a time; a full chunk is yielded and
     // REALLOCATED (consumers may retain it); the tail is a subarray view.
@@ -76,6 +99,8 @@ export async function* streamArchive(
             filled += take;
             i += take;
             if (filled === chunkSize) {
+                throwIfAborted(signal);
+                progress.bytesOut(chunkSize);
                 yield buf;
                 buf = new Uint8Array(chunkSize);
                 filled = 0;
@@ -85,22 +110,35 @@ export async function* streamArchive(
 
     const generator = archiveSegments(ctx);
     let res = generator.next();
+    // Entry boundaries: a buffered entry is "done" once its payload segment
+    // was pushed, a stream entry once its descriptor was; the central
+    // directory and the trailer count for no entry.
+    let planIndex = 0;
     while (!res.done) {
         const segment = res.value;
         if (segment.kind === 'bytes') {
             yield* push(segment.bytes);
+            const plan = ctx.plans[planIndex];
+            if (plan !== undefined && segment.bytes === plan.payloadEmitted) {
+                progress.bytesIn(plan.uncompressedSize);
+                progress.entryDone();
+                planIndex++;
+            }
             res = generator.next();
         } else {
             let consumed = 0;
-            for await (const piece of compressStreamEntry(segment.plan)) {
+            for await (const piece of compressStreamEntry(segment.plan, signal, progress)) {
                 consumed += piece.length;
                 yield* push(piece);
             }
+            progress.entryDone();
+            planIndex++;
             res = generator.next(consumed);
         }
     }
 
     if (filled > 0) {
+        progress.bytesOut(filled);
         yield buf.subarray(0, filled);
     }
 }
@@ -110,7 +148,11 @@ export async function* streamArchive(
  * crc/sizes, and finish with the data descriptor. Yields exactly the
  * bytes that follow the entry's local header.
  */
-async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Array, void, undefined> {
+async function* compressStreamEntry(
+    plan: PlannedEntry,
+    signal: AbortSignal | undefined,
+    progress: ProgressTracker,
+): AsyncGenerator<Uint8Array, void, undefined> {
     const source = plan.source as AsyncIterable<Uint8Array>;
     const entryName = new TextDecoder().decode(plan.nameBytes);
     let crc = 0;
@@ -119,6 +161,8 @@ async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Arr
 
     if (plan.method === METHOD_STORE) {
         for await (const chunk of source) {
+            throwIfAborted(signal);
+            progress.bytesIn(chunk.length);
             crc = crc32(chunk, crc);
             uncompressed += chunk.length;
             compressed += chunk.length;
@@ -138,15 +182,25 @@ async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Arr
         // caller's upstream reader / file handle would never be closed.
         const it = source[Symbol.asyncIterator]();
         const writeAll = (async (): Promise<void> => {
-            for (;;) {
-                const { done, value } = await it.next();
-                if (done) break;
-                crc = crc32(value, crc);
-                uncompressed += value.length;
-                // Copy: engines may detach transferred chunks.
-                await writer.write(value.slice());
+            try {
+                for (;;) {
+                    const { done, value } = await it.next();
+                    if (done) break;
+                    throwIfAborted(signal);
+                    progress.bytesIn(value.length);
+                    crc = crc32(value, crc);
+                    uncompressed += value.length;
+                    // Copy: engines may detach transferred chunks.
+                    await writer.write(value.slice());
+                }
+                await writer.close();
+            } catch (err) {
+                // A failing source (or the caller's abort) must error the
+                // readable too — otherwise reader.read() below waits forever
+                // for a close that never comes.
+                try { await writer.abort(err); } catch { /* already errored */ }
+                throw err;
             }
-            await writer.close();
         })();
         writeAll.catch(() => { /* surfaced by the read loop / final await */ });
 
@@ -177,6 +231,8 @@ async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Arr
         // CompressionStream — or whenever determinism is requested.
         const pieces: Uint8Array[] = [];
         for await (const chunk of source) {
+            throwIfAborted(signal);
+            progress.bytesIn(chunk.length);
             crc = crc32(chunk, crc);
             uncompressed += chunk.length;
             pieces.push(chunk.slice());
@@ -202,5 +258,7 @@ async function* compressStreamEntry(plan: PlannedEntry): AsyncGenerator<Uint8Arr
     plan.uncompressedSize = uncompressed;
     plan.compressedSize = compressed;
     assertStreamSizesInRange(plan, entryName);
-    yield writeDataDescriptor(crc, compressed, uncompressed, false);
+    // The 24-byte Zip64 descriptor exactly when the local header carries
+    // the speculative Zip64 extra (APPNOTE §4.3.9.2) — i.e. the opt-in.
+    yield writeDataDescriptor(crc, compressed, uncompressed, plan.zip64);
 }

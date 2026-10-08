@@ -9,6 +9,8 @@
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="zipnative">
   <meta property="og:locale" content="en_US">
+  <meta name="twitter:title" content="Errors and error codes — zipnative">
+  <meta name="twitter:description" content="Every error zipnative throws carries a stable, machine-readable code — branch on it, never on message text. The vocabulary is frozen from 0.8.0.">
   <meta property="og:url" content="https://zipnative.dev/guides/errors.html">
   <meta property="og:title" content="Errors and error codes — zipnative">
   <meta property="og:description" content="Every error zipnative throws carries a stable, machine-readable code — branch on it, never on message text. The vocabulary is frozen from 0.8.0.">
@@ -215,11 +217,11 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </tr>
 <tr>
 <td><code>ZIP_DEFLATE_TRUNCATED</code></td>
-<td>A deflate stream ends mid-block.</td>
+<td>A deflate stream ends mid-block — on every tier since 1.1 (node:zlib and DecompressionStream failures are normalised to it).</td>
 </tr>
 <tr>
 <td><code>ZIP_DEFLATE_CORRUPT</code></td>
-<td>A deflate stream is structurally invalid (Huffman codes, symbols, back-references, block types).</td>
+<td>A deflate stream is structurally invalid (Huffman codes, symbols, back-references, block types) — on every tier since 1.1.</td>
 </tr>
 </tbody></table>
 <h3 id="zipsecurityerror-active-attack-shapes--cwe-tagged"><code>ZipSecurityError</code> (active-attack shapes — CWE-tagged)<a class="heading-anchor" href="#zipsecurityerror-active-attack-shapes--cwe-tagged" aria-label="Link to this section">#</a></h3>
@@ -288,7 +290,7 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </tr>
 <tr>
 <td><code>ZIP_DECOMPRESSION_FAILED</code></td>
-<td>The active codec failed mid-decompression on a corrupt payload.</td>
+<td>A codec registered with <code>registerCodec()</code> or injected with <code>setInflateImpl()</code> failed mid-decompression; since 1.1 the built-in deflate tiers never raise it (they raise <code>ZIP_DEFLATE_CORRUPT</code> / <code>ZIP_DEFLATE_TRUNCATED</code>).</td>
 </tr>
 </tbody></table>
 <h3 id="ziplimiterror-configurable-security-bounds"><code>ZipLimitError</code> (configurable security bounds)<a class="heading-anchor" href="#ziplimiterror-configurable-security-bounds" aria-label="Link to this section">#</a></h3>
@@ -311,8 +313,8 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </tbody></table>
 <h3 id="zipunsupportederror-deliberate-refusals"><code>ZipUnsupportedError</code> (deliberate refusals)<a class="heading-anchor" href="#zipunsupportederror-deliberate-refusals" aria-label="Link to this section">#</a></h3>
 <p>Carries <code>feature</code> from the closed <code>ZipUnsupportedFeature</code> vocabulary:
-<code>&#39;zipcrypto&#39;</code>, <code>&#39;strong-encryption&#39;</code>, <code>&#39;multi-disk&#39;</code>, <code>&#39;zip64-streaming&#39;</code>,
-<code>&#39;cd-less-descriptor&#39;</code>, or <code>`method:${n}`</code>.</p>
+<code>&#39;zipcrypto&#39;</code>, <code>&#39;aes&#39;</code> (1.1), <code>&#39;strong-encryption&#39;</code>, <code>&#39;multi-disk&#39;</code>,
+<code>&#39;zip64-streaming&#39;</code>, <code>&#39;cd-less-descriptor&#39;</code>, or <code>`method:${n}`</code>.</p>
 <table>
 <thead>
 <tr>
@@ -322,7 +324,7 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </thead>
 <tbody><tr>
 <td><code>ZIP_UNSUPPORTED_ENCRYPTION</code></td>
-<td>An entry is encrypted — unsupported in 1.x by policy; check <code>entry.isEncrypted</code> to route around it.</td>
+<td>An entry is encrypted — unsupported in 1.x by policy; <code>feature</code> names the scheme (<code>&#39;zipcrypto&#39;</code>, <code>&#39;aes&#39;</code> for WinZip AES since 1.1, <code>&#39;strong-encryption&#39;</code>); check <code>entry.isEncrypted</code> to route around it.</td>
 </tr>
 <tr>
 <td><code>ZIP_UNSUPPORTED_METHOD</code></td>
@@ -334,7 +336,7 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </tr>
 <tr>
 <td><code>ZIP_UNSUPPORTED_ZIP64_STREAMING</code></td>
-<td>An <code>addStream()</code> entry exceeds 4 GiB — buffer via <code>add()</code> or split.</td>
+<td>An <code>addStream()</code> entry crosses 4 GiB without <code>{ zip64: true }</code> (1.1) — opt in, buffer via <code>add()</code>, or split.</td>
 </tr>
 <tr>
 <td><code>ZIP_UNSUPPORTED_CD_LESS_DESCRIPTOR</code></td>
@@ -342,13 +344,15 @@ with raised limits on trusted input. Use <code>code</code> when the <em>cause</e
 </tr>
 <tr>
 <td><code>ZIP_UNSUPPORTED_CODEC_MODE</code></td>
-<td>A registered codec supports only the other access mode — the message names the compliant call.</td>
+<td>A registered codec supports only the other access mode — the message names the compliant call. In the forward reader (1.1), a codec for a method other than store/deflate without <code>createDecompressor()</code> is refused before the first byte: <code>skip()</code> the entry or use <code>openZip()</code>.</td>
 </tr>
 </tbody></table>
 <h2 id="diagnostics-are-not-errors">Diagnostics are not errors<a class="heading-anchor" href="#diagnostics-are-not-errors" aria-label="Link to this section">#</a></h2>
 <p>Non-fatal conformance concerns (odd-but-tolerated shapes, determinism
 losses) never throw by default — they flow through the diagnostics
-channel with their own closed 11-code vocabulary (<code>ZipDiagnosticCode</code>),
+channel with their own closed 12-code vocabulary (<code>ZipDiagnosticCode</code> —
+<code>ZIP_TIMESTAMP_CLAMPED</code>, added in 1.1 for out-of-range or invalid dates,
+is the newest),
 documented alongside the errors in
 <a href="../data/errors.json"><code>docs/data/errors.json</code></a>. <code>strict: true</code> escalates
 the first diagnostic into a thrown <code>ZipError</code> with code
@@ -391,6 +395,8 @@ flag reproducibility losses.</li>
             <li><a href="errors.html">Errors and error codes</a></li>
             <li><a href="use-cases.html">Use cases</a></li>
             <li><a href="conformance.html">Conformance and validation</a></li>
+            <li><a href="large-and-remote.html">Large and remote archives</a></li>
+            <li><a href="reproducible-builds.html">Reproducible builds</a></li>
           </ul>
         </div>
         <div class="footer-col">

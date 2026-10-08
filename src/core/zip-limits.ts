@@ -11,6 +11,7 @@
  * |------------------------------|-----------|---------|
  * | maxEntries                   | 100 000   | CWE-400 |
  * | maxEntryUncompressedSize     | 1 GiB     | CWE-400 |
+ * | maxEntryCompressedSize       | 1 GiB + 1 MiB (range reader only) | CWE-770 |
  * | maxTotalUncompressedSize     | 8 GiB     | CWE-400 |
  * | maxCompressionRatio          | 1024 (≥1 KiB compressed) | CWE-409 |
  * | maxNameBytes                 | 4 096     | CWE-400 |
@@ -28,6 +29,7 @@ import { ZipLimitError } from '../types/zip-errors.js';
 export const DEFAULT_ZIP_LIMITS: ZipLimits = {
     maxEntries: 100_000,
     maxEntryUncompressedSize: 1024 * 1024 * 1024,          // 1 GiB
+    maxEntryCompressedSize: 1024 * 1024 * 1024 + 1024 * 1024, // 1 GiB + deflate's worst-case expansion
     maxTotalUncompressedSize: 8 * 1024 * 1024 * 1024,      // 8 GiB
     maxCompressionRatio: 1024,
     maxNameBytes: 4096,

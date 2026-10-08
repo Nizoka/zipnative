@@ -66,7 +66,7 @@
     },
     {
       "file": "custom-codec.ts",
-      "task": "Register a custom compression codec and read a foreign-method archive",
+      "task": "Register a custom compression codec (method 97 — 99 is WinZip AES) and read a foreign-method archive",
       "surface": ["registerCodec", "crc32"],
       "since": "0.8.0",
       "expects": ["before-code=ZIP_UNSUPPORTED_METHOD", "after=exotic method payload"]
@@ -84,6 +84,34 @@
       "surface": ["verifyZip"],
       "since": "0.9.0",
       "expects": ["good-ok=true", "bad-ok=false", "not-zip-code=ZIP_EOCD_NOT_FOUND"]
+    },
+    {
+      "file": "remote-range.ts",
+      "task": "Open an archive through an injected byte-range source and read one entry with O(central directory) memory",
+      "surface": ["openZipRange", "readEntry"],
+      "since": "1.1.0",
+      "expects": ["entries=3", "content=hello remote", "reads-bounded=true"]
+    },
+    {
+      "file": "determinism-report.ts",
+      "task": "Measure what breaks reproducibility, canonicalise any archive without recompression, prove idempotence",
+      "surface": ["analyzeDeterminism", "canonicalizeZip"],
+      "since": "1.1.0",
+      "expects": ["before=false", "concerns=order,timestamp", "after=true", "idempotent=true", "order=alpha.txt,zeta.txt"]
+    },
+    {
+      "file": "zip64-stream.ts",
+      "task": "Stream an entry that may exceed 4 GiB with the per-entry Zip64 opt-in (APPNOTE 4.3.9.2 layout)",
+      "surface": ["createZip", "addStream", "stream", "verifyZip"],
+      "since": "1.1.0",
+      "expects": ["lfh-version=45", "descriptor-bytes=24", "zip64-extra=20", "verified=true"]
+    },
+    {
+      "file": "utc-dates.ts",
+      "task": "Write and read DOS timestamps in UTC so a pinned date reproduces on every machine; see out-of-range dates clamp with a diagnostic",
+      "surface": ["createZip", "openZip"],
+      "since": "1.1.0",
+      "expects": ["utc-roundtrip=2026-01-02T03:04:06.000Z", "clamped=1980-01-01T00:00:00.000Z", "diagnostic=ZIP_TIMESTAMP_CLAMPED"]
     }
   ]
 }

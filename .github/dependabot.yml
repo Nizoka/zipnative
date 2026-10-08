@@ -24,6 +24,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "tsup"
         update-types: ["version-update:semver-major"]
+      # The @types/node major follows the .nvmrc line, never Dependabot
+      # (rule node-pin-parity); tsx majors are a toolchain decision.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tsx"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         patterns:

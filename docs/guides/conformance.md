@@ -67,12 +67,14 @@ rows disregard whole APPNOTE sections (manifest files, the encryption
 chapters) and need no byte-level check.
 
 **Every archive zipnative writes conforms to this profile** — validated
-over the full sample corpus (29 conformant archives), enforced by blocking
+over the full sample corpus (33 conformant archives), enforced by blocking
 gates on Linux and Windows CI and re-run before every npm publish.
 
-The expectations are two-sided: the corpus also carries **4 deliberately
-non-conformant archives** (from the [refusals corpus](security.html) and the
-forward-trust sample) that MUST fail with their declared clause — proof the
+The expectations are two-sided: the corpus also carries **5 deliberately
+non-conformant archives** (from the [refusals corpus](security.html), the
+forward-trust sample, and the legacy-code-page names sample — non-ASCII
+names without bit 11 are exactly what clause 4.4.4 forbids and what the
+`nameDecoder` option exists for) that MUST fail with their declared clause — proof the
 gate can reject. A coverage canary pins both counts against
 `docs/assets/ecosystem.json`, so a sample can neither appear nor vanish
 silently.
@@ -117,7 +119,8 @@ interoperate with 7-Zip should ship `saveCompact()` output instead.
 ## Level 2 — the differential extraction matrix
 
 `npm run test:interop` ([scripts/run-interop.ts](https://github.com/Nizoka/zipnative/blob/main/scripts/run-interop.ts))
-is the empirical layer, blocking since v0.2.0: an 11-case archive matrix
+is the empirical layer, blocking since v0.2.0: a 13-case archive matrix
+(the Zip64 streaming opt-in and a raw-transplanted archive joined in 1.1)
 built through the public API is extracted and **byte-compared** by every
 available mainstream extractor (PowerShell `Expand-Archive`, bsdtar,
 Info-ZIP unzip, 7-Zip, Python `zipfile`, `jar`) on Linux and Windows — and
@@ -129,7 +132,7 @@ implementations.
 ## Running it locally
 
 ```bash
-npm run test:generate   # writes the 33-sample corpus to test-output/
+npm run test:generate   # writes the 38-sample corpus to test-output/
 npm run validate:zip    # levels 0 + 1 (ISO profile + foreign integrity)
 npm run test:interop    # level 2 (differential extraction matrix)
 ```

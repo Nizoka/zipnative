@@ -10,9 +10,11 @@
  */
 
 import {
+    type DosTimeMode,
     type ZipDiagnosticEmitter,
     type ZipEntry,
     type ZipLimits,
+    type ZipNameDecoder,
 } from '../types/zip-types.js';
 import { ZipFormatError, ZipUnsupportedError } from '../types/zip-errors.js';
 import {
@@ -20,7 +22,6 @@ import {
     FLAG_DATA_DESCRIPTOR,
     FLAG_ENCRYPTED,
     FLAG_STRONG_ENCRYPTION,
-    FLAG_UTF8,
 } from '../core/zip-constants.js';
 import { enforceLimit } from '../core/zip-limits.js';
 import {
@@ -29,7 +30,7 @@ import {
     unicodePathConflictDiagnostic,
     zip64ExtraIgnoredDiagnostic,
 } from '../core/zip-diagnostics.js';
-import { bytesEqual, decodeCp437, decodeUtf8Strict } from '../core/zip-encoding.js';
+import { bytesEqual, decodeEntryName } from '../core/zip-encoding.js';
 import { dosDateTimeToDate } from '../core/zip-dos-time.js';
 import {
     parseExtraFields,
@@ -40,12 +41,19 @@ import {
 import { parseCentralFileHeader } from '../core/zip-structs.js';
 import { type ArchiveLayout } from './zip-eocd.js';
 
+/** The read-side interpretation options the central-directory parser honours. */
+export interface CdParseOptions {
+    readonly dosTimeMode?: DosTimeMode;
+    readonly nameDecoder?: ZipNameDecoder;
+}
+
 /** Parse all central-directory records into entries. */
 export function parseCentralDirectory(
     bytes: Uint8Array,
     layout: ArchiveLayout,
     limits: ZipLimits,
     emit: ZipDiagnosticEmitter,
+    parseOptions: CdParseOptions = {},
 ): ZipEntry[] {
     const entries: ZipEntry[] = [];
     const cdEnd = layout.cdOffset + layout.cdSize;
@@ -68,7 +76,7 @@ export function parseCentralDirectory(
         enforceLimit(limits, 'maxExtraFieldBytes', cfh.extra.length, 'entry extra-field length');
         enforceLimit(limits, 'maxCommentBytes', cfh.comment.length, 'entry comment length');
 
-        entries.push(makeEntry(cfh, layout.base, emit));
+        entries.push(makeEntry(cfh, layout.base, emit, parseOptions));
         pos += cfh.recordLength;
     }
 
@@ -84,28 +92,15 @@ function makeEntry(
     cfh: ReturnType<typeof parseCentralFileHeader>,
     base: number,
     emit: ZipDiagnosticEmitter,
+    parseOptions: CdParseOptions,
 ): ZipEntry {
+    const dosTimeMode = parseOptions.dosTimeMode ?? 'local';
     // ── Extra fields ─────────────────────────────────────────────────
     const { fields, malformed } = parseExtraFields(cfh.extra);
 
-    // ── Name decoding ────────────────────────────────────────────────
-    const utf8Flagged = (cfh.flags & FLAG_UTF8) !== 0;
-    let name: string;
-    let nameEncoding: 'utf-8' | 'cp437';
-    if (utf8Flagged) {
-        const decoded = decodeUtf8Strict(cfh.name);
-        if (decoded === null) {
-            name = decodeCp437(cfh.name);
-            nameEncoding = 'cp437';
-            emit(invalidUtf8NameDiagnostic(name));
-        } else {
-            name = decoded;
-            nameEncoding = 'utf-8';
-        }
-    } else {
-        name = decodeCp437(cfh.name);
-        nameEncoding = 'cp437';
-    }
+    // ── Name decoding (one policy, shared with the forward reader) ───
+    const { name, nameEncoding, invalidUtf8 } = decodeEntryName(cfh.name, cfh.flags, parseOptions.nameDecoder);
+    if (invalidUtf8) emit(invalidUtf8NameDiagnostic(name));
 
     if (malformed) {
         emit(extraFieldMalformedDiagnostic(name));
@@ -135,7 +130,7 @@ function makeEntry(
 
     // ── Timestamp: UT extra refines the DOS pair ─────────────────────
     const utMtime = resolveUtMtime(fields);
-    const lastModified = utMtime ?? dosDateTimeToDate(cfh.dosDate, cfh.dosTime);
+    const lastModified = utMtime ?? dosDateTimeToDate(cfh.dosDate, cfh.dosTime, dosTimeMode);
 
     const isDirectory = name.endsWith('/')
         || ((cfh.externalAttributes & DOS_ATTR_DIRECTORY) !== 0 && z64.uncompressedSize === 0);
