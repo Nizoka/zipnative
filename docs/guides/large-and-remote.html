@@ -200,9 +200,11 @@ ZIP error code — after the engine has released what it held: a
 <code>ReadableStream</code> lock is released without cancelling the stream (the
 0.9 contract, so the caller can resume or close it), worker pools are
 closed, no read is left in flight. A signal that is already aborted
-rejects before the first byte is requested. Synchronous calls ignore
-<code>signal</code> by construction — there is nothing to interrupt — and the option
-is documented as such rather than silently accepted.</p>
+rejects before the first byte is requested. Synchronous calls cannot be
+interrupted, so they check the signal exactly once, on entry: <code>openZip</code>,
+<code>readEntry</code>, <code>createZipModifier</code> and its <code>save()</code> / <code>saveCompact()</code>,
+<code>canonicalizeZip</code> and <code>analyzeDeterminism</code> throw <code>signal.reason</code> when the
+signal is already aborted and never look at it again.</p>
 <p><code>ZipProgress</code> is monotonic: <code>entriesDone</code> and <code>bytesOut</code> only grow,
 <code>entriesTotal</code> is <code>null</code> on the forward reader (the count is not known
 until the central directory) and exact everywhere else. A skipped entry

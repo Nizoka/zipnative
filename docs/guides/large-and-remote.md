@@ -123,9 +123,11 @@ ZIP error code — after the engine has released what it held: a
 `ReadableStream` lock is released without cancelling the stream (the
 0.9 contract, so the caller can resume or close it), worker pools are
 closed, no read is left in flight. A signal that is already aborted
-rejects before the first byte is requested. Synchronous calls ignore
-`signal` by construction — there is nothing to interrupt — and the option
-is documented as such rather than silently accepted.
+rejects before the first byte is requested. Synchronous calls cannot be
+interrupted, so they check the signal exactly once, on entry: `openZip`,
+`readEntry`, `createZipModifier` and its `save()` / `saveCompact()`,
+`canonicalizeZip` and `analyzeDeterminism` throw `signal.reason` when the
+signal is already aborted and never look at it again.
 
 `ZipProgress` is monotonic: `entriesDone` and `bytesOut` only grow,
 `entriesTotal` is `null` on the forward reader (the count is not known

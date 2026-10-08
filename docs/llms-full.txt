@@ -54,6 +54,8 @@ artefact.
   since 0.9; data-descriptor layout; ≤ 4 GiB unless `{ zip64: true }`,
   1.1), `addRaw(name, payload, meta: RawEntryMeta, opts?)` and
   `addFromReader(reader: RawEntryReader, entry, opts?: AddFromReaderOptions)`
+  (`entry` is a `ZipEntry` of that reader, matched by its local-header
+  offset, or an entry name — an unknown name is `ZIP_ENTRY_NOT_FOUND`)
   (1.1, no recompression), `setComment(string | Uint8Array)`,
   `toBytes()` (sync) and `stream(opts?: StreamOptions)` (async,
   byte-identical to toBytes).
@@ -234,7 +236,7 @@ artefact.
 
 ## Canonical form and determinism report (v1.1)
 
-- `analyzeDeterminism(bytes, { limits?, date?, dosTimeMode? })` →
+- `analyzeDeterminism(bytes, { limits?, date?, dosTimeMode?, nameDecoder?, signal? })` →
   `DeterminismReport { deterministic, epochTimestamps, canonicalOrder,
   utf8Flags, canonicalExtras, canonicalVersionMadeBy, noDataDescriptors,
   entryCount, offenders[] }` — what the satellites re-derived in 1.0.0.
@@ -318,8 +320,11 @@ artefact.
   for streaming, and the pure-TS encoder/decoder (always present; pinned
   by `deterministic: true`). `activeDeflateTier(deterministic?)` →
   `DeflateTier` (`'pure-pinned' | 'injected' | 'node-zlib' | 'pure'`)
-  says which one a call would use. Corrupt input raises `ZIP_DEFLATE_CORRUPT`
-  / `ZIP_DEFLATE_TRUNCATED` on every tier (1.1).
+  says which one a call would use. The choice is memoised at the first
+  query or use for the life of the process: call `initNodeZipCodecs()`
+  before `activeDeflateTier()` or any compression, or the pure tier stays
+  selected and a later init is a no-op. Corrupt input raises
+  `ZIP_DEFLATE_CORRUPT` / `ZIP_DEFLATE_TRUNCATED` on every tier (1.1).
 - `registerCodec(codec: ZipCodec)` adds a compression method; `getCodec(method)`
   → `ZipCodec | null`. `ZipCodec { method, name, compressSync?(data,
   CodecCompressOptions { level, deterministic }), decompressSync?(data,
@@ -2223,9 +2228,11 @@ ZIP error code — after the engine has released what it held: a
 `ReadableStream` lock is released without cancelling the stream (the
 0.9 contract, so the caller can resume or close it), worker pools are
 closed, no read is left in flight. A signal that is already aborted
-rejects before the first byte is requested. Synchronous calls ignore
-`signal` by construction — there is nothing to interrupt — and the option
-is documented as such rather than silently accepted.
+rejects before the first byte is requested. Synchronous calls cannot be
+interrupted, so they check the signal exactly once, on entry: `openZip`,
+`readEntry`, `createZipModifier` and its `save()` / `saveCompact()`,
+`canonicalizeZip` and `analyzeDeterminism` throw `signal.reason` when the
+signal is already aborted and never look at it again.
 
 `ZipProgress` is monotonic: `entriesDone` and `bytesOut` only grow,
 `entriesTotal` is `null` on the forward reader (the count is not known

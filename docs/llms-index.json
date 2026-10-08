@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "Machine-readable documentation index (the entry point).",
-      "bytes": 23169,
-      "approxTokens": 5792
+      "bytes": 23557,
+      "approxTokens": 5889
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "Concatenated documentation: llms.txt + README + every guide.",
-      "bytes": 206648,
-      "approxTokens": 51662
+      "bytes": 207178,
+      "approxTokens": 51795
     },
     {
       "url": "llms-recipes.txt",
@@ -36,8 +36,8 @@
     {
       "url": "data/errors.json",
       "description": "The frozen error-code and diagnostic registry — code, class, cause, remedy.",
-      "bytes": 21363,
-      "approxTokens": 5341
+      "bytes": 21631,
+      "approxTokens": 5408
     },
     {
       "url": "assets/ecosystem.json",
@@ -156,8 +156,8 @@
         "reading-what-you-wrote",
         "see-also"
       ],
-      "bytes": 9140,
-      "approxTokens": 2285
+      "bytes": 9282,
+      "approxTokens": 2321
     },
     {
       "title": "zipnative-mcp — AI client integration",

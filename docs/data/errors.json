@@ -148,7 +148,7 @@
       "class": "ZipSecurityError",
       "since": "0.8.0",
       "cwe": "CWE-405",
-      "raisedWhen": "Two entries share bytes: duplicate local-header offsets, an entry extending into another, or an entry claiming to start inside the central directory.",
+      "raisedWhen": "Two entries share bytes: duplicate local-header offsets, an entry extending into another, or an entry claiming to start inside the central directory. The lazy reader checks the local-header signature first, so for the last shape a lazy readEntry() may report ZIP_SIGNATURE_MISMATCH where validate: 'eager' and verifyZip() report this code.",
       "remedy": "Rebuild the archive with a conformant tool (or saveCompact() from a trusted copy); overlapping-entry archives are a decompression-bomb/smuggling shape and are always rejected — there is no opt-out."
     },
     {
@@ -288,7 +288,7 @@
       "class": "ZipUnsupportedError",
       "since": "0.8.0",
       "feature": "method:<n>",
-      "raisedWhen": "A registered codec supports only the other access mode: stream-only codecs via readEntry(), codecs without a streaming decompressor via readEntryStream(); and, since 1.1.0, the forward reader (iterateZipEntries) refuses — before the first byte — a codec for a method other than store/deflate that does not expose createDecompressor(), as does the byte-range reader (openZipRange): its readEntry() needs decompressSync, its readEntryStream() needs createDecompressor() or decompressSync.",
+      "raisedWhen": "A registered codec supports only the other access mode: stream-only codecs via readEntry(), codecs without a streaming decompressor via readEntryStream(); and, since 1.1.0, the forward reader (iterateZipEntries) refuses — before the first byte — a codec for a method other than store/deflate that does not expose createDecompressor(), as does the byte-range reader (openZipRange): its readEntry() needs decompressSync, its readEntryStream() needs createDecompressor() or decompressStream (a decompressSync-only codec is refused with this code — use readEntry()).",
       "remedy": "The message names the compliant call (readEntryStream() or readEntry()); in the forward reader, skip() the entry or open the complete archive with openZip(); for your own codec, implement createDecompressor()."
     }
   ],
