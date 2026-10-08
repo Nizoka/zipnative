@@ -4,14 +4,37 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: >-
+          Run the gate, pack and verify the tarball, hand it between the jobs,
+          then stop at `npm publish --dry-run`: no upload, no attestation, no
+          release asset. Allowed from a branch (the tag check is waived).
+        type: boolean
+        default: true
 
 # Trusted Publishing (npmjs.com OIDC):
-#   This workflow uses npm Trusted Publishing — no long-lived NPM_TOKEN secret.
-#   The OIDC id-token permission mints a short-lived token that:
+#   No long-lived NPM_TOKEN secret. The OIDC id-token permission mints a
+#   short-lived token that:
 #     1. Authorises the `npm publish` HTTP request
 #     2. Signs the provenance attestation (SLSA Build L2 via Sigstore)
 #   Configure at npmjs.com → package settings → "Configure Trusted Publishing",
 #   bound to this file AND to the `npm-publish` environment below.
+#
+# Job graph: verify → publish → attest.
+#   verify   runs every dev dependency (npm ci, the whole publish gate), packs
+#            ONE tarball, writes the SBOM and records the digests. It holds no
+#            id-token: nothing that runs here can mint a publishing token.
+#   publish  behind the `npm-publish` environment; the only job whose token
+#            can publish. It checks out .nvmrc and nothing else, installs no
+#            dependency, runs no repository script: it re-checks the handed-on
+#            tarball against the verify job's digests and uploads exactly it.
+#   attest   attests the same tarball and SBOM, after checking that the
+#            registry serves those bytes, and attaches both to the release.
+#
+# No job restores a dependency cache: setup-node v6 turns the npm cache on by
+# itself because package.json names npm in `packageManager`, so every
+# setup-node step says `package-manager-cache: false`.
 #
 # Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
 # and approves the `npm-publish` environment; nothing here opens or edits a
@@ -25,27 +48,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # The untrusted half: every dev dependency runs here, and nothing here can
+  # publish. Its only products are the tarball, the SBOM and their digests.
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # A protected environment (required reviewer) gates the OIDC token: the
-    # job cannot mint one before the maintainer approves the run.
-    environment: npm-publish
     permissions:
       contents: read
-      id-token: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+      integrity: ${{ steps.pack.outputs.integrity }}
 
     steps:
       # Audit mode for the first two weeks, then switch to `egress-policy: block`
-      # with the endpoints this job actually reaches:
-      #   allowed-endpoints: >
-      #     api.github.com:443
-      #     registry.npmjs.org:443
-      #     fulcio.sigstore.dev:443
-      #     rekor.sigstore.dev:443
-      #     tuf-repo-cdn.sigstore.dev:443
+      # with the endpoints each job actually reaches:
+      #   verify:  github.com:443 api.github.com:443 registry.npmjs.org:443
+      #   publish: registry.npmjs.org:443 fulcio.sigstore.dev:443
+      #            rekor.sigstore.dev:443 tuf-repo-cdn.sigstore.dev:443
+      #   attest:  api.github.com:443 uploads.github.com:443
+      #            registry.npmjs.org:443 fulcio.sigstore.dev:443
+      #            rekor.sigstore.dev:443 tuf-repo-cdn.sigstore.dev:443
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -55,24 +78,39 @@ jobs:
         with:
           persist-credentials: false
 
+      # The publish gate runs compat:previous (scripts/run-compat.ts), which
+      # needs the previous release tag in the clone — fetched anonymously, as
+      # ci.yml's compat-previous job does.
+      - name: Fetch the previous release tag
+        run: |
+          set -euo pipefail
+          TAG=$(node -e "console.log(JSON.parse(require('fs').readFileSync(require('fs').readdirSync('tests/compat').filter(f => /^allow-/.test(f)).map(f => 'tests/compat/' + f).sort().pop(), 'utf8')).tag)")
+          git fetch --no-tags --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"
+
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           # The release is built on the Node line .nvmrc names — the same one
           # contributors develop on — not on whatever ">= floor" resolves to.
           node-version-file: .nvmrc
-          registry-url: https://registry.npmjs.org
-          cache: npm
+          package-manager-cache: false
 
       # A manual dispatch on a branch must not publish that branch: the ref
       # must be the tag of the version package.json declares, and the tag
       # must match it. (On "release published" the ref is always the tag.)
+      # A dry run publishes nothing, so it may run from a branch.
       - name: Read the version and check it against the tag
         id: version
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
         run: |
           set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "::notice::Dry run from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}: the tag check is waived and nothing is published"
+            exit 0
+          fi
           if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
             echo "::error::Publish runs only from a tag; got ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
             exit 1
@@ -81,12 +119,12 @@ jobs:
             echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
             exit 1
           fi
-          echo "Publishing zipnative ${VERSION} from tag ${GITHUB_REF_NAME}"
+          echo "Verifying zipnative ${VERSION} from tag ${GITHUB_REF_NAME}"
 
       # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
       # npm ≥ 11.5.1. The client is pinned to one exact release so the bytes
-      # that publish are the same on every run — the engine itself is still
-      # built and tested on the .nvmrc line.
+      # that pack and publish are the same on every run — the engine itself
+      # is still built and tested on the .nvmrc line.
       - name: Install the pinned npm client
         run: |
           set -euo pipefail
@@ -113,22 +151,154 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Every gate step — typecheck, lint, build, dist checks, coverage, the
-      # package checks, the docs rules, samples against the baseline chain,
-      # the ISO/IEC 21320-1 validator and the six-tool interop matrix.
-      # --require-all: a missing tool fails the release instead of skipping.
+      # package checks, the docs rules, the previous release's suite, samples
+      # against the baseline chain, the ISO/IEC 21320-1 validator and the
+      # six-tool interop matrix. --require-all: a missing tool fails the
+      # release instead of skipping.
       - name: Run the quality gate (publish profile)
         run: npx tsx scripts/gate.ts --publish --require-all
 
       - name: Show the package contents
         run: npm pack --dry-run
 
-      - name: Publish
-        run: npm publish --provenance --access public
+      # The tarball the gate just checked, packed once; the SBOM from the
+      # lockfile alone. The SHA-256 and the SHA-512 integrity travel to the
+      # next jobs as job outputs — not only inside the artifact they
+      # describe — and are checked again there. .npmrc sets ignore-scripts,
+      # so no lifecycle script runs for `npm pack`; dist/ is the gate's build.
+      - name: Pack the tarball, generate the SBOM and record the digests
+        id: pack
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          OUT="${RUNNER_TEMP}/release"
+          TARBALL="zipnative-${VERSION}.tgz"
+          SBOM="zipnative-${VERSION}.cdx.json"
+          mkdir -p "${OUT}"
+          npm pack --json --pack-destination "${OUT}" > "${OUT}/pack.json"
+          test -f "${OUT}/${TARBALL}"
+          test "$(node -p "require('${OUT}/pack.json')[0].filename")" = "${TARBALL}"
+          npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "${OUT}/${SBOM}"
+          INTEGRITY=$(node -p "require('${OUT}/pack.json')[0].integrity")
+          test "${INTEGRITY}" = "sha512-$(openssl dgst -sha512 -binary "${OUT}/${TARBALL}" | base64 -w0)"
+          (cd "${OUT}" && sha256sum "${TARBALL}" "${SBOM}" > SHA256SUMS && cat SHA256SUMS)
+          SHA256=$(sha256sum "${OUT}/${TARBALL}" | cut -d' ' -f1)
+          {
+            echo "sha256=${SHA256}"
+            echo "integrity=${INTEGRITY}"
+          } >> "$GITHUB_OUTPUT"
+          echo "${TARBALL} ${INTEGRITY}"
 
-  # Attests the tarball and a CycloneDX SBOM built from the same commit, and
-  # attaches both to the GitHub release when the maintainer has created it.
+      # overwrite: a "re-run all jobs" replaces the previous attempt's
+      # artifact; the digests of the attempt that publishes are job outputs
+      # of that same attempt and are re-checked before anything is uploaded.
+      - name: Hand the tarball and the SBOM to the publishing job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+  # The trusted half, and the only job whose id-token can publish: `attest`
+  # holds id-token: write too, for Sigstore, but only this job enters the
+  # environment the Trusted Publishing entry names. A protected environment
+  # (required reviewer) gates the token: the job cannot mint one before the
+  # maintainer approves — and it is only reached once the whole gate passed.
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ needs.verify.outputs.version }}
+      sha256: ${{ needs.verify.outputs.sha256 }}
+      integrity: ${{ needs.verify.outputs.integrity }}
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+      SHA256: ${{ needs.verify.outputs.sha256 }}
+      INTEGRITY: ${{ needs.verify.outputs.integrity }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # One file of the repository: .nvmrc, so the client that uploads runs
+      # on the Node line the package was built and tested on. No source, no
+      # lockfile, no script — nothing a dev dependency could have touched.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: .nvmrc
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install the pinned npm client
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
+
+      - name: Receive the tarball and the SBOM
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+
+      # The bytes about to be uploaded are the bytes the gate checked: the
+      # checksum file inside the artifact, the digests the verify job recorded
+      # as outputs, the integrity npm computed when packing, and the version
+      # inside the tarball — all four must agree.
+      - name: Verify the tarball against the digests the verify job recorded
+        working-directory: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          TARBALL="zipnative-${VERSION}.tgz"
+          sha256sum --check --strict SHA256SUMS
+          echo "${SHA256}  ${TARBALL}" | sha256sum --check --strict
+          test "sha512-$(openssl dgst -sha512 -binary "${TARBALL}" | base64 -w0)" = "${INTEGRITY}"
+          test "$(node -p "require('./pack.json')[0].integrity")" = "${INTEGRITY}"
+          INNER=$(tar -xzOf "${TARBALL}" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          if [ "${INNER}" != "${VERSION}" ]; then
+            echo "::error::The tarball holds version ${INNER}, not ${VERSION}"
+            exit 1
+          fi
+
+      # A tarball, not a directory: no lifecycle script can run, and no file
+      # of the repository is read. npm's provenance names this file's SHA-512.
+      - name: Publish
+        if: ${{ !inputs.dry-run }}
+        working-directory: ${{ runner.temp }}/release
+        run: npm publish "./zipnative-${VERSION}.tgz" --provenance --access public
+
+      - name: Publish (dry run)
+        if: ${{ inputs.dry-run }}
+        working-directory: ${{ runner.temp }}/release
+        run: npm publish "./zipnative-${VERSION}.tgz" --provenance --access public --dry-run
+
+  # Attests the tarball npm published — the same file the publish job
+  # uploaded, checked against the same digests AND against what the registry
+  # now serves — and the SBOM from the same run, then attaches both to the
+  # GitHub release when the maintainer has created it. Kept apart from
+  # `publish`: the release-write and attestation permissions are never held
+  # next to the npm token. Nothing is installed or built here.
   attest:
     needs: publish
+    if: ${{ !inputs.dry-run }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -137,6 +307,8 @@ jobs:
       attestations: write
     env:
       VERSION: ${{ needs.publish.outputs.version }}
+      SHA256: ${{ needs.publish.outputs.sha256 }}
+      INTEGRITY: ${{ needs.publish.outputs.integrity }}
 
     steps:
       - name: Harden the runner
@@ -144,44 +316,53 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Receive the published tarball and the SBOM
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          persist-credentials: false
+          name: release
+          path: ${{ runner.temp }}/release
 
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      # .npmrc sets ignore-scripts, so prepublishOnly does not run for
-      # `npm pack`: build explicitly, as the gate did in the publish job.
-      - name: Build
-        run: npm run build
-
-      - name: Generate the SBOM (CycloneDX, runtime dependencies only)
-        run: npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "zipnative-${VERSION}.cdx.json"
-
-      - name: Pack the tarball
+      - name: Verify the files against the digests the publish job checked
+        working-directory: ${{ runner.temp }}/release
         run: |
           set -euo pipefail
-          npm pack
-          test -f "zipnative-${VERSION}.tgz"
+          sha256sum --check --strict SHA256SUMS
+          echo "${SHA256}  zipnative-${VERSION}.tgz" | sha256sum --check --strict
+
+      # What npm serves is what was attested: the registry's integrity must
+      # equal the one recorded at pack time, and the tarball fetched back from
+      # the registry must be byte-identical. Retried: a version can take a
+      # moment to be served after the upload returns. The runner's npm is
+      # enough for two registry reads.
+      - name: Check that the registry serves these bytes
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          SERVED=""
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            SERVED=$(npm view "zipnative@${VERSION}" dist.integrity 2>/dev/null || true)
+            if [ -n "${SERVED}" ]; then break; fi
+            echo "zipnative@${VERSION} not served yet (attempt ${attempt}); retrying in 15 s"
+            sleep 15
+          done
+          echo "registry dist.integrity: ${SERVED}"
+          test "${SERVED}" = "${INTEGRITY}"
+          mkdir -p registry
+          npm pack "zipnative@${VERSION}" --pack-destination registry >/dev/null
+          cmp "registry/zipnative-${VERSION}.tgz" "release/zipnative-${VERSION}.tgz"
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            zipnative-${{ env.VERSION }}.tgz
-            zipnative-${{ env.VERSION }}.cdx.json
+            ${{ runner.temp }}/release/zipnative-${{ env.VERSION }}.tgz
+            ${{ runner.temp }}/release/zipnative-${{ env.VERSION }}.cdx.json
 
       # The release is created by the maintainer (human-in-the-loop); on a
       # workflow_dispatch without one, the artefacts stay in the attestation
       # store and nothing is created here.
       - name: Attach the tarball and SBOM to the GitHub release
+        working-directory: ${{ runner.temp }}/release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

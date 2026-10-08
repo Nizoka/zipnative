@@ -37,9 +37,18 @@ export default defineConfig({
         // default reporter stays for humans.
         reporters: process.env.GATE === '1'
             ? ['default', ['json', { outputFile: rootUrl('./test-output/.gate/vitest.json') }]]
-            : ['default'],
+            : process.env.GITHUB_ACTIONS === 'true'
+                ? ['dot', 'github-actions']
+                : ['default'],
+        // Interop producers and the fixture-parity suites prepare archives in
+        // beforeAll; the default 10 s hook timeout flakes on a loaded machine.
+        hookTimeout: 30_000,
         coverage: {
             provider: 'v8',
+            // json-summary is what scripts/gate.ts prints and what verify-docs
+            // (derived-counts) holds declared.coverage* to — without it the
+            // published coverage figure is checked by nothing.
+            reporter: ['text-summary', 'json-summary', 'html'],
             include: ['src/**/*.ts'],
             exclude: [
                 // Barrel files: pure re-exports, no executable statements worth counting.
@@ -61,10 +70,10 @@ export default defineConfig({
                 'src/worker/worker-adapter.ts',
             ],
             thresholds: {
-                statements: 85,
-                branches: 78,
+                statements: 88,
+                branches: 80,
                 functions: 85,
-                lines: 85,
+                lines: 90,
             },
         },
     },

@@ -345,7 +345,7 @@ export function checkPrTemplateParity(template: string | null, contributing: str
  * renormalisation commit (`git add --renormalize .`, run by the maintainer
  * after `.gitattributes` gained `eol=lf`).
  */
-export const EOL_LF_MODE: 'warn' | 'fail' = 'warn';
+export const EOL_LF_MODE: 'warn' | 'fail' = 'fail';
 
 export interface EolEntry {
     readonly index: string;

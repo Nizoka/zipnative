@@ -191,67 +191,129 @@ describe('conformance.yml', () => {
 describe('publish.yml', () => {
     const publish = readWorkflow('publish.yml');
     const jobs = jobSteps(publish);
+    const jobBody = (id: string): string => new RegExp(`^  ${id}:\\s*\\n([\\s\\S]*?)(?=^  [a-z-]+:\\s*$|(?![\\s\\S]))`, 'm').exec(publish)?.[1] ?? '';
+    const index = (steps: readonly string[], needle: string | RegExp): number =>
+        steps.findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
 
-    it('mints an OIDC token at job level only and never reads an NPM_TOKEN secret', () => {
+    it('mints an OIDC token at job level only, in the two jobs that need it, and never reads an NPM_TOKEN secret', () => {
         expect(publish).toMatch(/^permissions:\s*\n\s*contents:\s*read\s*$/m);
-        expect(publish).toMatch(/^\s{6}id-token:\s*write/m);
         expect(publish).not.toMatch(/^id-token:/m);
         expect(publish).not.toMatch(/secrets\.NPM_TOKEN/);
+        const holders = ['verify', 'publish', 'attest'].filter((id) => /^\s{6}id-token:\s*write/m.test(jobBody(id)));
+        expect(holders).toEqual(['publish', 'attest']);
+    });
+
+    it('runs nothing from the repository under a publishing token: the gate, npm ci and npx live in verify only', () => {
+        for (const id of ['publish', 'attest']) {
+            const steps = (jobs.get(id) ?? []).join('\n');
+            expect(steps, id).not.toMatch(/scripts\/gate\.ts|npm ci\b|npm run |npx /);
+        }
+        expect((jobs.get('verify') ?? []).join('\n')).toMatch(/npm ci --ignore-scripts/);
+        expect(jobBody('verify')).not.toMatch(/^\s{6}id-token:/m);
+        // The publish job checks out one file — .nvmrc — and nothing a dev dependency could touch.
+        expect((jobs.get('publish') ?? []).join('\n')).toMatch(/sparse-checkout: \.nvmrc\b/);
+        expect((jobs.get('attest') ?? []).join('\n')).not.toMatch(/actions\/checkout@/);
     });
 
     it('publishes from the npm-publish environment, one release at a time', () => {
-        expect(publish).toMatch(/^\s*environment:\s*npm-publish\s*$/m);
+        expect(publish.match(/^\s*environment:\s*npm-publish\s*$/gm)).toHaveLength(1);
+        expect(jobBody('publish')).toMatch(/environment:\s*npm-publish/);
         expect(publish).toMatch(/concurrency:\s*\n\s*group:\s*publish\s*\n\s*cancel-in-progress:\s*false/);
     });
 
-    it('pins the npm client to one exact 11.x release, at least 11.5.1, before publishing', () => {
+    it('pins the npm client to one exact 11.x release, at least 11.5.1, in verify before npm ci and in publish before npm publish', () => {
         const pins = [...publish.matchAll(/npm install -g npm@(\S+)/g)].map((m) => m[1]);
-        expect(pins).toHaveLength(1);
+        expect(pins.length).toBeGreaterThanOrEqual(2);
+        expect(new Set(pins).size).toBe(1);
         expect(pins[0]).toMatch(/^\d+\.\d+\.\d+$/);
         const [major, minor, patch] = pins[0].split('.').map(Number);
         expect(major === 11 && (minor > 5 || (minor === 5 && patch >= 1))).toBe(true);
         expect(publish).toContain(`test "$(npm --version)" = "${pins[0]}"`);
-        expect(publish.indexOf('npm install -g npm@')).toBeLessThan(publish.indexOf('run: npm publish'));
+        const verify = jobs.get('verify') ?? [];
+        expect(index(verify, 'npm install -g npm@')).toBeLessThan(index(verify, 'npm ci --ignore-scripts'));
+        const pub = jobs.get('publish') ?? [];
+        expect(index(pub, 'npm install -g npm@')).toBeLessThan(index(pub, /run: npm publish/));
     });
 
-    it('builds on the .nvmrc Node line and publishes with provenance', () => {
+    it('builds on the .nvmrc Node line and publishes the handed-on tarball with provenance', () => {
         expect(publish).toMatch(/node-version-file:\s*\.nvmrc/);
-        expect(publish).toMatch(/run: npm publish --provenance --access public\s*$/m);
+        expect(publish).not.toMatch(/^\s+node-version:\s*\d/m);
+        expect(publish).toMatch(/run: npm publish "\.\/zipnative-\$\{VERSION\}\.tgz" --provenance --access public\s*$/m);
+        expect(publish).toMatch(/run: npm publish "\.\/zipnative-\$\{VERSION\}\.tgz" --provenance --access public --dry-run\s*$/m);
         expect(publish).toMatch(/run: npm pack --dry-run/);
+        const pub = jobs.get('publish') ?? [];
+        const real = pub.find((s) => /run: npm publish "[^"]+" --provenance --access public\s*$/m.test(s)) ?? '';
+        const dry = pub.find((s) => /--dry-run\s*$/m.test(s)) ?? '';
+        expect(real).toMatch(/if: \$\{\{ !inputs\.dry-run \}\}/);
+        expect(dry).toMatch(/if: \$\{\{ inputs\.dry-run \}\}/);
     });
 
-    it('refuses to publish from anything but the matching tag', () => {
+    it('restores no dependency cache in any release job', () => {
+        const setups = publish.match(/uses: actions\/setup-node@/g) ?? [];
+        const disabled = publish.match(/^\s+package-manager-cache: false\s*$/gm) ?? [];
+        expect(setups.length).toBeGreaterThan(0);
+        expect(disabled).toHaveLength(setups.length);
+        expect(publish).not.toMatch(/cache:\s*npm/);
+    });
+
+    it('refuses to publish from anything but the matching tag, waived only by the dry-run input', () => {
         expect(publish).toMatch(/GITHUB_REF_TYPE}" != "tag"/);
         expect(publish).toMatch(/does not match package\.json version/);
+        expect(publish).toMatch(/DRY_RUN: \$\{\{ inputs\.dry-run \}\}/);
+        expect(publish).toMatch(/dry-run:\s*\n\s*description:/);
+        expect(publish).toMatch(/type: boolean\s*\n\s*default: true/);
     });
 
-    it('runs the publish gate with --require-all, then packs, then publishes, and lists no gate step by hand', () => {
-        const steps = jobs.get('publish') ?? [];
-        const index = (needle: string | RegExp): number => steps.findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
-        const gate = index('run: npx tsx scripts/gate.ts --publish --require-all');
-        const pack = index('run: npm pack --dry-run');
-        const pub = index(/run: npm publish/);
-        expect([gate, pack, pub].every((i) => i >= 0)).toBe(true);
-        expect(gate).toBeLessThan(pack);
-        expect(pack).toBeLessThan(pub);
+    it('verify fetches the previous tag, runs the full publish gate, then packs once and hands the artifact on', () => {
+        const steps = jobs.get('verify') ?? [];
+        const fetch = index(steps, 'git fetch --no-tags --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"');
+        const gate = index(steps, 'run: npx tsx scripts/gate.ts --publish --require-all');
+        const dry = index(steps, 'run: npm pack --dry-run');
+        const pack = index(steps, 'npm pack --json');
+        const upload = index(steps, 'uses: actions/upload-artifact@');
+        expect([fetch, gate, dry, pack, upload].every((i) => i >= 0)).toBe(true);
+        expect(fetch).toBeLessThan(gate);
+        expect(gate).toBeLessThan(dry);
+        expect(dry).toBeLessThan(pack);
+        expect(pack).toBeLessThan(upload);
+        expect(steps[pack]).toMatch(/npm sbom --sbom-format cyclonedx --omit dev --package-lock-only/);
+        expect(steps[pack]).toMatch(/sha256sum/);
+        expect(steps[upload]).toMatch(/name: release/);
+        expect(steps[upload]).toMatch(/if-no-files-found: error/);
+        expect(steps[upload]).toMatch(/retention-days: 7/);
         for (const hand of ['npm run validate:zip', 'npm run test:interop', 'npm run verify:samples', 'npm run test:coverage', 'npm run typecheck:all', 'npm run verify:docs']) {
             expect(publish, hand).not.toContain(`run: ${hand}`);
         }
     });
 
-    it('has an attest job with exactly three permissions that attests the tarball and the SBOM', () => {
-        const attest = /^  attest:\s*\n([\s\S]*?)(?=^  [a-z-]+:\s*$|(?![\s\S]))/m.exec(publish);
-        expect(attest).not.toBeNull();
-        const body = attest![1];
+    it('hands one artifact from verify to publish to attest, digest-checked at each hop', () => {
+        expect(publish.match(/uses: actions\/upload-artifact@/g)).toHaveLength(1);
+        expect(publish.match(/uses: actions\/download-artifact@[0-9a-f]{40}/g)).toHaveLength(2);
+        expect(publish.match(/name: release/g)).toHaveLength(3);
+        const pub = jobs.get('publish') ?? [];
+        expect(index(pub, 'uses: actions/download-artifact@')).toBeLessThan(index(pub, 'sha256sum --check --strict'));
+        expect(index(pub, 'sha256sum --check --strict')).toBeLessThan(index(pub, /run: npm publish/));
+        expect(jobBody('publish')).toMatch(/needs\.verify\.outputs\.sha256/);
+        expect(jobBody('publish')).toMatch(/needs\.verify\.outputs\.integrity/);
+        expect(jobBody('attest')).toMatch(/needs\.publish\.outputs\.sha256/);
+        expect((jobs.get('attest') ?? []).join('\n')).toMatch(/sha256sum --check --strict/);
+    });
+
+    it('has an attest job with exactly three permissions that attests the published tarball and the SBOM', () => {
+        const body = jobBody('attest');
+        expect(body).not.toBe('');
         expect(body).toMatch(/needs:\s*publish/);
+        expect(body).toMatch(/if: \$\{\{ !inputs\.dry-run \}\}/);
         const perms = /permissions:\s*\n((?:\s{6}[a-z-]+:\s*\w+\s*\n)+)/.exec(body);
         expect(perms).not.toBeNull();
         const granted = perms![1].trim().split('\n').map((l) => l.trim()).sort();
         expect(granted).toEqual(['attestations: write', 'contents: write', 'id-token: write']);
-        expect(body).toMatch(/npm sbom --sbom-format cyclonedx --omit dev --package-lock-only/);
+        expect(body).toMatch(/npm view "zipnative@\$\{VERSION\}" dist\.integrity/);
+        expect(body).toMatch(/cmp "registry\/zipnative-\$\{VERSION\}\.tgz" "release\/zipnative-\$\{VERSION\}\.tgz"/);
         expect(body).toMatch(/uses: actions\/attest-build-provenance@[0-9a-f]{40}/);
         expect(body).toMatch(/gh release view "v\$\{VERSION\}"[\s\S]*gh release upload "v\$\{VERSION\}"[^\n]*--clobber/);
         expect(body).not.toMatch(/gh release create/);
+        expect(body).not.toMatch(/npm run build|run: npm pack\s*$/m);
         expect(publish).not.toMatch(/cyclonedx-npm/);
     });
 
